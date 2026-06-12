@@ -23,6 +23,14 @@ migrate:
 migrate-fresh:
 	go run ./cmd/migrate fresh
 
+.PHONY: seed
+seed:
+	go run ./cmd/seed
+
+.PHONY: seed-reset
+seed-reset:
+	go run ./cmd/seed reset
+
 .PHONY: test
 test:
 	go test -race -timeout 60s ./... -count=1

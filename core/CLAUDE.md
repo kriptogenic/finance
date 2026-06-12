@@ -27,3 +27,7 @@ Golang · vue+vite · pgsql via pgx, https://github.com/Rhymond/go-money for mon
   aggregation across currencies, `rate_to_base` freezing, cross-currency transfers,
   loan amortization.
 - Run the full test suite before treating any task as done.
+
+folder structure:
+/core - golang app, api
+/frontend - vue app

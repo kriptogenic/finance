@@ -1,9 +1,18 @@
+SPECS := ../specs
+
+.PHONY: generate gen
+generate gen:
+	go tool oapi-codegen -config generated/api/definitions-cfg.yaml $(SPECS)/definitions.yaml
+	go tool oapi-codegen -config generated/api/cfg.yaml $(SPECS)/api.yaml
+
 .PHONY: build
 build:
+	make generate
 	go build -v -o dist/finance ./cmd/server/
 
 .PHONY: run
 run:
+	make generate
 	go run ./cmd/server/
 
 .PHONY: migrate

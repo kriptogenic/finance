@@ -2,3 +2,6 @@
 /.env
 *.log
 .DS_Store
+
+# Generated from ../specs by `make generate` (oapi-codegen); configs stay tracked
+/generated/api/*.go

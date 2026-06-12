@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -12,7 +13,9 @@ import (
 	"go.uber.org/zap"
 
 	"finance/config"
+	"finance/generated/api"
 	"finance/internal/http/handlers"
+	"finance/internal/http/middlewares"
 	"finance/pkg/database"
 	"finance/pkg/httpserver"
 	"finance/pkg/log"
@@ -24,6 +27,7 @@ func CreateApp() fx.Option {
 		Logger(log.NewLogger),
 		fx.Provide(
 			database.New,
+			swagger,
 			handlers.NewServer,
 			httpHandler,
 		),
@@ -34,7 +38,7 @@ func CreateApp() fx.Option {
 	)
 }
 
-func httpHandler(server *handlers.Server, cfg *config.HTTP) http.Handler {
+func httpHandler(server *handlers.Server, spec *openapi3.T, cfg *config.HTTP) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.Recoverer)
 
@@ -46,9 +50,25 @@ func httpHandler(server *handlers.Server, cfg *config.HTTP) http.Handler {
 		}))
 	}
 
-	r.Get("/health", server.Health)
+	strictServer := api.NewStrictHandler(server, nil)
 
-	return r
+	return api.HandlerWithOptions(strictServer, api.ChiServerOptions{
+		BaseRouter: r,
+		Middlewares: []api.MiddlewareFunc{
+			middlewares.OpenAPIRequestValidator(spec),
+		},
+	})
+}
+
+// swagger returns the embedded OpenAPI spec used by the request validator.
+func swagger() (*openapi3.T, error) {
+	spec, err := api.GetSpec()
+	if err != nil {
+		return nil, err
+	}
+	spec.Servers = nil
+
+	return spec, nil
 }
 
 func Logger(loggerFactory func(cfg *config.Log) *zap.Logger) fx.Option {

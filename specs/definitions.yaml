@@ -1,0 +1,24 @@
+components:
+  schemas:
+    Currency:
+      type: string
+      description: ISO 4217 currency code.
+      pattern: "^[A-Z]{3}$"
+      example: UZS
+    Money:
+      type: integer
+      format: int64
+      description: Amount in integer minor units (e.g. cents). Never floating point.
+      example: 100000
+    AccountKind:
+      type: string
+      enum: [asset, liability]
+    AccountType:
+      type: string
+      enum: [cash, debit_card, deposit, credit_card, loan]
+    CategoryType:
+      type: string
+      enum: [expense, income]
+    TransactionType:
+      type: string
+      enum: [expense, income, transfer]

@@ -5,18 +5,22 @@ import (
 
 	"go.uber.org/zap"
 
+	"finance/config"
 	"finance/generated/api"
 	accountrepository "finance/internal/repositories/account_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
+	transactionrepository "finance/internal/repositories/transaction_repository"
 )
 
 // Server implements the generated strict OpenAPI interface. Feature handlers
 // (accounts, categories, transactions, reports) hang off this type as methods
 // in their own files.
 type Server struct {
-	accounts   accountrepository.Repository
-	categories categoryrepository.Repository
-	logger     *zap.Logger
+	accounts     accountrepository.Repository
+	categories   categoryrepository.Repository
+	transactions transactionrepository.Repository
+	base         string // reporting currency (§3)
+	logger       *zap.Logger
 }
 
 var _ api.StrictServerInterface = (*Server)(nil)
@@ -24,9 +28,17 @@ var _ api.StrictServerInterface = (*Server)(nil)
 func NewServer(
 	accounts accountrepository.Repository,
 	categories categoryrepository.Repository,
+	transactions transactionrepository.Repository,
+	finance *config.Finance,
 	logger *zap.Logger,
 ) *Server {
-	return &Server{accounts: accounts, categories: categories, logger: logger}
+	return &Server{
+		accounts:     accounts,
+		categories:   categories,
+		transactions: transactions,
+		base:         finance.BaseCurrency,
+		logger:       logger,
+	}
 }
 
 func (s Server) Health(_ context.Context, _ api.HealthRequestObject) (api.HealthResponseObject, error) {

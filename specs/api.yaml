@@ -196,6 +196,90 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /transactions:
+    get:
+      operationId: listTransactions
+      summary: List/search transactions
+      parameters:
+        - name: account_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: category_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: type
+          in: query
+          schema:
+            $ref: './definitions.yaml#/components/schemas/TransactionType'
+        - name: date_from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: date_to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: tag
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          description: Free-text match on the note
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100, minimum: 1, maximum: 500 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0, minimum: 0 }
+      responses:
+        200:
+          description: Transactions list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionListResponse'
+    post:
+      operationId: createTransaction
+      summary: Record an expense, income, or transfer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionRequest'
+      responses:
+        201:
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /transactions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/TransactionId'
+    get:
+      operationId: getTransaction
+      summary: Get a transaction
+      responses:
+        200:
+          description: Transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        404:
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteTransaction
+      summary: Delete a transaction
+      responses:
+        204:
+          description: Transaction deleted
+        404:
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
     AccountId:
@@ -206,6 +290,13 @@ components:
         type: string
         format: uuid
     CategoryId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TransactionId:
       name: id
       in: path
       required: true
@@ -475,3 +566,106 @@ components:
           type: string
         archived:
           type: boolean
+
+    TransactionListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - transactions
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+
+    Transaction:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - date
+        - type
+        - amount
+        - tags
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date-time
+        type:
+          $ref: './definitions.yaml#/components/schemas/TransactionType'
+        from_account_id:
+          type: string
+          format: uuid
+          nullable: true
+        to_account_id:
+          type: string
+          format: uuid
+          nullable: true
+        category_id:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        to_amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        rate_to_base:
+          type: string
+          nullable: true
+          description: Frozen FX rate at transaction time; present when currency != base.
+        base_amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        note:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    CreateTransactionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - amount
+      properties:
+        date:
+          type: string
+          format: date-time
+          description: Defaults to now when omitted.
+        type:
+          $ref: './definitions.yaml#/components/schemas/TransactionType'
+        from_account_id:
+          type: string
+          format: uuid
+        to_account_id:
+          type: string
+          format: uuid
+        category_id:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          description: Minor units, in the primary account's currency.
+        to_amount:
+          type: integer
+          format: int64
+          description: Required for cross-currency transfers; in the to account's currency.
+        rate_to_base:
+          type: string
+          description: Required when the primary currency differs from base. Decimal string.
+        note:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string

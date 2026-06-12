@@ -31,3 +31,5 @@ Golang · vue+vite · pgsql via pgx, https://github.com/Rhymond/go-money for mon
 folder structure:
 /core - golang app, api
 /frontend - vue app
+
+For every third part package should be wrapper in pkg with options pattern

@@ -6,6 +6,14 @@ build:
 run:
 	go run ./cmd/server/
 
+.PHONY: migrate
+migrate:
+	go run ./cmd/migrate up
+
+.PHONY: migrate-fresh
+migrate-fresh:
+	go run ./cmd/migrate fresh
+
 .PHONY: test
 test:
 	go test -race -timeout 60s ./... -count=1

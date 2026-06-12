@@ -68,11 +68,7 @@ func Logger(loggerFactory func(cfg *config.Log) *zap.Logger) fx.Option {
 func dbLifecycle(lc fx.Lifecycle, db *database.DB) {
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			if err := db.Connect(ctx); err != nil {
-				return err
-			}
-
-			return db.MigrateUp()
+			return db.Connect(ctx)
 		},
 		OnStop: func(context.Context) error {
 			return db.Close()

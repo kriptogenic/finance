@@ -280,6 +280,56 @@ paths:
         404:
           $ref: '#/components/responses/NotFound'
 
+  /reports/net-worth:
+    get:
+      operationId: getNetWorth
+      summary: Net worth with assets/liabilities and per-currency exposure
+      responses:
+        200:
+          description: Net worth report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetWorthReport'
+
+  /reports/spending:
+    get:
+      operationId: getSpending
+      summary: Spending by top-level category over a period (base currency)
+      parameters:
+        - name: date_from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: date_to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        200:
+          description: Spending report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpendingReport'
+
+  /reports/cash-flow:
+    get:
+      operationId: getCashFlow
+      summary: Income vs expense per month (base currency)
+      parameters:
+        - name: date_from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: date_to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        200:
+          description: Cash-flow report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CashFlowReport'
+
 components:
   parameters:
     AccountId:
@@ -669,3 +719,125 @@ components:
           type: array
           items:
             type: string
+
+    NetWorthReport:
+      type: object
+      additionalProperties: false
+      required:
+        - base
+        - net_worth
+        - assets
+        - liabilities
+        - by_currency
+        - missing_rates
+      properties:
+        base:
+          $ref: './definitions.yaml#/components/schemas/Currency'
+        net_worth:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        assets:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        liabilities:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        by_currency:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurrencyExposure'
+        missing_rates:
+          type: array
+          description: Currencies with no known rate, excluded from the base totals.
+          items:
+            $ref: './definitions.yaml#/components/schemas/Currency'
+
+    CurrencyExposure:
+      type: object
+      additionalProperties: false
+      required:
+        - currency
+        - assets
+        - liabilities
+        - net
+        - rate_known
+      properties:
+        currency:
+          $ref: './definitions.yaml#/components/schemas/Currency'
+        assets:
+          type: integer
+          format: int64
+          description: Minor units, in this currency.
+        liabilities:
+          type: integer
+          format: int64
+        net:
+          type: integer
+          format: int64
+        rate_known:
+          type: boolean
+        net_in_base:
+          $ref: './definitions.yaml#/components/schemas/Money'
+
+    SpendingReport:
+      type: object
+      additionalProperties: false
+      required:
+        - base
+        - total
+        - categories
+      properties:
+        base:
+          $ref: './definitions.yaml#/components/schemas/Currency'
+        total:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategorySpend'
+
+    CategorySpend:
+      type: object
+      additionalProperties: false
+      required:
+        - category_id
+        - category_name
+        - amount
+      properties:
+        category_id:
+          type: string
+          format: uuid
+        category_name:
+          type: string
+        amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+
+    CashFlowReport:
+      type: object
+      additionalProperties: false
+      required:
+        - base
+        - months
+      properties:
+        base:
+          $ref: './definitions.yaml#/components/schemas/Currency'
+        months:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonthFlow'
+
+    MonthFlow:
+      type: object
+      additionalProperties: false
+      required:
+        - month
+        - income
+        - expense
+        - net
+      properties:
+        month:
+          type: string
+          description: YYYY-MM
+        income:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        expense:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        net:
+          $ref: './definitions.yaml#/components/schemas/Money'

@@ -6,10 +6,23 @@ components:
       pattern: "^[A-Z]{3}$"
       example: UZS
     Money:
-      type: integer
-      format: int64
-      description: Amount in integer minor units (e.g. cents). Never floating point.
-      example: 100000
+      type: object
+      description: Monetary value as integer minor units plus an ISO-4217 currency code.
+      x-go-type: money.Money
+      x-go-type-import:
+        name: money
+        path: finance/pkg/money
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: integer
+          format: int64
+          description: Amount in minor units (e.g. cents). Never floating point.
+          example: 100000
+        currency:
+          $ref: '#/components/schemas/Currency'
     AccountKind:
       type: string
       enum: [asset, liability]

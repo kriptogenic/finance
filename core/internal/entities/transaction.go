@@ -1,0 +1,56 @@
+package entities
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+
+	"finance/pkg/fx"
+)
+
+// TransactionType is the kind of money move. Per the bucket model (§2) every
+// transaction moves value between two buckets (accounts and/or categories).
+type TransactionType string
+
+const (
+	TxExpense  TransactionType = "expense"
+	TxIncome   TransactionType = "income"
+	TxTransfer TransactionType = "transfer"
+)
+
+// Transaction moves money between two buckets. Field applicability by type is
+// enforced in the DB (transactions_shape_chk); see REQUIREMENTS §4.
+type Transaction struct {
+	ID            uuid.UUID
+	Date          time.Time
+	Type          TransactionType
+	FromAccountID *uuid.UUID
+	ToAccountID   *uuid.UUID
+	CategoryID    *uuid.UUID
+
+	Amount   int64  // primary leg, in its account's currency (minor units)
+	Currency string // ISO 4217
+
+	// transfers only: the credited leg, in the to_account's currency
+	ToAmount   *int64
+	ToCurrency *string
+
+	// frozen at transaction time; required when Currency != base (§3)
+	RateToBase *fx.Rate
+	BaseAmount *int64 // derived: Amount × RateToBase
+
+	Note      *string
+	Tags      []string
+	CreatedAt time.Time
+}
+
+// CreditAmount is the value credited to the receiving account, in that
+// account's currency. For a cross-currency transfer that is the second leg;
+// otherwise the primary amount.
+func (t Transaction) CreditAmount() int64 {
+	if t.Type == TxTransfer && t.ToAmount != nil {
+		return *t.ToAmount
+	}
+
+	return t.Amount
+}

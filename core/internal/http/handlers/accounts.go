@@ -1,0 +1,246 @@
+package handlers
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/oapi-codegen/nullable"
+	openapi_types "github.com/oapi-codegen/runtime/types"
+	"go.uber.org/zap"
+
+	"finance/generated/api"
+	"finance/internal/entities"
+	accountrepository "finance/internal/repositories/account_repository"
+	"finance/pkg/money"
+)
+
+func (s Server) ListAccounts(ctx context.Context, request api.ListAccountsRequestObject) (api.ListAccountsResponseObject, error) {
+	includeArchived := request.Params.IncludeArchived != nil && *request.Params.IncludeArchived
+
+	accounts, err := s.accounts.List(ctx, includeArchived)
+	if err != nil {
+		return nil, err
+	}
+
+	balances, err := s.accounts.Balances(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]api.Account, len(accounts))
+	for i, acc := range accounts {
+		out[i] = toAccount(acc, balances[acc.ID])
+	}
+
+	return api.ListAccounts200JSONResponse{Accounts: out}, nil
+}
+
+func (s Server) CreateAccount(ctx context.Context, request api.CreateAccountRequestObject) (api.CreateAccountResponseObject, error) {
+	if request.Body == nil {
+		return api.CreateAccount400JSONResponse{BadRequestJSONResponse: badRequest("empty body")}, nil
+	}
+	body := request.Body
+
+	acc := entities.Account{
+		Name:           body.Name,
+		Kind:           entities.AccountKind(body.Kind),
+		Type:           entities.AccountType(body.Type),
+		Currency:       body.Currency,
+		InterestRate:   floatPtr(body.InterestRate),
+		TermMonths:     body.TermMonths,
+		MaturityDate:   datePtr(body.MaturityDate),
+		Capitalization: body.Capitalization,
+		CreditLimit:    body.CreditLimit,
+		Principal:      body.Principal,
+		StartDate:      datePtr(body.StartDate),
+		PaymentDay:     body.PaymentDay,
+	}
+	if body.OpeningBalance != nil {
+		acc.OpeningBalance = *body.OpeningBalance
+	}
+
+	if !acc.ValidKindType() {
+		return api.CreateAccount400JSONResponse{BadRequestJSONResponse: badRequest("kind does not match type")}, nil
+	}
+
+	if err := s.accounts.Create(ctx, &acc); err != nil {
+		s.logger.Error("create account", zap.Error(err))
+
+		return nil, err
+	}
+
+	// a fresh account has no transactions, so its balance is the opening balance
+	return api.CreateAccount201JSONResponse(toAccount(acc, ledgerOpening(acc))), nil
+}
+
+func (s Server) GetAccount(ctx context.Context, request api.GetAccountRequestObject) (api.GetAccountResponseObject, error) {
+	acc, err := s.accounts.Get(ctx, request.Id)
+	if errors.Is(err, accountrepository.ErrNotFound) {
+		return api.GetAccount404JSONResponse{NotFoundJSONResponse: notFound("account not found")}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	balance, err := s.accountBalance(ctx, acc.ID, *acc)
+	if err != nil {
+		return nil, err
+	}
+
+	return api.GetAccount200JSONResponse(toAccount(*acc, balance)), nil
+}
+
+func (s Server) UpdateAccount(ctx context.Context, request api.UpdateAccountRequestObject) (api.UpdateAccountResponseObject, error) {
+	acc, err := s.accounts.Get(ctx, request.Id)
+	if errors.Is(err, accountrepository.ErrNotFound) {
+		return api.UpdateAccount404JSONResponse{NotFoundJSONResponse: notFound("account not found")}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	body := request.Body
+	if body == nil {
+		return api.UpdateAccount400JSONResponse{BadRequestJSONResponse: badRequest("empty body")}, nil
+	}
+
+	if body.Name != nil {
+		if *body.Name == "" {
+			return api.UpdateAccount400JSONResponse{BadRequestJSONResponse: badRequest("name must not be empty")}, nil
+		}
+		acc.Name = *body.Name
+	}
+	if body.Archived != nil {
+		acc.Archived = *body.Archived
+	}
+	if body.InterestRate != nil {
+		acc.InterestRate = floatPtr(body.InterestRate)
+	}
+	if body.TermMonths != nil {
+		acc.TermMonths = body.TermMonths
+	}
+	if body.MaturityDate != nil {
+		acc.MaturityDate = datePtr(body.MaturityDate)
+	}
+	if body.Capitalization != nil {
+		acc.Capitalization = body.Capitalization
+	}
+	if body.CreditLimit != nil {
+		acc.CreditLimit = body.CreditLimit
+	}
+	if body.Principal != nil {
+		acc.Principal = body.Principal
+	}
+	if body.StartDate != nil {
+		acc.StartDate = datePtr(body.StartDate)
+	}
+	if body.PaymentDay != nil {
+		acc.PaymentDay = body.PaymentDay
+	}
+
+	if err = s.accounts.Update(ctx, acc); err != nil {
+		s.logger.Error("update account", zap.Error(err))
+
+		return nil, err
+	}
+
+	balance, err := s.accountBalance(ctx, acc.ID, *acc)
+	if err != nil {
+		return nil, err
+	}
+
+	return api.UpdateAccount200JSONResponse(toAccount(*acc, balance)), nil
+}
+
+func (s Server) DeleteAccount(ctx context.Context, request api.DeleteAccountRequestObject) (api.DeleteAccountResponseObject, error) {
+	err := s.accounts.Delete(ctx, request.Id)
+	switch {
+	case errors.Is(err, accountrepository.ErrNotFound):
+		return api.DeleteAccount404JSONResponse{NotFoundJSONResponse: notFound("account not found")}, nil
+	case errors.Is(err, accountrepository.ErrInUse):
+		return api.DeleteAccount409JSONResponse{Error: "account has transactions; archive it instead"}, nil
+	case err != nil:
+		return nil, err
+	}
+
+	return api.DeleteAccount204Response{}, nil
+}
+
+// accountBalance fetches the single account's derived balance.
+func (s Server) accountBalance(ctx context.Context, id uuid.UUID, acc entities.Account) (int64, error) {
+	balances, err := s.accounts.Balances(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	if b, ok := balances[id]; ok {
+		return b, nil
+	}
+
+	return ledgerOpening(acc), nil
+}
+
+func ledgerOpening(acc entities.Account) int64 {
+	// no transactions → balance equals opening balance for both kinds
+	return acc.OpeningBalance
+}
+
+func toAccount(acc entities.Account, balance int64) api.Account {
+	a := api.Account{
+		Id:             acc.ID,
+		Name:           acc.Name,
+		Kind:           api.AccountKind(acc.Kind),
+		Type:           api.AccountType(acc.Type),
+		Currency:       acc.Currency,
+		OpeningBalance: acc.OpeningBalance,
+		Balance:        money.New(balance, acc.Currency),
+		Archived:       acc.Archived,
+		CreatedAt:      acc.CreatedAt,
+	}
+
+	if acc.InterestRate != nil {
+		a.InterestRate = nullable.NewNullableWithValue(float32(*acc.InterestRate))
+	}
+	if acc.TermMonths != nil {
+		a.TermMonths = nullable.NewNullableWithValue(*acc.TermMonths)
+	}
+	if acc.MaturityDate != nil {
+		a.MaturityDate = nullable.NewNullableWithValue(openapi_types.Date{Time: *acc.MaturityDate})
+	}
+	if acc.Capitalization != nil {
+		a.Capitalization = nullable.NewNullableWithValue(*acc.Capitalization)
+	}
+	if acc.CreditLimit != nil {
+		a.CreditLimit = nullable.NewNullableWithValue(*acc.CreditLimit)
+	}
+	if acc.Principal != nil {
+		a.Principal = nullable.NewNullableWithValue(*acc.Principal)
+	}
+	if acc.StartDate != nil {
+		a.StartDate = nullable.NewNullableWithValue(openapi_types.Date{Time: *acc.StartDate})
+	}
+	if acc.PaymentDay != nil {
+		a.PaymentDay = nullable.NewNullableWithValue(*acc.PaymentDay)
+	}
+
+	return a
+}
+
+func floatPtr(v *float32) *float64 {
+	if v == nil {
+		return nil
+	}
+	f := float64(*v)
+
+	return &f
+}
+
+func datePtr(d *openapi_types.Date) *time.Time {
+	if d == nil {
+		return nil
+	}
+
+	return &d.Time
+}

@@ -16,6 +16,7 @@ import (
 	"finance/generated/api"
 	"finance/internal/http/handlers"
 	"finance/internal/http/middlewares"
+	accountrepository "finance/internal/repositories/account_repository"
 	"finance/pkg/database"
 	"finance/pkg/httpserver"
 	"finance/pkg/log"
@@ -28,6 +29,7 @@ func CreateApp() fx.Option {
 		fx.Provide(
 			database.New,
 			swagger,
+			accountrepository.NewRepository,
 			handlers.NewServer,
 			httpHandler,
 		),

@@ -55,3 +55,17 @@ type Account struct {
 
 func (a Account) IsAsset() bool     { return a.Kind == KindAsset }
 func (a Account) IsLiability() bool { return a.Kind == KindLiability }
+
+// ValidKindType reports whether the kind matches the type per the asset/
+// liability split (§2). The DB enforces this too (accounts_kind_type_chk); we
+// check it up front to return 400 rather than a 500 from a constraint error.
+func (a Account) ValidKindType() bool {
+	switch a.Type {
+	case TypeCash, TypeDebitCard, TypeDeposit:
+		return a.Kind == KindAsset
+	case TypeCreditCard, TypeLoan:
+		return a.Kind == KindLiability
+	default:
+		return false
+	}
+}

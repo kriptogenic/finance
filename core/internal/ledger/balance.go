@@ -34,11 +34,18 @@ func DeriveBalance(acc entities.Account, txns []entities.Transaction) int64 {
 		}
 	}
 
-	if acc.IsLiability() {
-		return acc.OpeningBalance - inflow + outflow
+	return Balance(acc.Kind, acc.OpeningBalance, inflow, outflow)
+}
+
+// Balance applies the derivation formula to pre-aggregated inflow/outflow totals
+// (e.g. computed in SQL). It is the single source of truth for the asset vs
+// liability sign convention used by DeriveBalance.
+func Balance(kind entities.AccountKind, opening, inflow, outflow int64) int64 {
+	if kind == entities.KindLiability {
+		return opening - inflow + outflow
 	}
 
-	return acc.OpeningBalance + inflow - outflow
+	return opening + inflow - outflow
 }
 
 // FreezeBase computes the base_amount to persist on a transaction, freezing the

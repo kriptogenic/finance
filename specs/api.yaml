@@ -16,7 +16,118 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+
+  /accounts:
+    get:
+      operationId: listAccounts
+      summary: List accounts with derived balances
+      parameters:
+        - name: include_archived
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        200:
+          description: Accounts list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountListResponse'
+    post:
+      operationId: createAccount
+      summary: Create an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
+      responses:
+        201:
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /accounts/{id}:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: getAccount
+      summary: Get an account with its derived balance
+      responses:
+        200:
+          description: Account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        404:
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateAccount
+      summary: Update mutable account fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccountRequest'
+      responses:
+        200:
+          description: Account updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteAccount
+      summary: Delete an account; only allowed when it has no transactions
+      responses:
+        204:
+          description: Account deleted
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          description: Account is in use; archive it instead
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
+  parameters:
+    AccountId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
   schemas:
     HealthResponse:
       type: object
@@ -27,6 +138,7 @@ components:
         status:
           type: string
           example: ok
+
     ErrorResponse:
       type: object
       additionalProperties: false
@@ -36,3 +148,153 @@ components:
         error:
           type: string
           example: bad request
+
+    AccountListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - accounts
+      properties:
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Account'
+
+    Account:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - kind
+        - type
+        - currency
+        - opening_balance
+        - balance
+        - archived
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kind:
+          $ref: './definitions.yaml#/components/schemas/AccountKind'
+        type:
+          $ref: './definitions.yaml#/components/schemas/AccountType'
+        currency:
+          $ref: './definitions.yaml#/components/schemas/Currency'
+        opening_balance:
+          type: integer
+          format: int64
+          description: Minor units, in the account's own currency.
+        balance:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        archived:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        # subtype fields, present only for the relevant type
+        interest_rate:
+          type: number
+          nullable: true
+        term_months:
+          type: integer
+          nullable: true
+        maturity_date:
+          type: string
+          format: date
+          nullable: true
+        capitalization:
+          type: boolean
+          nullable: true
+        credit_limit:
+          type: integer
+          format: int64
+          nullable: true
+        principal:
+          type: integer
+          format: int64
+          nullable: true
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        payment_day:
+          type: integer
+          nullable: true
+
+    CreateAccountRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - kind
+        - type
+        - currency
+      properties:
+        name:
+          type: string
+          minLength: 1
+        kind:
+          $ref: './definitions.yaml#/components/schemas/AccountKind'
+        type:
+          $ref: './definitions.yaml#/components/schemas/AccountType'
+        currency:
+          $ref: './definitions.yaml#/components/schemas/Currency'
+        opening_balance:
+          type: integer
+          format: int64
+          default: 0
+        interest_rate:
+          type: number
+        term_months:
+          type: integer
+        maturity_date:
+          type: string
+          format: date
+        capitalization:
+          type: boolean
+        credit_limit:
+          type: integer
+          format: int64
+        principal:
+          type: integer
+          format: int64
+        start_date:
+          type: string
+          format: date
+        payment_day:
+          type: integer
+
+    UpdateAccountRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+        archived:
+          type: boolean
+        interest_rate:
+          type: number
+        term_months:
+          type: integer
+        maturity_date:
+          type: string
+          format: date
+        capitalization:
+          type: boolean
+        credit_limit:
+          type: integer
+          format: int64
+        principal:
+          type: integer
+          format: int64
+        start_date:
+          type: string
+          format: date
+        payment_day:
+          type: integer

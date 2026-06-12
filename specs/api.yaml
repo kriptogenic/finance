@@ -104,9 +104,108 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /categories:
+    get:
+      operationId: listCategories
+      summary: List categories (expense and income trees)
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: './definitions.yaml#/components/schemas/CategoryType'
+        - name: include_archived
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        200:
+          description: Categories list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+    post:
+      operationId: createCategory
+      summary: Create a category or subcategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+      responses:
+        201:
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CategoryId'
+    get:
+      operationId: getCategory
+      summary: Get a category
+      responses:
+        200:
+          description: Category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        404:
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateCategory
+      summary: Update mutable category fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCategoryRequest'
+      responses:
+        200:
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteCategory
+      summary: Delete a category; only allowed when it has no subcategories or transactions
+      responses:
+        204:
+          description: Category deleted
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          description: Category is in use; archive it instead
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   parameters:
     AccountId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CategoryId:
       name: id
       in: path
       required: true
@@ -298,3 +397,81 @@ components:
           format: date
         payment_day:
           type: integer
+
+    CategoryListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - categories
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+
+    Category:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - type
+        - archived
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        type:
+          $ref: './definitions.yaml#/components/schemas/CategoryType'
+        icon:
+          type: string
+          nullable: true
+        color:
+          type: string
+          nullable: true
+        archived:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    CreateCategoryRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          minLength: 1
+        type:
+          $ref: './definitions.yaml#/components/schemas/CategoryType'
+        parent_id:
+          type: string
+          format: uuid
+        icon:
+          type: string
+        color:
+          type: string
+
+    UpdateCategoryRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+        icon:
+          type: string
+        color:
+          type: string
+        archived:
+          type: boolean

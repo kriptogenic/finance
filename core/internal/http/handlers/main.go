@@ -7,20 +7,26 @@ import (
 
 	"finance/generated/api"
 	accountrepository "finance/internal/repositories/account_repository"
+	categoryrepository "finance/internal/repositories/category_repository"
 )
 
 // Server implements the generated strict OpenAPI interface. Feature handlers
 // (accounts, categories, transactions, reports) hang off this type as methods
 // in their own files.
 type Server struct {
-	accounts accountrepository.Repository
-	logger   *zap.Logger
+	accounts   accountrepository.Repository
+	categories categoryrepository.Repository
+	logger     *zap.Logger
 }
 
 var _ api.StrictServerInterface = (*Server)(nil)
 
-func NewServer(accounts accountrepository.Repository, logger *zap.Logger) *Server {
-	return &Server{accounts: accounts, logger: logger}
+func NewServer(
+	accounts accountrepository.Repository,
+	categories categoryrepository.Repository,
+	logger *zap.Logger,
+) *Server {
+	return &Server{accounts: accounts, categories: categories, logger: logger}
 }
 
 func (s Server) Health(_ context.Context, _ api.HealthRequestObject) (api.HealthResponseObject, error) {

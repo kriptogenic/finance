@@ -23,52 +23,96 @@ func (s Server) CreateTransaction(ctx context.Context, request api.CreateTransac
 	if request.Body == nil {
 		return api.CreateTransaction400JSONResponse{BadRequestJSONResponse: badRequest("empty body")}, nil
 	}
-	body := request.Body
 
-	in := ledgerInput(body)
-
-	// resolve referenced buckets; a missing reference is a client error
-	if body.FromAccountId != nil {
-		acc, resp := s.loadAccount(ctx, *body.FromAccountId)
-		if resp != nil {
-			return resp, nil
-		}
-		in.From = acc
-	}
-	if body.ToAccountId != nil {
-		acc, resp := s.loadAccount(ctx, *body.ToAccountId)
-		if resp != nil {
-			return resp, nil
-		}
-		in.To = acc
-	}
-	if body.CategoryId != nil {
-		c, resp := s.loadCategory(ctx, *body.CategoryId)
-		if resp != nil {
-			return resp, nil
-		}
-		in.Category = c
-	}
-	if body.RateToBase != nil {
-		rate, err := fx.ParseRate(*body.RateToBase)
-		if err != nil {
-			return api.CreateTransaction400JSONResponse{BadRequestJSONResponse: badRequest("invalid rate_to_base")}, nil
-		}
-		in.RateToBase = &rate
+	tx, msg := s.buildTransaction(ctx, request.Body)
+	if msg != "" {
+		return api.CreateTransaction400JSONResponse{BadRequestJSONResponse: badRequest(msg)}, nil
 	}
 
-	tx, err := ledger.BuildTransaction(in, s.base)
-	if err != nil {
-		return api.CreateTransaction400JSONResponse{BadRequestJSONResponse: badRequest(err.Error())}, nil
-	}
-
-	if err = s.transactions.Create(ctx, &tx); err != nil {
+	if err := s.transactions.Create(ctx, &tx); err != nil {
 		s.logger.Error("create transaction", zap.Error(err))
 
 		return nil, err
 	}
 
 	return api.CreateTransaction201JSONResponse(s.toTransaction(tx)), nil
+}
+
+func (s Server) UpdateTransaction(ctx context.Context, request api.UpdateTransactionRequestObject) (api.UpdateTransactionResponseObject, error) {
+	existing, err := s.transactions.Get(ctx, request.Id)
+	if errors.Is(err, transactionrepository.ErrNotFound) {
+		return api.UpdateTransaction404JSONResponse{NotFoundJSONResponse: notFound("transaction not found")}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if request.Body == nil {
+		return api.UpdateTransaction400JSONResponse{BadRequestJSONResponse: badRequest("empty body")}, nil
+	}
+
+	// full replace: rebuild through the engine so the edit re-validates and
+	// re-freezes the rate, then keep the original id/created_at.
+	tx, msg := s.buildTransaction(ctx, request.Body)
+	if msg != "" {
+		return api.UpdateTransaction400JSONResponse{BadRequestJSONResponse: badRequest(msg)}, nil
+	}
+	tx.ID = existing.ID
+	tx.CreatedAt = existing.CreatedAt
+
+	if err = s.transactions.Update(ctx, &tx); err != nil {
+		if errors.Is(err, transactionrepository.ErrNotFound) {
+			return api.UpdateTransaction404JSONResponse{NotFoundJSONResponse: notFound("transaction not found")}, nil
+		}
+		s.logger.Error("update transaction", zap.Error(err))
+
+		return nil, err
+	}
+
+	return api.UpdateTransaction200JSONResponse(s.toTransaction(tx)), nil
+}
+
+// buildTransaction resolves the referenced buckets and runs the engine. It
+// returns a non-empty message describing the first client error, or an empty
+// string on success.
+func (s Server) buildTransaction(ctx context.Context, body *api.CreateTransactionRequest) (entities.Transaction, string) {
+	in := ledgerInput(body)
+
+	if body.FromAccountId != nil {
+		acc, msg := s.getAccount(ctx, *body.FromAccountId)
+		if msg != "" {
+			return entities.Transaction{}, msg
+		}
+		in.From = acc
+	}
+	if body.ToAccountId != nil {
+		acc, msg := s.getAccount(ctx, *body.ToAccountId)
+		if msg != "" {
+			return entities.Transaction{}, msg
+		}
+		in.To = acc
+	}
+	if body.CategoryId != nil {
+		c, msg := s.getCategory(ctx, *body.CategoryId)
+		if msg != "" {
+			return entities.Transaction{}, msg
+		}
+		in.Category = c
+	}
+	if body.RateToBase != nil {
+		rate, err := fx.ParseRate(*body.RateToBase)
+		if err != nil {
+			return entities.Transaction{}, "invalid rate_to_base"
+		}
+		in.RateToBase = &rate
+	}
+
+	tx, err := ledger.BuildTransaction(in, s.base)
+	if err != nil {
+		return entities.Transaction{}, err.Error()
+	}
+
+	return tx, ""
 }
 
 func (s Server) ListTransactions(ctx context.Context, request api.ListTransactionsRequestObject) (api.ListTransactionsResponseObject, error) {
@@ -150,32 +194,32 @@ func ledgerInput(body *api.CreateTransactionJSONRequestBody) ledger.NewTransacti
 	}
 }
 
-func (s Server) loadAccount(ctx context.Context, id uuid.UUID) (*entities.Account, api.CreateTransactionResponseObject) {
+func (s Server) getAccount(ctx context.Context, id uuid.UUID) (*entities.Account, string) {
 	acc, err := s.accounts.Get(ctx, id)
 	if errors.Is(err, accountrepository.ErrNotFound) {
-		return nil, api.CreateTransaction400JSONResponse{BadRequestJSONResponse: badRequest("account not found: " + id.String())}
+		return nil, "account not found: " + id.String()
 	}
 	if err != nil {
 		s.logger.Error("load account", zap.Error(err))
 
-		return nil, api.CreateTransaction400JSONResponse{BadRequestJSONResponse: badRequest("invalid account")}
+		return nil, "invalid account"
 	}
 
-	return acc, nil
+	return acc, ""
 }
 
-func (s Server) loadCategory(ctx context.Context, id uuid.UUID) (*entities.Category, api.CreateTransactionResponseObject) {
+func (s Server) getCategory(ctx context.Context, id uuid.UUID) (*entities.Category, string) {
 	c, err := s.categories.Get(ctx, id)
 	if errors.Is(err, categoryrepository.ErrNotFound) {
-		return nil, api.CreateTransaction400JSONResponse{BadRequestJSONResponse: badRequest("category not found: " + id.String())}
+		return nil, "category not found: " + id.String()
 	}
 	if err != nil {
 		s.logger.Error("load category", zap.Error(err))
 
-		return nil, api.CreateTransaction400JSONResponse{BadRequestJSONResponse: badRequest("invalid category")}
+		return nil, "invalid category"
 	}
 
-	return c, nil
+	return c, ""
 }
 
 func (s Server) toTransaction(tx entities.Transaction) api.Transaction {

@@ -271,6 +271,26 @@ paths:
                 $ref: '#/components/schemas/Transaction'
         404:
           $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateTransaction
+      summary: Replace a transaction (full edit; re-validates and re-freezes the rate)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionRequest'
+      responses:
+        200:
+          description: Transaction updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
     delete:
       operationId: deleteTransaction
       summary: Delete a transaction

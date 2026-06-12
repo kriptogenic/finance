@@ -33,6 +33,9 @@ type Repository interface {
 	Create(ctx context.Context, tx *entities.Transaction) error
 	List(ctx context.Context, filter Filter) ([]entities.Transaction, error)
 	Get(ctx context.Context, id uuid.UUID) (*entities.Transaction, error)
+	// Update replaces every mutable column of tx.ID (a full edit); id and
+	// created_at are preserved.
+	Update(ctx context.Context, tx *entities.Transaction) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
@@ -170,6 +173,35 @@ func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Transactio
 	}
 
 	return &t, nil
+}
+
+func (r repository) Update(ctx context.Context, tx *entities.Transaction) error {
+	var rateText *string
+	if tx.RateToBase != nil {
+		s := tx.RateToBase.String()
+		rateText = &s
+	}
+
+	const query = `
+		UPDATE transactions SET
+			date = $2, type = $3, from_account_id = $4, to_account_id = $5, category_id = $6,
+			amount = $7, currency = $8, to_amount = $9, to_currency = $10,
+			rate_to_base = $11::numeric, base_amount = $12, note = $13, tags = $14
+		WHERE id = $1`
+
+	res, err := r.db.Pool.Exec(ctx, query,
+		tx.ID, tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID,
+		tx.Amount, tx.Currency, tx.ToAmount, tx.ToCurrency, rateText, tx.BaseAmount,
+		tx.Note, tx.Tags,
+	)
+	if err != nil {
+		return fmt.Errorf("update transaction: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
 
 func (r repository) Delete(ctx context.Context, id uuid.UUID) error {

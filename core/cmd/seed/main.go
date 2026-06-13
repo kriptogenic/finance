@@ -23,6 +23,7 @@ import (
 	"finance/internal/entities"
 	"finance/internal/ledger"
 	accountrepository "finance/internal/repositories/account_repository"
+	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
 	"finance/pkg/database"
@@ -63,6 +64,7 @@ func main() {
 		accounts:   accountrepository.NewRepository(db),
 		categories: categoryrepository.NewRepository(db),
 		txns:       transactionrepository.NewRepository(db),
+		budgets:    budgetrepository.NewRepository(db),
 		logger:     logger,
 	}
 
@@ -76,6 +78,7 @@ type seeder struct {
 	accounts   accountrepository.Repository
 	categories categoryrepository.Repository
 	txns       transactionrepository.Repository
+	budgets    budgetrepository.Repository
 	logger     *zap.Logger
 }
 
@@ -111,8 +114,27 @@ func (s *seeder) run(ctx context.Context, db *database.DB, reset bool) error {
 		return err
 	}
 
+	if err = s.seedBudgets(ctx, cats); err != nil {
+		return err
+	}
+
 	s.logger.Info("seed complete",
 		zap.Int("accounts", len(accounts)), zap.Int("categories", len(cats)))
+
+	return nil
+}
+
+func (s *seeder) seedBudgets(ctx context.Context, cat map[string]entities.Category) error {
+	defs := []entities.Budget{
+		{CategoryID: cat["Food"].ID, Period: entities.BudgetMonthly, Amount: 200_000_00},
+		{CategoryID: cat["Rent"].ID, Period: entities.BudgetMonthly, Amount: 2_000_000_00},
+	}
+	for i := range defs {
+		b := defs[i]
+		if err := s.budgets.Create(ctx, &b); err != nil {
+			return fmt.Errorf("seed budget: %w", err)
+		}
+	}
 
 	return nil
 }

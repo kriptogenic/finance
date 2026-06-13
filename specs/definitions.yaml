@@ -35,3 +35,6 @@ components:
     TransactionType:
       type: string
       enum: [expense, income, transfer]
+    BudgetPeriod:
+      type: string
+      enum: [weekly, monthly, yearly]

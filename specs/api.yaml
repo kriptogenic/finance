@@ -368,8 +368,77 @@ paths:
               schema:
                 $ref: '#/components/schemas/CashFlowReport'
 
+  /budgets:
+    get:
+      operationId: listBudgets
+      summary: List budgets with current-period progress
+      responses:
+        200:
+          description: Budgets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetListResponse'
+    post:
+      operationId: createBudget
+      summary: Create a budget for an expense category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBudgetRequest'
+      responses:
+        201:
+          description: Budget created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /budgets/{id}:
+    parameters:
+      - $ref: '#/components/parameters/BudgetId'
+    patch:
+      operationId: updateBudget
+      summary: Update a budget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBudgetRequest'
+      responses:
+        200:
+          description: Budget updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteBudget
+      summary: Delete a budget
+      responses:
+        204:
+          description: Budget deleted
+        404:
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
+    BudgetId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     AccountId:
       name: id
       in: path
@@ -927,3 +996,99 @@ components:
           $ref: './definitions.yaml#/components/schemas/Money'
         balance:
           $ref: './definitions.yaml#/components/schemas/Money'
+
+    BudgetListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - budgets
+      properties:
+        budgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Budget'
+
+    Budget:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - category_id
+        - category_name
+        - period
+        - amount
+        - spent
+        - remaining
+        - percent
+        - rollover
+        - period_start
+        - period_end
+      properties:
+        id:
+          type: string
+          format: uuid
+        category_id:
+          type: string
+          format: uuid
+        category_name:
+          type: string
+        period:
+          $ref: './definitions.yaml#/components/schemas/BudgetPeriod'
+        amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        spent:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        remaining:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        percent:
+          type: number
+          description: spent / amount × 100 (may exceed 100 when overspent)
+        rollover:
+          type: boolean
+        start_period:
+          type: string
+          format: date
+          nullable: true
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+
+    CreateBudgetRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - category_id
+        - amount
+      properties:
+        category_id:
+          type: string
+          format: uuid
+        period:
+          $ref: './definitions.yaml#/components/schemas/BudgetPeriod'
+        amount:
+          type: integer
+          format: int64
+          description: Limit in base-currency minor units.
+        rollover:
+          type: boolean
+        start_period:
+          type: string
+          format: date
+
+    UpdateBudgetRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        period:
+          $ref: './definitions.yaml#/components/schemas/BudgetPeriod'
+        amount:
+          type: integer
+          format: int64
+        rollover:
+          type: boolean
+        start_period:
+          type: string
+          format: date

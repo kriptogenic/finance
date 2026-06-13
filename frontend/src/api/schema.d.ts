@@ -208,6 +208,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List budgets with current-period progress */
+        get: operations["listBudgets"];
+        put?: never;
+        /** Create a budget for an expense category */
+        post: operations["createBudget"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/budgets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["BudgetId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a budget */
+        delete: operations["deleteBudget"];
+        options?: never;
+        head?: never;
+        /** Update a budget */
+        patch: operations["updateBudget"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -435,6 +473,50 @@ export interface components {
             interest: components["schemas"]["Money"];
             balance: components["schemas"]["Money"];
         };
+        BudgetListResponse: {
+            budgets: components["schemas"]["Budget"][];
+        };
+        Budget: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            category_id: string;
+            category_name: string;
+            period: components["schemas"]["BudgetPeriod"];
+            amount: components["schemas"]["Money"];
+            spent: components["schemas"]["Money"];
+            remaining: components["schemas"]["Money"];
+            /** @description spent / amount × 100 (may exceed 100 when overspent) */
+            percent: number;
+            rollover: boolean;
+            /** Format: date */
+            start_period?: string | null;
+            /** Format: date */
+            period_start: string;
+            /** Format: date */
+            period_end: string;
+        };
+        CreateBudgetRequest: {
+            /** Format: uuid */
+            category_id: string;
+            period?: components["schemas"]["BudgetPeriod"];
+            /**
+             * Format: int64
+             * @description Limit in base-currency minor units.
+             */
+            amount: number;
+            rollover?: boolean;
+            /** Format: date */
+            start_period?: string;
+        };
+        UpdateBudgetRequest: {
+            period?: components["schemas"]["BudgetPeriod"];
+            /** Format: int64 */
+            amount?: number;
+            rollover?: boolean;
+            /** Format: date */
+            start_period?: string;
+        };
         /** @enum {string} */
         AccountKind: "asset" | "liability";
         /** @enum {string} */
@@ -458,6 +540,8 @@ export interface components {
         CategoryType: "expense" | "income";
         /** @enum {string} */
         TransactionType: "expense" | "income" | "transfer";
+        /** @enum {string} */
+        BudgetPeriod: "weekly" | "monthly" | "yearly";
     };
     responses: {
         /** @description Invalid input */
@@ -480,6 +564,7 @@ export interface components {
         };
     };
     parameters: {
+        BudgetId: string;
         AccountId: string;
         CategoryId: string;
         TransactionId: string;
@@ -983,6 +1068,100 @@ export interface operations {
                     "application/json": components["schemas"]["CashFlowReport"];
                 };
             };
+        };
+    };
+    listBudgets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Budgets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetListResponse"];
+                };
+            };
+        };
+    };
+    createBudget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBudgetRequest"];
+            };
+        };
+        responses: {
+            /** @description Budget created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Budget"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    deleteBudget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["BudgetId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Budget deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateBudget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["BudgetId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBudgetRequest"];
+            };
+        };
+        responses: {
+            /** @description Budget updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Budget"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

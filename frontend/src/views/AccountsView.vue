@@ -6,6 +6,7 @@ import { errMessage } from '../api/client'
 import type { Account } from '../api/types'
 import { formatMoney } from '../lib/format'
 import AccountForm from '../components/AccountForm.vue'
+import LoanScheduleModal from '../components/LoanScheduleModal.vue'
 
 const accounts = ref<Account[]>([])
 const base = ref('UZS')
@@ -13,6 +14,7 @@ const loading = ref(true)
 const error = ref('')
 const formOpen = ref(false)
 const editing = ref<Account | null>(null)
+const scheduleFor = ref<Account | null>(null)
 
 const assets = computed(() => accounts.value.filter((a) => a.kind === 'asset'))
 const liabilities = computed(() => accounts.value.filter((a) => a.kind === 'liability'))
@@ -107,6 +109,7 @@ onMounted(async () => {
                 {{ formatMoney(a.balance) }}
               </p>
               <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">
+                <button v-if="a.type === 'loan'" class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-indigo-100 hover:text-indigo-600" title="Amortization schedule" @click="scheduleFor = a">📅</button>
                 <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700" title="Edit" @click="openEdit(a)">✎</button>
                 <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600" title="Delete" @click="remove(a)">🗑</button>
               </div>
@@ -118,5 +121,6 @@ onMounted(async () => {
     </template>
 
     <AccountForm v-if="formOpen" :account="editing" :base="base" @close="formOpen = false" @saved="onSaved" />
+    <LoanScheduleModal v-if="scheduleFor" :account="scheduleFor" @close="scheduleFor = null" />
   </div>
 </template>

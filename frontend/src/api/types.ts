@@ -7,6 +7,8 @@ export type Account = S['Account']
 export type Category = S['Category']
 export type Transaction = S['Transaction']
 export type NetWorthReport = S['NetWorthReport']
+export type AmortizationSchedule = S['AmortizationSchedule']
+export type AmortizationRow = S['AmortizationRow']
 export type SpendingReport = S['SpendingReport']
 export type CashFlowReport = S['CashFlowReport']
 

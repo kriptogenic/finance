@@ -1,5 +1,5 @@
 import { api, call } from './client'
-import type { Account, CreateAccountRequest, UpdateAccountRequest } from './types'
+import type { Account, AmortizationSchedule, CreateAccountRequest, UpdateAccountRequest } from './types'
 
 export const accountsApi = {
   list: (includeArchived = false): Promise<Account[]> =>
@@ -13,4 +13,7 @@ export const accountsApi = {
     call(api.PATCH('/accounts/{id}', { params: { path: { id } }, body })),
 
   remove: (id: string): Promise<unknown> => call(api.DELETE('/accounts/{id}', { params: { path: { id } } })),
+
+  amortization: (id: string): Promise<AmortizationSchedule> =>
+    call(api.GET('/accounts/{id}/amortization', { params: { path: { id } } })),
 }

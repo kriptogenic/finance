@@ -12,6 +12,7 @@ import (
 
 	"finance/generated/api"
 	"finance/internal/entities"
+	"finance/internal/ledger"
 	accountrepository "finance/internal/repositories/account_repository"
 	"finance/pkg/money"
 )
@@ -166,6 +167,57 @@ func (s Server) DeleteAccount(ctx context.Context, request api.DeleteAccountRequ
 	}
 
 	return api.DeleteAccount204Response{}, nil
+}
+
+func (s Server) GetAmortization(ctx context.Context, request api.GetAmortizationRequestObject) (api.GetAmortizationResponseObject, error) {
+	acc, err := s.accounts.Get(ctx, request.Id)
+	if errors.Is(err, accountrepository.ErrNotFound) {
+		return api.GetAmortization404JSONResponse{NotFoundJSONResponse: notFound("account not found")}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if acc.Type != entities.TypeLoan {
+		return api.GetAmortization400JSONResponse{BadRequestJSONResponse: badRequest("account is not a loan")}, nil
+	}
+	if acc.Principal == nil || acc.InterestRate == nil || acc.TermMonths == nil || acc.StartDate == nil {
+		return api.GetAmortization400JSONResponse{BadRequestJSONResponse: badRequest("loan terms are incomplete (need principal, interest_rate, term_months, start_date)")}, nil
+	}
+
+	paymentDay := 0
+	if acc.PaymentDay != nil {
+		paymentDay = *acc.PaymentDay
+	}
+
+	sched, err := ledger.Amortize(*acc.Principal, *acc.InterestRate, *acc.TermMonths, *acc.StartDate, paymentDay)
+	if err != nil {
+		return api.GetAmortization400JSONResponse{BadRequestJSONResponse: badRequest(err.Error())}, nil
+	}
+
+	return api.GetAmortization200JSONResponse(toAmortization(acc.Currency, sched)), nil
+}
+
+func toAmortization(currency string, sched ledger.AmortizationSchedule) api.AmortizationSchedule {
+	rows := make([]api.AmortizationRow, len(sched.Rows))
+	for i, r := range sched.Rows {
+		rows[i] = api.AmortizationRow{
+			Period:    r.Period,
+			Date:      openapi_types.Date{Time: r.Date},
+			Payment:   money.New(r.Payment, currency),
+			Principal: money.New(r.Principal, currency),
+			Interest:  money.New(r.Interest, currency),
+			Balance:   money.New(r.Balance, currency),
+		}
+	}
+
+	return api.AmortizationSchedule{
+		Currency:       currency,
+		MonthlyPayment: money.New(sched.MonthlyPayment, currency),
+		TotalPayment:   money.New(sched.TotalPayment, currency),
+		TotalInterest:  money.New(sched.TotalInterest, currency),
+		Rows:           rows,
+	}
 }
 
 // accountBalance fetches the single account's derived balance.

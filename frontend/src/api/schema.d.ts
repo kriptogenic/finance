@@ -60,6 +60,25 @@ export interface paths {
         patch: operations["updateAccount"];
         trace?: never;
     };
+    "/accounts/{id}/amortization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        /** Amortization schedule for a loan account */
+        get: operations["getAmortization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/categories": {
         parameters: {
             query?: never;
@@ -400,6 +419,22 @@ export interface components {
             expense: components["schemas"]["Money"];
             net: components["schemas"]["Money"];
         };
+        AmortizationSchedule: {
+            currency: components["schemas"]["Currency"];
+            monthly_payment: components["schemas"]["Money"];
+            total_payment: components["schemas"]["Money"];
+            total_interest: components["schemas"]["Money"];
+            rows: components["schemas"]["AmortizationRow"][];
+        };
+        AmortizationRow: {
+            period: number;
+            /** Format: date */
+            date: string;
+            payment: components["schemas"]["Money"];
+            principal: components["schemas"]["Money"];
+            interest: components["schemas"]["Money"];
+            balance: components["schemas"]["Money"];
+        };
         /** @enum {string} */
         AccountKind: "asset" | "liability";
         /** @enum {string} */
@@ -597,6 +632,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Account"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAmortization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Amortization schedule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AmortizationSchedule"];
                 };
             };
             400: components["responses"]["BadRequest"];

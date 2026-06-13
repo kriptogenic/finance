@@ -135,6 +135,7 @@ func (s *seeder) seedAccounts(ctx context.Context) (map[string]entities.Account,
 			Name: "Home Loan", Kind: entities.KindLiability, Type: entities.TypeLoan, Currency: "UZS",
 			OpeningBalance: 50_000_000_00, Principal: ptr(int64(60_000_000_00)),
 			InterestRate: ptr(0.16), TermMonths: ptr(240), PaymentDay: ptr(5),
+			StartDate: ptr(time.Date(2025, time.June, 5, 0, 0, 0, 0, time.UTC)),
 		},
 	}
 

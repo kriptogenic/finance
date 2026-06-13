@@ -104,6 +104,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /accounts/{id}/amortization:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: getAmortization
+      summary: Amortization schedule for a loan account
+      responses:
+        200:
+          description: Amortization schedule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AmortizationSchedule'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+
   /categories:
     get:
       operationId: listCategories
@@ -860,4 +878,52 @@ components:
         expense:
           $ref: './definitions.yaml#/components/schemas/Money'
         net:
+          $ref: './definitions.yaml#/components/schemas/Money'
+
+    AmortizationSchedule:
+      type: object
+      additionalProperties: false
+      required:
+        - currency
+        - monthly_payment
+        - total_payment
+        - total_interest
+        - rows
+      properties:
+        currency:
+          $ref: './definitions.yaml#/components/schemas/Currency'
+        monthly_payment:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        total_payment:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        total_interest:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/AmortizationRow'
+
+    AmortizationRow:
+      type: object
+      additionalProperties: false
+      required:
+        - period
+        - date
+        - payment
+        - principal
+        - interest
+        - balance
+      properties:
+        period:
+          type: integer
+        date:
+          type: string
+          format: date
+        payment:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        principal:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        interest:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        balance:
           $ref: './definitions.yaml#/components/schemas/Money'

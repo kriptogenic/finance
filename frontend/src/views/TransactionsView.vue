@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { transactionsApi } from '../api/transactions'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { transactionsApi, type TransactionFilter } from '../api/transactions'
 import { accountsApi } from '../api/accounts'
 import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
-import type { Account, Category, Transaction } from '../api/types'
+import type { Account, Category, Transaction, TransactionType } from '../api/types'
 import { formatMoney, formatDate } from '../lib/format'
 import TransactionForm from '../components/TransactionForm.vue'
 
@@ -18,6 +18,20 @@ const loading = ref(true)
 const error = ref('')
 const formOpen = ref(false)
 const editing = ref<Transaction | null>(null)
+
+const filters = reactive({
+  q: '',
+  type: '' as '' | TransactionType,
+  accountId: '',
+  categoryId: '',
+  dateFrom: '',
+  dateTo: '',
+  tag: '',
+})
+
+const hasActiveFilters = computed(() =>
+  !!(filters.q || filters.type || filters.accountId || filters.categoryId || filters.dateFrom || filters.dateTo || filters.tag),
+)
 
 const meta = {
   expense: { icon: '↗', ring: 'bg-rose-50 text-rose-600', sign: '−', amount: 'text-rose-600' },
@@ -37,21 +51,43 @@ function subtitle(t: Transaction): string {
   return nameOf(t.from_account_id) + ' → ' + nameOf(t.to_account_id)
 }
 
-async function load() {
+function buildFilter(): TransactionFilter {
+  const f: TransactionFilter = { limit: 200 }
+  if (filters.q) f.q = filters.q
+  if (filters.type) f.type = filters.type
+  if (filters.accountId) f.account_id = filters.accountId
+  if (filters.categoryId) f.category_id = filters.categoryId
+  if (filters.dateFrom) f.date_from = new Date(filters.dateFrom + 'T00:00:00').toISOString()
+  if (filters.dateTo) f.date_to = new Date(filters.dateTo + 'T23:59:59.999').toISOString()
+  if (filters.tag) f.tag = filters.tag
+  return f
+}
+
+function clearFilters() {
+  filters.q = ''
+  filters.type = ''
+  filters.accountId = ''
+  filters.categoryId = ''
+  filters.dateFrom = ''
+  filters.dateTo = ''
+  filters.tag = ''
+}
+
+async function loadMeta() {
+  const [accs, cats] = await Promise.all([accountsApi.list(true), categoriesApi.list({ include_archived: true })])
+  const map: Record<string, string> = {}
+  for (const a of accs) map[a.id] = a.name
+  for (const c of cats) map[c.id] = c.name
+  names.value = map
+  accounts.value = accs
+  categories.value = cats
+}
+
+async function loadTransactions() {
   loading.value = true
+  error.value = ''
   try {
-    const [txns, accs, cats] = await Promise.all([
-      transactionsApi.list({ limit: 100 }),
-      accountsApi.list(true),
-      categoriesApi.list({ include_archived: true }),
-    ])
-    const map: Record<string, string> = {}
-    for (const a of accs) map[a.id] = a.name
-    for (const c of cats) map[c.id] = c.name
-    names.value = map
-    accounts.value = accs
-    categories.value = cats
-    transactions.value = txns
+    transactions.value = await transactionsApi.list(buildFilter())
   } catch (e) {
     error.value = errMessage(e)
   } finally {
@@ -69,17 +105,27 @@ function openEdit(t: Transaction) {
 }
 function onSaved() {
   formOpen.value = false
-  load()
+  loadTransactions()
 }
 async function remove(t: Transaction) {
   if (!confirm('Delete this transaction?')) return
   try {
     await transactionsApi.remove(t.id)
-    load()
+    loadTransactions()
   } catch (e) {
     alert(errMessage(e))
   }
 }
+
+let timer: number | undefined
+watch(
+  filters,
+  () => {
+    clearTimeout(timer)
+    timer = window.setTimeout(loadTransactions, 250)
+  },
+  { deep: true },
+)
 
 onMounted(async () => {
   try {
@@ -87,7 +133,8 @@ onMounted(async () => {
   } catch {
     /* keep default */
   }
-  load()
+  await loadMeta()
+  await loadTransactions()
 })
 </script>
 
@@ -96,15 +143,44 @@ onMounted(async () => {
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold tracking-tight text-slate-900">Transactions</h1>
-        <p class="text-sm text-slate-500">{{ transactions.length }} recent</p>
+        <p class="text-sm text-slate-500">{{ transactions.length }} result{{ transactions.length === 1 ? '' : 's' }}</p>
       </div>
       <button class="btn btn-primary" @click="openNew">+ New transaction</button>
     </div>
 
-    <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
-    <p v-else-if="loading" class="text-slate-500">Loading…</p>
+    <!-- filter bar -->
+    <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="relative lg:col-span-2">
+          <span class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400">🔍</span>
+          <input v-model="filters.q" class="field pl-9" placeholder="Search notes…" />
+        </div>
+        <select v-model="filters.type" class="field">
+          <option value="">All types</option>
+          <option value="expense">Expense</option>
+          <option value="income">Income</option>
+          <option value="transfer">Transfer</option>
+        </select>
+        <select v-model="filters.accountId" class="field">
+          <option value="">All accounts</option>
+          <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }}</option>
+        </select>
+        <select v-model="filters.categoryId" class="field">
+          <option value="">All categories</option>
+          <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.parent_id ? '— ' : '' }}{{ c.name }}</option>
+        </select>
+        <input v-model="filters.tag" class="field" placeholder="Tag" />
+        <input v-model="filters.dateFrom" type="date" class="field" title="From date" />
+        <input v-model="filters.dateTo" type="date" class="field" title="To date" />
+      </div>
+      <div v-if="hasActiveFilters" class="mt-3 flex justify-end">
+        <button class="btn btn-soft" @click="clearFilters">Clear filters</button>
+      </div>
+    </div>
 
-    <div v-else class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+    <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
+
+    <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
       <ul class="divide-y divide-slate-100">
         <li v-for="t in transactions" :key="t.id" class="group flex items-center gap-4 px-5 py-3.5 transition hover:bg-slate-50">
           <span class="grid h-10 w-10 place-items-center rounded-full text-lg font-semibold" :class="meta[t.type].ring">{{ meta[t.type].icon }}</span>
@@ -121,7 +197,10 @@ onMounted(async () => {
             <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600" title="Delete" @click="remove(t)">🗑</button>
           </div>
         </li>
-        <li v-if="!transactions.length" class="px-5 py-8 text-center text-sm text-slate-400">No transactions yet.</li>
+        <li v-if="loading" class="px-5 py-8 text-center text-sm text-slate-400">Loading…</li>
+        <li v-else-if="!transactions.length" class="px-5 py-8 text-center text-sm text-slate-400">
+          {{ hasActiveFilters ? 'No transactions match these filters.' : 'No transactions yet.' }}
+        </li>
       </ul>
     </div>
 

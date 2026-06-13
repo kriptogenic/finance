@@ -7,6 +7,22 @@ export function formatMoney(money) {
   return formatMinor(money.amount, money.currency)
 }
 
+// formatMoneyShort drops the fractional part — for big summary numbers where
+// cents are just noise.
+export function formatMoneyShort(money) {
+  if (!money) return ''
+  const value = (money.amount ?? 0) / MINOR
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: money.currency,
+      maximumFractionDigits: 0,
+    }).format(value)
+  } catch {
+    return `${Math.round(value).toLocaleString()} ${money.currency}`
+  }
+}
+
 export function formatMinor(amount, currency) {
   const value = (amount ?? 0) / MINOR
   try {

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { reportsApi } from '../api/reports'
-import { formatMoney, formatMinor } from '../lib/format'
+import { formatMoney, formatMoneyShort, formatMinor } from '../lib/format'
 
 const netWorth = ref(null)
 const spending = ref(null)
@@ -15,6 +15,11 @@ const spendingMax = computed(() =>
 const flowMax = computed(() =>
   Math.max(1, ...(cashFlow.value?.months ?? []).flatMap((m) => [m.income.amount, m.expense.amount])),
 )
+const barColors = ['from-violet-500 to-indigo-500', 'from-sky-500 to-cyan-500', 'from-fuchsia-500 to-pink-500', 'from-amber-500 to-orange-500', 'from-emerald-500 to-teal-500']
+
+function pct(value, max) {
+  return Math.max(2, (value / max) * 100) + '%'
+}
 
 onMounted(async () => {
   try {
@@ -36,99 +41,108 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-8">
-    <h1 class="text-2xl font-semibold">Dashboard</h1>
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-slate-900">Dashboard</h1>
+      <p class="text-sm text-slate-500">Your money at a glance</p>
+    </div>
 
-    <p v-if="error" class="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{{ error }}</p>
+    <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
     <p v-else-if="loading" class="text-slate-500">Loading…</p>
 
     <template v-else>
-      <!-- net worth cards -->
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-          <p class="text-sm text-slate-500">Net worth</p>
-          <p class="mt-1 text-2xl font-semibold" :class="netWorth.net_worth.amount < 0 ? 'text-red-600' : 'text-slate-900'">
-            {{ formatMoney(netWorth.net_worth) }}
-          </p>
+      <!-- hero + stats -->
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-indigo-600 to-indigo-700 p-7 text-white shadow-lg shadow-indigo-500/20">
+          <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10"></div>
+          <div class="absolute -bottom-12 -left-8 h-40 w-40 rounded-full bg-white/5"></div>
+          <p class="text-sm font-medium text-indigo-100">Net worth</p>
+          <p class="tabular mt-2 text-3xl font-bold tracking-tight whitespace-nowrap">{{ formatMoneyShort(netWorth.net_worth) }}</p>
+          <p class="mt-1 text-xs text-indigo-200">in {{ netWorth.base }}</p>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-          <p class="text-sm text-slate-500">Assets</p>
-          <p class="mt-1 text-2xl font-semibold text-emerald-600">{{ formatMoney(netWorth.assets) }}</p>
+
+        <div class="rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-200/70">
+          <div class="flex items-center gap-2">
+            <span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600">↑</span>
+            <p class="text-sm font-medium text-slate-500">Assets</p>
+          </div>
+          <p class="tabular mt-4 text-3xl font-bold text-slate-900 whitespace-nowrap">{{ formatMoneyShort(netWorth.assets) }}</p>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-          <p class="text-sm text-slate-500">Liabilities</p>
-          <p class="mt-1 text-2xl font-semibold text-red-600">{{ formatMoney(netWorth.liabilities) }}</p>
+
+        <div class="rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-200/70">
+          <div class="flex items-center gap-2">
+            <span class="grid h-9 w-9 place-items-center rounded-xl bg-rose-50 text-rose-600">↓</span>
+            <p class="text-sm font-medium text-slate-500">Liabilities</p>
+          </div>
+          <p class="tabular mt-4 text-3xl font-bold text-slate-900 whitespace-nowrap">{{ formatMoneyShort(netWorth.liabilities) }}</p>
         </div>
       </div>
 
-      <!-- currency exposure -->
-      <section class="rounded-xl border border-slate-200 bg-white p-5">
-        <h2 class="mb-3 text-lg font-medium">Currency exposure</h2>
-        <table class="w-full text-sm">
-          <thead class="text-left text-slate-500">
-            <tr>
-              <th class="py-1">Currency</th>
-              <th class="py-1 text-right">Net (own)</th>
-              <th class="py-1 text-right">Net (base)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="e in netWorth.by_currency" :key="e.currency" class="border-t border-slate-100">
-              <td class="py-1.5 font-medium">{{ e.currency }}</td>
-              <td class="py-1.5 text-right">{{ formatMinor(e.net, e.currency) }}</td>
-              <td class="py-1.5 text-right text-slate-600">
-                {{ e.rate_known ? formatMoney(e.net_in_base) : '—' }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-if="netWorth.missing_rates.length" class="mt-2 text-xs text-amber-600">
-          No rate for: {{ netWorth.missing_rates.join(', ') }} (excluded from base totals)
-        </p>
-      </section>
-
-      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <!-- spending -->
-        <section class="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 class="mb-1 text-lg font-medium">Spending by category</h2>
-          <p class="mb-3 text-sm text-slate-500">Total {{ formatMoney(spending.total) }}</p>
-          <div v-if="!spending.categories.length" class="text-sm text-slate-400">No spending yet.</div>
-          <ul class="space-y-3">
-            <li v-for="c in spending.categories" :key="c.category_id">
-              <div class="flex justify-between text-sm">
-                <span>{{ c.category_name }}</span>
-                <span class="font-medium">{{ formatMoney(c.amount) }}</span>
+        <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200/70 lg:col-span-2">
+          <div class="mb-5 flex items-baseline justify-between">
+            <h2 class="text-base font-semibold text-slate-900">Spending by category</h2>
+            <span class="tabular text-sm font-medium text-slate-400">{{ formatMoney(spending.total) }}</span>
+          </div>
+          <div v-if="!spending.categories.length" class="py-6 text-center text-sm text-slate-400">No spending yet.</div>
+          <ul class="space-y-4">
+            <li v-for="(c, i) in spending.categories" :key="c.category_id">
+              <div class="mb-1.5 flex justify-between text-sm">
+                <span class="font-medium text-slate-700">{{ c.category_name }}</span>
+                <span class="tabular text-slate-500">{{ formatMoney(c.amount) }}</span>
               </div>
-              <div class="mt-1 h-2 rounded-full bg-slate-100">
-                <div class="h-2 rounded-full bg-indigo-500" :style="{ width: (c.amount.amount / spendingMax) * 100 + '%' }" />
+              <div class="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                <div class="h-full rounded-full bg-gradient-to-r" :class="barColors[i % barColors.length]" :style="{ width: pct(c.amount.amount, spendingMax) }" />
               </div>
             </li>
           </ul>
         </section>
 
-        <!-- cash flow -->
-        <section class="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 class="mb-3 text-lg font-medium">Cash flow</h2>
-          <div v-if="!cashFlow.months.length" class="text-sm text-slate-400">No data yet.</div>
-          <div class="space-y-4">
-            <div v-for="m in cashFlow.months" :key="m.month">
-              <div class="flex justify-between text-sm">
-                <span class="font-medium">{{ m.month }}</span>
-                <span :class="m.net.amount < 0 ? 'text-red-600' : 'text-emerald-600'">{{ formatMoney(m.net) }}</span>
+        <!-- currency exposure -->
+        <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200/70">
+          <h2 class="mb-4 text-base font-semibold text-slate-900">Currency exposure</h2>
+          <ul class="space-y-3">
+            <li v-for="e in netWorth.by_currency" :key="e.currency" class="flex items-center justify-between">
+              <span class="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600">{{ e.currency }}</span>
+              <div class="text-right">
+                <p class="tabular text-sm font-semibold" :class="e.net < 0 ? 'text-rose-600' : 'text-slate-800'">{{ formatMinor(e.net, e.currency) }}</p>
+                <p class="tabular text-xs text-slate-400">{{ e.rate_known ? formatMoney(e.net_in_base) : 'no rate' }}</p>
               </div>
-              <div class="mt-1 flex gap-1">
-                <div class="h-2 rounded-full bg-emerald-400" :style="{ width: (m.income.amount / flowMax) * 100 + '%' }" />
+            </li>
+          </ul>
+          <p v-if="netWorth.missing_rates.length" class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            No rate for {{ netWorth.missing_rates.join(', ') }}
+          </p>
+        </section>
+      </div>
+
+      <!-- cash flow -->
+      <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200/70">
+        <div class="mb-5 flex items-center justify-between">
+          <h2 class="text-base font-semibold text-slate-900">Cash flow</h2>
+          <div class="flex gap-4 text-xs text-slate-500">
+            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-emerald-400" /> Income</span>
+            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-rose-400" /> Expense</span>
+          </div>
+        </div>
+        <div v-if="!cashFlow.months.length" class="py-6 text-center text-sm text-slate-400">No data yet.</div>
+        <div class="space-y-5">
+          <div v-for="m in cashFlow.months" :key="m.month">
+            <div class="mb-2 flex justify-between text-sm">
+              <span class="font-medium text-slate-700">{{ m.month }}</span>
+              <span class="tabular font-semibold" :class="m.net.amount < 0 ? 'text-rose-600' : 'text-emerald-600'">{{ formatMoney(m.net) }}</span>
+            </div>
+            <div class="space-y-1.5">
+              <div class="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                <div class="h-full rounded-full bg-emerald-400" :style="{ width: pct(m.income.amount, flowMax) }" />
               </div>
-              <div class="mt-1 flex gap-1">
-                <div class="h-2 rounded-full bg-red-400" :style="{ width: (m.expense.amount / flowMax) * 100 + '%' }" />
+              <div class="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                <div class="h-full rounded-full bg-rose-400" :style="{ width: pct(m.expense.amount, flowMax) }" />
               </div>
             </div>
           </div>
-          <div class="mt-3 flex gap-4 text-xs text-slate-500">
-            <span><span class="inline-block h-2 w-2 rounded-full bg-emerald-400" /> income</span>
-            <span><span class="inline-block h-2 w-2 rounded-full bg-red-400" /> expense</span>
-          </div>
-        </section>
-      </div>
+        </div>
+      </section>
     </template>
   </div>
 </template>

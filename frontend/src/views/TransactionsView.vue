@@ -6,23 +6,27 @@ import { categoriesApi } from '../api/categories'
 import { formatMoney, formatDate } from '../lib/format'
 
 const transactions = ref([])
-const names = ref({}) // id -> name, for accounts and categories
+const names = ref({})
 const loading = ref(true)
 const error = ref('')
 
-const typeBadge = {
-  expense: 'bg-red-100 text-red-700',
-  income: 'bg-emerald-100 text-emerald-700',
-  transfer: 'bg-indigo-100 text-indigo-700',
+const meta = {
+  expense: { icon: '↗', ring: 'bg-rose-50 text-rose-600', sign: '−', amount: 'text-rose-600' },
+  income: { icon: '↙', ring: 'bg-emerald-50 text-emerald-600', sign: '+', amount: 'text-emerald-600' },
+  transfer: { icon: '⇄', ring: 'bg-indigo-50 text-indigo-600', sign: '', amount: 'text-slate-800' },
 }
 
 function nameOf(id) {
   return id ? names.value[id] || '—' : '—'
 }
-
-function counterparty(t) {
-  if (t.type === 'expense') return nameOf(t.from_account_id) + ' → ' + nameOf(t.category_id)
-  if (t.type === 'income') return nameOf(t.category_id) + ' → ' + nameOf(t.to_account_id)
+function title(t) {
+  if (t.type === 'expense') return nameOf(t.category_id)
+  if (t.type === 'income') return nameOf(t.category_id)
+  return 'Transfer'
+}
+function subtitle(t) {
+  if (t.type === 'expense') return 'from ' + nameOf(t.from_account_id)
+  if (t.type === 'income') return 'to ' + nameOf(t.to_account_id)
   return nameOf(t.from_account_id) + ' → ' + nameOf(t.to_account_id)
 }
 
@@ -48,37 +52,29 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-6">
-    <h1 class="text-2xl font-semibold">Transactions</h1>
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-slate-900">Transactions</h1>
+      <p class="text-sm text-slate-500">{{ transactions.length }} recent</p>
+    </div>
 
-    <p v-if="error" class="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{{ error }}</p>
+    <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
     <p v-else-if="loading" class="text-slate-500">Loading…</p>
 
-    <div v-else class="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <table class="w-full text-sm">
-        <thead class="bg-slate-50 text-left text-slate-500">
-          <tr>
-            <th class="px-4 py-2">Date</th>
-            <th class="px-4 py-2">Type</th>
-            <th class="px-4 py-2">Details</th>
-            <th class="px-4 py-2">Note</th>
-            <th class="px-4 py-2 text-right">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="t in transactions" :key="t.id" class="border-t border-slate-100">
-            <td class="px-4 py-2 whitespace-nowrap text-slate-500">{{ formatDate(t.date) }}</td>
-            <td class="px-4 py-2">
-              <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="typeBadge[t.type]">{{ t.type }}</span>
-            </td>
-            <td class="px-4 py-2">{{ counterparty(t) }}</td>
-            <td class="px-4 py-2 text-slate-500">{{ t.note || '' }}</td>
-            <td class="px-4 py-2 text-right font-medium">{{ formatMoney(t.amount) }}</td>
-          </tr>
-          <tr v-if="!transactions.length">
-            <td colspan="5" class="px-4 py-4 text-center text-slate-400">No transactions yet.</td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-else class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+      <ul class="divide-y divide-slate-100">
+        <li v-for="t in transactions" :key="t.id" class="flex items-center gap-4 px-5 py-3.5 transition hover:bg-slate-50">
+          <span class="grid h-10 w-10 place-items-center rounded-full text-lg font-semibold" :class="meta[t.type].ring">{{ meta[t.type].icon }}</span>
+          <div class="min-w-0">
+            <p class="truncate font-medium text-slate-800">{{ title(t) }}</p>
+            <p class="truncate text-xs text-slate-400">{{ subtitle(t) }}<span v-if="t.note"> · {{ t.note }}</span></p>
+          </div>
+          <div class="ml-auto text-right">
+            <p class="tabular font-semibold" :class="meta[t.type].amount">{{ meta[t.type].sign }}{{ formatMoney(t.amount) }}</p>
+            <p class="text-xs text-slate-400">{{ formatDate(t.date) }}</p>
+          </div>
+        </li>
+        <li v-if="!transactions.length" class="px-5 py-8 text-center text-sm text-slate-400">No transactions yet.</li>
+      </ul>
     </div>
   </div>
 </template>

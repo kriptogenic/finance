@@ -1,21 +1,23 @@
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { transactionsApi } from '../api/transactions'
 import { accountsApi } from '../api/accounts'
 import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
+import { errMessage } from '../api/client'
+import type { Account, Category, Transaction } from '../api/types'
 import { formatMoney, formatDate } from '../lib/format'
 import TransactionForm from '../components/TransactionForm.vue'
 
-const transactions = ref([])
-const accounts = ref([])
-const categories = ref([])
+const transactions = ref<Transaction[]>([])
+const accounts = ref<Account[]>([])
+const categories = ref<Category[]>([])
 const base = ref('UZS')
-const names = ref({})
+const names = ref<Record<string, string>>({})
 const loading = ref(true)
 const error = ref('')
 const formOpen = ref(false)
-const editing = ref(null)
+const editing = ref<Transaction | null>(null)
 
 const meta = {
   expense: { icon: '↗', ring: 'bg-rose-50 text-rose-600', sign: '−', amount: 'text-rose-600' },
@@ -23,13 +25,13 @@ const meta = {
   transfer: { icon: '⇄', ring: 'bg-indigo-50 text-indigo-600', sign: '', amount: 'text-slate-800' },
 }
 
-function nameOf(id) {
+function nameOf(id: string | null | undefined): string {
   return id ? names.value[id] || '—' : '—'
 }
-function title(t) {
+function title(t: Transaction): string {
   return t.type === 'transfer' ? 'Transfer' : nameOf(t.category_id)
 }
-function subtitle(t) {
+function subtitle(t: Transaction): string {
   if (t.type === 'expense') return 'from ' + nameOf(t.from_account_id)
   if (t.type === 'income') return 'to ' + nameOf(t.to_account_id)
   return nameOf(t.from_account_id) + ' → ' + nameOf(t.to_account_id)
@@ -43,7 +45,7 @@ async function load() {
       accountsApi.list(true),
       categoriesApi.list({ include_archived: true }),
     ])
-    const map = {}
+    const map: Record<string, string> = {}
     for (const a of accs) map[a.id] = a.name
     for (const c of cats) map[c.id] = c.name
     names.value = map
@@ -51,7 +53,7 @@ async function load() {
     categories.value = cats
     transactions.value = txns
   } catch (e) {
-    error.value = e.response?.data?.error || e.message
+    error.value = errMessage(e)
   } finally {
     loading.value = false
   }
@@ -61,7 +63,7 @@ function openNew() {
   editing.value = null
   formOpen.value = true
 }
-function openEdit(t) {
+function openEdit(t: Transaction) {
   editing.value = t
   formOpen.value = true
 }
@@ -69,13 +71,13 @@ function onSaved() {
   formOpen.value = false
   load()
 }
-async function remove(t) {
+async function remove(t: Transaction) {
   if (!confirm('Delete this transaction?')) return
   try {
     await transactionsApi.remove(t.id)
     load()
   } catch (e) {
-    alert(e.response?.data?.error || e.message)
+    alert(errMessage(e))
   }
 }
 

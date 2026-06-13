@@ -1,16 +1,21 @@
-<script setup>
-import { ref, reactive, computed } from 'vue'
+<script setup lang="ts">
+import { reactive, ref, computed } from 'vue'
 import { transactionsApi } from '../api/transactions'
+import { errMessage } from '../api/client'
+import type { Account, Category, CreateTransactionRequest, Transaction, TransactionType } from '../api/types'
 import { toMinor, toMajor, toLocalInput } from '../lib/format'
 import Modal from './Modal.vue'
 
-const props = defineProps({
-  transaction: { type: Object, default: null }, // null = create
-  accounts: { type: Array, default: () => [] },
-  categories: { type: Array, default: () => [] },
-  base: { type: String, default: 'UZS' },
-})
-const emit = defineEmits(['close', 'saved'])
+const props = withDefaults(
+  defineProps<{
+    transaction?: Transaction | null
+    accounts?: Account[]
+    categories?: Category[]
+    base?: string
+  }>(),
+  { transaction: null, accounts: () => [], categories: () => [], base: 'UZS' },
+)
+const emit = defineEmits<{ close: []; saved: [] }>()
 
 const editing = computed(() => !!props.transaction)
 const error = ref('')
@@ -18,19 +23,19 @@ const saving = ref(false)
 
 const t = props.transaction
 const form = reactive({
-  type: t?.type ?? 'expense',
+  type: (t?.type ?? 'expense') as TransactionType,
   date: toLocalInput(t?.date),
   fromId: t?.from_account_id ?? '',
   toId: t?.to_account_id ?? '',
   categoryId: t?.category_id ?? '',
-  amount: t ? toMajor(t.amount.amount) : null,
-  toAmount: t?.to_amount ? toMajor(t.to_amount.amount) : null,
+  amount: t ? toMajor(t.amount.amount) : ('' as number | string),
+  toAmount: t?.to_amount ? toMajor(t.to_amount.amount) : ('' as number | string),
   rate: t?.rate_to_base ?? '',
   note: t?.note ?? '',
   tags: (t?.tags ?? []).join(', '),
 })
 
-const types = [
+const types: { v: TransactionType; label: string }[] = [
   { v: 'expense', label: 'Expense' },
   { v: 'income', label: 'Income' },
   { v: 'transfer', label: 'Transfer' },
@@ -42,12 +47,12 @@ const primaryCurrency = computed(() =>
   form.type === 'income' ? toAcc.value?.currency : fromAcc.value?.currency,
 )
 const isCross = computed(
-  () => form.type === 'transfer' && fromAcc.value && toAcc.value && fromAcc.value.currency !== toAcc.value.currency,
+  () => form.type === 'transfer' && !!fromAcc.value && !!toAcc.value && fromAcc.value.currency !== toAcc.value.currency,
 )
 const needsRate = computed(() => !!primaryCurrency.value && primaryCurrency.value !== props.base)
 const categoryOptions = computed(() => props.categories.filter((c) => c.type === form.type && !c.archived))
 
-function accLabel(a) {
+function accLabel(a: Account): string {
   return `${a.name} (${a.currency})`
 }
 
@@ -55,7 +60,7 @@ async function submit() {
   error.value = ''
   saving.value = true
   try {
-    const payload = {
+    const payload: CreateTransactionRequest = {
       type: form.type,
       date: new Date(form.date).toISOString(),
       amount: toMinor(form.amount),
@@ -69,11 +74,11 @@ async function submit() {
     const tags = form.tags.split(',').map((s) => s.trim()).filter(Boolean)
     if (tags.length) payload.tags = tags
 
-    if (editing.value) await transactionsApi.update(props.transaction.id, payload)
+    if (props.transaction) await transactionsApi.update(props.transaction.id, payload)
     else await transactionsApi.create(payload)
     emit('saved')
   } catch (e) {
-    error.value = e.response?.data?.error || e.message
+    error.value = errMessage(e)
   } finally {
     saving.value = false
   }
@@ -83,7 +88,6 @@ async function submit() {
 <template>
   <Modal :title="editing ? 'Edit transaction' : 'New transaction'" @close="emit('close')">
     <form class="space-y-4" @submit.prevent="submit">
-      <!-- type selector -->
       <div class="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
         <button
           v-for="opt in types"
@@ -108,7 +112,6 @@ async function submit() {
         </div>
       </div>
 
-      <!-- from account (expense, transfer) -->
       <div v-if="form.type !== 'income'">
         <label class="lbl">From account</label>
         <select v-model="form.fromId" class="field" required>
@@ -117,7 +120,6 @@ async function submit() {
         </select>
       </div>
 
-      <!-- to account (income, transfer) -->
       <div v-if="form.type !== 'expense'">
         <label class="lbl">To account</label>
         <select v-model="form.toId" class="field" required>
@@ -126,7 +128,6 @@ async function submit() {
         </select>
       </div>
 
-      <!-- category (expense, income) -->
       <div v-if="form.type !== 'transfer'">
         <label class="lbl">Category</label>
         <select v-model="form.categoryId" class="field" required>
@@ -137,13 +138,11 @@ async function submit() {
         </select>
       </div>
 
-      <!-- cross-currency second leg -->
       <div v-if="isCross">
-        <label class="lbl">Received ({{ toAcc.currency }})</label>
+        <label class="lbl">Received ({{ toAcc?.currency }})</label>
         <input v-model="form.toAmount" type="number" step="any" class="field" required placeholder="0.00" />
       </div>
 
-      <!-- frozen rate when primary currency != base -->
       <div v-if="needsRate">
         <label class="lbl">Rate {{ primaryCurrency }} → {{ base }} (1 minor unit)</label>
         <input v-model="form.rate" class="field" required placeholder="e.g. 12500" />

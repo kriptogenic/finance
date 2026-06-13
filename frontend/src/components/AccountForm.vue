@@ -1,24 +1,26 @@
-<script setup>
-import { ref, reactive, computed } from 'vue'
+<script setup lang="ts">
+import { reactive, ref, computed } from 'vue'
 import { accountsApi } from '../api/accounts'
+import { errMessage } from '../api/client'
+import type { Account, AccountKind, AccountType, CreateAccountRequest, UpdateAccountRequest } from '../api/types'
 import { toMinor, toMajor } from '../lib/format'
 import Modal from './Modal.vue'
 
-const props = defineProps({
-  account: { type: Object, default: null }, // null = create
-  base: { type: String, default: 'UZS' },
-})
-const emit = defineEmits(['close', 'saved'])
+const props = withDefaults(
+  defineProps<{ account?: Account | null; base?: string }>(),
+  { account: null, base: 'UZS' },
+)
+const emit = defineEmits<{ close: []; saved: [] }>()
 
 const editing = computed(() => !!props.account)
 const error = ref('')
 const saving = ref(false)
 
-const typesByKind = {
+const typesByKind: Record<AccountKind, AccountType[]> = {
   asset: ['cash', 'debit_card', 'deposit'],
   liability: ['credit_card', 'loan'],
 }
-const typeLabel = {
+const typeLabel: Record<AccountType, string> = {
   cash: 'Cash',
   debit_card: 'Debit card',
   deposit: 'Deposit',
@@ -26,7 +28,21 @@ const typeLabel = {
   loan: 'Loan',
 }
 
-const form = reactive({
+type Num = number | string | null
+
+interface FormState {
+  name: string
+  kind: AccountKind
+  type: AccountType
+  currency: string
+  opening: Num
+  credit_limit: Num
+  interest_rate: Num
+  term_months: Num
+  archived: boolean
+}
+
+const form = reactive<FormState>({
   name: props.account?.name ?? '',
   kind: props.account?.kind ?? 'asset',
   type: props.account?.type ?? 'cash',
@@ -44,38 +60,44 @@ function onKindChange() {
   if (!availableTypes.value.includes(form.type)) form.type = availableTypes.value[0]
 }
 
+function numOrUndef(v: Num): number | undefined {
+  return v === '' || v == null ? undefined : Number(v)
+}
+
 async function submit() {
   error.value = ''
   saving.value = true
   try {
-    if (editing.value) {
-      await accountsApi.update(props.account.id, {
+    if (props.account) {
+      const body: UpdateAccountRequest = {
         name: form.name,
         archived: form.archived,
         ...(form.type === 'credit_card' && form.credit_limit != null ? { credit_limit: toMinor(form.credit_limit) } : {}),
-        ...(form.type === 'deposit' || form.type === 'loan' ? { interest_rate: numOrUndef(form.interest_rate), term_months: numOrUndef(form.term_months) } : {}),
-      })
+        ...(form.type === 'deposit' || form.type === 'loan'
+          ? { interest_rate: numOrUndef(form.interest_rate), term_months: numOrUndef(form.term_months) }
+          : {}),
+      }
+      await accountsApi.update(props.account.id, body)
     } else {
-      await accountsApi.create({
+      const body: CreateAccountRequest = {
         name: form.name,
         kind: form.kind,
         type: form.type,
         currency: form.currency.toUpperCase(),
         opening_balance: toMinor(form.opening),
         ...(form.type === 'credit_card' && form.credit_limit != null ? { credit_limit: toMinor(form.credit_limit) } : {}),
-        ...(form.type === 'deposit' || form.type === 'loan' ? { interest_rate: numOrUndef(form.interest_rate), term_months: numOrUndef(form.term_months) } : {}),
-      })
+        ...(form.type === 'deposit' || form.type === 'loan'
+          ? { interest_rate: numOrUndef(form.interest_rate), term_months: numOrUndef(form.term_months) }
+          : {}),
+      }
+      await accountsApi.create(body)
     }
     emit('saved')
   } catch (e) {
-    error.value = e.response?.data?.error || e.message
+    error.value = errMessage(e)
   } finally {
     saving.value = false
   }
-}
-
-function numOrUndef(v) {
-  return v === '' || v == null ? undefined : Number(v)
 }
 </script>
 

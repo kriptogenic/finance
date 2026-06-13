@@ -1,16 +1,18 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { accountsApi } from '../api/accounts'
 import { reportsApi } from '../api/reports'
+import { errMessage } from '../api/client'
+import type { Account } from '../api/types'
 import { formatMoney } from '../lib/format'
 import AccountForm from '../components/AccountForm.vue'
 
-const accounts = ref([])
+const accounts = ref<Account[]>([])
 const base = ref('UZS')
 const loading = ref(true)
 const error = ref('')
 const formOpen = ref(false)
-const editing = ref(null)
+const editing = ref<Account | null>(null)
 
 const assets = computed(() => accounts.value.filter((a) => a.kind === 'asset'))
 const liabilities = computed(() => accounts.value.filter((a) => a.kind === 'liability'))
@@ -29,7 +31,7 @@ async function load() {
   try {
     accounts.value = await accountsApi.list()
   } catch (e) {
-    error.value = e.response?.data?.error || e.message
+    error.value = errMessage(e)
   } finally {
     loading.value = false
   }
@@ -39,7 +41,7 @@ function openNew() {
   editing.value = null
   formOpen.value = true
 }
-function openEdit(a) {
+function openEdit(a: Account) {
   editing.value = a
   formOpen.value = true
 }
@@ -47,13 +49,13 @@ function onSaved() {
   formOpen.value = false
   load()
 }
-async function remove(a) {
+async function remove(a: Account) {
   if (!confirm(`Delete account "${a.name}"?`)) return
   try {
     await accountsApi.remove(a.id)
     load()
   } catch (e) {
-    alert(e.response?.data?.error || e.message)
+    alert(errMessage(e))
   }
 }
 

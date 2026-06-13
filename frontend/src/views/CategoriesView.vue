@@ -1,15 +1,17 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { categoriesApi } from '../api/categories'
+import { errMessage } from '../api/client'
+import type { Category, CategoryType } from '../api/types'
 import CategoryForm from '../components/CategoryForm.vue'
 
-const categories = ref([])
+const categories = ref<Category[]>([])
 const loading = ref(true)
 const error = ref('')
 const formOpen = ref(false)
-const editing = ref(null)
+const editing = ref<Category | null>(null)
 
-function tree(type) {
+function tree(type: CategoryType) {
   const items = categories.value.filter((c) => c.type === type)
   return items
     .filter((c) => !c.parent_id)
@@ -23,7 +25,7 @@ async function load() {
   try {
     categories.value = await categoriesApi.list()
   } catch (e) {
-    error.value = e.response?.data?.error || e.message
+    error.value = errMessage(e)
   } finally {
     loading.value = false
   }
@@ -32,7 +34,7 @@ function openNew() {
   editing.value = null
   formOpen.value = true
 }
-function openEdit(c) {
+function openEdit(c: Category) {
   editing.value = c
   formOpen.value = true
 }
@@ -40,13 +42,13 @@ function onSaved() {
   formOpen.value = false
   load()
 }
-async function remove(c) {
+async function remove(c: Category) {
   if (!confirm(`Delete category "${c.name}"?`)) return
   try {
     await categoriesApi.remove(c.id)
     load()
   } catch (e) {
-    alert(e.response?.data?.error || e.message)
+    alert(errMessage(e))
   }
 }
 

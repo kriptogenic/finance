@@ -1,13 +1,15 @@
-<script setup>
-import { ref, reactive, computed } from 'vue'
+<script setup lang="ts">
+import { reactive, ref, computed } from 'vue'
 import { categoriesApi } from '../api/categories'
+import { errMessage } from '../api/client'
+import type { Category, CategoryType, CreateCategoryRequest, UpdateCategoryRequest } from '../api/types'
 import Modal from './Modal.vue'
 
-const props = defineProps({
-  category: { type: Object, default: null }, // null = create
-  categories: { type: Array, default: () => [] }, // for parent options
-})
-const emit = defineEmits(['close', 'saved'])
+const props = withDefaults(
+  defineProps<{ category?: Category | null; categories?: Category[] }>(),
+  { category: null, categories: () => [] },
+)
+const emit = defineEmits<{ close: []; saved: [] }>()
 
 const editing = computed(() => !!props.category)
 const error = ref('')
@@ -15,14 +17,13 @@ const saving = ref(false)
 
 const form = reactive({
   name: props.category?.name ?? '',
-  type: props.category?.type ?? 'expense',
+  type: (props.category?.type ?? 'expense') as CategoryType,
   parent_id: props.category?.parent_id ?? '',
   icon: props.category?.icon ?? '',
   color: props.category?.color ?? '',
   archived: props.category?.archived ?? false,
 })
 
-// only top-level categories of the chosen type can be parents
 const parentOptions = computed(() =>
   props.categories.filter((c) => c.type === form.type && !c.parent_id),
 )
@@ -31,25 +32,27 @@ async function submit() {
   error.value = ''
   saving.value = true
   try {
-    if (editing.value) {
-      await categoriesApi.update(props.category.id, {
+    if (props.category) {
+      const body: UpdateCategoryRequest = {
         name: form.name,
         archived: form.archived,
         ...(form.icon ? { icon: form.icon } : {}),
         ...(form.color ? { color: form.color } : {}),
-      })
+      }
+      await categoriesApi.update(props.category.id, body)
     } else {
-      await categoriesApi.create({
+      const body: CreateCategoryRequest = {
         name: form.name,
         type: form.type,
         ...(form.parent_id ? { parent_id: form.parent_id } : {}),
         ...(form.icon ? { icon: form.icon } : {}),
         ...(form.color ? { color: form.color } : {}),
-      })
+      }
+      await categoriesApi.create(body)
     }
     emit('saved')
   } catch (e) {
-    error.value = e.response?.data?.error || e.message
+    error.value = errMessage(e)
   } finally {
     saving.value = false
   }

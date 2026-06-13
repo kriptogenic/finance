@@ -1,11 +1,13 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { reportsApi } from '../api/reports'
+import { errMessage } from '../api/client'
+import type { CashFlowReport, NetWorthReport, SpendingReport } from '../api/types'
 import { formatMoney, formatMoneyShort, formatMinor } from '../lib/format'
 
-const netWorth = ref(null)
-const spending = ref(null)
-const cashFlow = ref(null)
+const netWorth = ref<NetWorthReport | null>(null)
+const spending = ref<SpendingReport | null>(null)
+const cashFlow = ref<CashFlowReport | null>(null)
 const loading = ref(true)
 const error = ref('')
 
@@ -17,7 +19,7 @@ const flowMax = computed(() =>
 )
 const barColors = ['from-violet-500 to-indigo-500', 'from-sky-500 to-cyan-500', 'from-fuchsia-500 to-pink-500', 'from-amber-500 to-orange-500', 'from-emerald-500 to-teal-500']
 
-function pct(value, max) {
+function pct(value: number, max: number): string {
   return Math.max(2, (value / max) * 100) + '%'
 }
 
@@ -32,7 +34,7 @@ onMounted(async () => {
     spending.value = sp
     cashFlow.value = cf
   } catch (e) {
-    error.value = e.response?.data?.error || e.message
+    error.value = errMessage(e)
   } finally {
     loading.value = false
   }
@@ -49,7 +51,7 @@ onMounted(async () => {
     <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
     <p v-else-if="loading" class="text-slate-500">Loading…</p>
 
-    <template v-else>
+    <template v-else-if="netWorth && spending && cashFlow">
       <!-- hero + stats -->
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-indigo-600 to-indigo-700 p-7 text-white shadow-lg shadow-indigo-500/20">

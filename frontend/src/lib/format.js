@@ -40,3 +40,19 @@ export function formatDate(iso) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString()
 }
+
+// major (user-facing) <-> minor (API) units
+export function toMinor(major) {
+  return Math.round(Number(major || 0) * MINOR)
+}
+
+export function toMajor(minor) {
+  return (minor ?? 0) / MINOR
+}
+
+// ISO timestamp -> value for <input type="datetime-local">
+export function toLocalInput(iso) {
+  const d = iso ? new Date(iso) : new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}

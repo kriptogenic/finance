@@ -1,79 +1,23 @@
-import * as dn from 'dinero.js'
-import type { DineroCurrency, Dinero } from 'dinero.js'
+import { Money, exponentOf } from '../api/money'
 
-import type { Money } from '../api/types'
+// Money-typed API fields are hydrated into Money instances by the client, so use
+// their methods (.format(), .isNegative(), ...). These helpers cover the rest:
+// raw minor-unit integers and form input conversion.
 
-// dinero.js bundles the ISO-4217 currency objects (code/base/exponent) and all
-// money operations. We look a currency up by code, falling back to a 2-decimal
-// default for anything dinero doesn't know.
-const registry = dn as unknown as Record<string, DineroCurrency<number> | undefined>
-
-function currencyOf(code: string): DineroCurrency<number> {
-  return registry[code] ?? { code, base: 10, exponent: 2 }
-}
-
-export function exponentOf(code: string): number {
-  return currencyOf(code).exponent
-}
-
-function toDinero(money: Money): Dinero<number> {
-  return dn.dinero({ amount: money.amount, currency: currencyOf(money.currency) })
-}
-
-function toMoney(d: Dinero<number>): Money {
-  const snap = dn.toSnapshot(d)
-  return { amount: snap.amount, currency: snap.currency.code }
-}
-
-// --- formatting: "1 000,12 CUR" (space thousands, comma decimal) ----------
-
-function styleDecimal(decimal: string): string {
-  const negative = decimal.startsWith('-')
-  const abs = negative ? decimal.slice(1) : decimal
-  const [int, frac] = abs.split('.')
-  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-
-  return (negative ? '-' : '') + grouped + (frac ? ',' + frac : '')
-}
-
-export function formatMoney(money: Money | null | undefined): string {
-  if (!money) return ''
-  return styleDecimal(dn.toDecimal(toDinero(money))) + ' ' + money.currency
-}
-
+// formatMinor formats a bare minor-unit amount + currency code (e.g. the
+// per-currency exposure figures, which aren't Money objects on the wire).
 export function formatMinor(amount: number, currency: string): string {
-  return formatMoney({ amount, currency })
+  return Money.of(amount, currency).format()
 }
 
-// formatMoneyShort rounds to whole units (no minor part) for big summary numbers.
-export function formatMoneyShort(money: Money | null | undefined): string {
-  if (!money) return ''
-  const whole = dn.transformScale(toDinero(money), 0, dn.halfAwayFromZero)
-
-  return styleDecimal(dn.toDecimal(whole)) + ' ' + money.currency
-}
-
-// --- comparisons / arithmetic via dinero ---------------------------------
-
-export function isNegative(money: Money): boolean {
-  return dn.isNegative(toDinero(money))
-}
-
-export function absolute(money: Money): Money {
-  return isNegative(money) ? toMoney(dn.multiply(toDinero(money), -1)) : money
-}
-
-// --- exponent-aware unit conversion for form input -----------------------
-
+// exponent-aware unit conversion for form inputs
 export function toMinor(major: number | string | null | undefined, currency: string): number {
   return Math.round(Number(major || 0) * 10 ** exponentOf(currency))
 }
 
 export function toMajor(minor: number | null | undefined, currency: string): number {
-  return (minor ?? 0) / 10 ** exponentOf(currency)
+  return Money.of(minor ?? 0, currency).toMajor()
 }
-
-// --- dates ---------------------------------------------------------------
 
 export function formatDate(iso: string | undefined): string {
   if (!iso) return ''

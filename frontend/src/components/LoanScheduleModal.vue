@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { accountsApi } from '../api/accounts'
 import { errMessage } from '../api/client'
 import type { Account, AmortizationSchedule } from '../api/types'
-import { formatMoney, formatMoneyShort, formatDate } from '../lib/format'
+import { formatDate } from '../lib/format'
 import Modal from './Modal.vue'
 
 const props = defineProps<{ account: Account }>()
@@ -38,11 +38,11 @@ onMounted(async () => {
       <div class="grid grid-cols-3 gap-3">
         <div class="rounded-xl bg-slate-50 p-4">
           <p class="text-xs text-slate-500">Monthly payment</p>
-          <p class="tabular mt-1 text-lg font-bold text-slate-900">{{ formatMoney(schedule.monthly_payment) }}</p>
+          <p class="tabular mt-1 text-lg font-bold text-slate-900">{{ schedule.monthly_payment.format() }}</p>
         </div>
         <div class="rounded-xl bg-rose-50 p-4">
           <p class="text-xs text-rose-500">Total interest</p>
-          <p class="tabular mt-1 text-lg font-bold text-rose-600">{{ formatMoneyShort(schedule.total_interest) }}</p>
+          <p class="tabular mt-1 text-lg font-bold text-rose-600">{{ schedule.total_interest.formatShort() }}</p>
         </div>
         <div class="rounded-xl bg-slate-50 p-4">
           <p class="text-xs text-slate-500">Payoff</p>
@@ -66,10 +66,10 @@ onMounted(async () => {
             <tr v-for="r in schedule.rows" :key="r.period" class="hover:bg-slate-50">
               <td class="px-3 py-1.5 text-slate-400">{{ r.period }}</td>
               <td class="px-3 py-1.5 whitespace-nowrap text-slate-600">{{ formatDate(r.date) }}</td>
-              <td class="tabular px-3 py-1.5 text-right">{{ formatMoney(r.payment) }}</td>
-              <td class="tabular px-3 py-1.5 text-right text-slate-600">{{ formatMoney(r.principal) }}</td>
-              <td class="tabular px-3 py-1.5 text-right text-rose-600">{{ formatMoney(r.interest) }}</td>
-              <td class="tabular px-3 py-1.5 text-right font-medium">{{ formatMoney(r.balance) }}</td>
+              <td class="tabular px-3 py-1.5 text-right">{{ r.payment.format() }}</td>
+              <td class="tabular px-3 py-1.5 text-right text-slate-600">{{ r.principal.format() }}</td>
+              <td class="tabular px-3 py-1.5 text-right text-rose-600">{{ r.interest.format() }}</td>
+              <td class="tabular px-3 py-1.5 text-right font-medium">{{ r.balance.format() }}</td>
             </tr>
           </tbody>
         </table>

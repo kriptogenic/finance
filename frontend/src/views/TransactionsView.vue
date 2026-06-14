@@ -6,7 +6,7 @@ import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
 import type { Account, Category, Transaction, TransactionType } from '../api/types'
-import { formatMoney, formatDate } from '../lib/format'
+import { formatDate } from '../lib/format'
 import TransactionForm from '../components/TransactionForm.vue'
 
 const transactions = ref<Transaction[]>([])
@@ -189,7 +189,7 @@ onMounted(async () => {
             <p class="truncate text-xs text-slate-400">{{ subtitle(t) }}<span v-if="t.note"> · {{ t.note }}</span></p>
           </div>
           <div class="ml-auto text-right">
-            <p class="tabular font-semibold" :class="meta[t.type].amount">{{ meta[t.type].sign }}{{ formatMoney(t.amount) }}</p>
+            <p class="tabular font-semibold" :class="meta[t.type].amount">{{ meta[t.type].sign }}{{ t.amount.format() }}</p>
             <p class="text-xs text-slate-400">{{ formatDate(t.date) }}</p>
           </div>
           <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">

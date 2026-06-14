@@ -5,7 +5,7 @@ import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
 import type { Budget, Category } from '../api/types'
-import { formatMoney, formatDate, isNegative, absolute } from '../lib/format'
+import { formatDate } from '../lib/format'
 import BudgetForm from '../components/BudgetForm.vue'
 
 const budgets = ref<Budget[]>([])
@@ -105,14 +105,14 @@ onMounted(async () => {
         </div>
 
         <div class="mt-4 mb-2 flex items-baseline justify-between text-sm">
-          <span class="tabular font-semibold" :class="tone(b.percent).text">{{ formatMoney(b.spent) }}</span>
-          <span class="tabular text-slate-400">of {{ formatMoney(b.amount) }}</span>
+          <span class="tabular font-semibold" :class="tone(b.percent).text">{{ b.spent.format() }}</span>
+          <span class="tabular text-slate-400">of {{ b.amount.format() }}</span>
         </div>
         <div class="h-2.5 overflow-hidden rounded-full bg-slate-100">
           <div class="h-full rounded-full transition-all" :class="tone(b.percent).bar" :style="{ width: Math.min(100, b.percent) + '%' }" />
         </div>
-        <p class="mt-2 text-xs" :class="isNegative(b.remaining) ? 'text-rose-600' : 'text-slate-400'">
-          {{ isNegative(b.remaining) ? 'Over by ' + formatMoney(absolute(b.remaining)) : formatMoney(b.remaining) + ' left' }}
+        <p class="mt-2 text-xs" :class="b.remaining.isNegative() ? 'text-rose-600' : 'text-slate-400'">
+          {{ b.remaining.isNegative() ? 'Over by ' + b.remaining.abs().format() : b.remaining.format() + ' left' }}
         </p>
       </div>
     </div>

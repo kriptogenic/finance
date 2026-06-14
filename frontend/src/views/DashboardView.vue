@@ -3,7 +3,7 @@ import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
 import type { CashFlowReport, NetWorthReport, SpendingReport } from '../api/types'
-import { formatMoney, formatMoneyShort, formatMinor, isNegative } from '../lib/format'
+import { formatMinor } from '../lib/format'
 
 const netWorth = ref<NetWorthReport | null>(null)
 const spending = ref<SpendingReport | null>(null)
@@ -110,7 +110,7 @@ onMounted(async () => {
           <div class="absolute -top-10 -right-10 h-40 w-40 rounded-full bg-white/10"></div>
           <div class="absolute -bottom-12 -left-8 h-40 w-40 rounded-full bg-white/5"></div>
           <p class="text-sm font-medium text-indigo-100">Net worth</p>
-          <p class="tabular mt-2 text-3xl font-bold tracking-tight whitespace-nowrap">{{ formatMoneyShort(netWorth.net_worth) }}</p>
+          <p class="tabular mt-2 text-3xl font-bold tracking-tight whitespace-nowrap">{{ netWorth.net_worth.formatShort() }}</p>
           <p class="mt-1 text-xs text-indigo-200">in {{ netWorth.base }}</p>
         </div>
 
@@ -119,7 +119,7 @@ onMounted(async () => {
             <span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600">↑</span>
             <p class="text-sm font-medium text-slate-500">Assets</p>
           </div>
-          <p class="tabular mt-4 text-3xl font-bold whitespace-nowrap text-slate-900">{{ formatMoneyShort(netWorth.assets) }}</p>
+          <p class="tabular mt-4 text-3xl font-bold whitespace-nowrap text-slate-900">{{ netWorth.assets.formatShort() }}</p>
         </div>
 
         <div class="rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-200/70">
@@ -127,7 +127,7 @@ onMounted(async () => {
             <span class="grid h-9 w-9 place-items-center rounded-xl bg-rose-50 text-rose-600">↓</span>
             <p class="text-sm font-medium text-slate-500">Liabilities</p>
           </div>
-          <p class="tabular mt-4 text-3xl font-bold whitespace-nowrap text-slate-900">{{ formatMoneyShort(netWorth.liabilities) }}</p>
+          <p class="tabular mt-4 text-3xl font-bold whitespace-nowrap text-slate-900">{{ netWorth.liabilities.formatShort() }}</p>
         </div>
       </div>
 
@@ -138,8 +138,8 @@ onMounted(async () => {
           <li v-for="e in netWorth.by_currency" :key="e.currency" class="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
             <span class="grid h-9 w-9 place-items-center rounded-xl bg-white text-xs font-bold text-slate-600 ring-1 ring-slate-200">{{ e.currency }}</span>
             <div class="text-right">
-              <p class="tabular text-sm font-semibold" :class="isNegative({ amount: e.net, currency: e.currency }) ? 'text-rose-600' : 'text-slate-800'">{{ formatMinor(e.net, e.currency) }}</p>
-              <p class="tabular text-xs text-slate-400">{{ e.rate_known ? formatMoney(e.net_in_base) : 'no rate' }}</p>
+              <p class="tabular text-sm font-semibold" :class="e.net < 0 ? 'text-rose-600' : 'text-slate-800'">{{ formatMinor(e.net, e.currency) }}</p>
+              <p class="tabular text-xs text-slate-400">{{ e.net_in_base ? e.net_in_base.format() : 'no rate' }}</p>
             </div>
           </li>
         </ul>
@@ -171,14 +171,14 @@ onMounted(async () => {
         <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200/70">
           <div class="mb-5 flex items-baseline justify-between">
             <h2 class="text-base font-semibold text-slate-900">Spending by category</h2>
-            <span class="tabular text-sm font-medium text-slate-400">{{ formatMoney(spending.total) }}</span>
+            <span class="tabular text-sm font-medium text-slate-400">{{ spending.total.format() }}</span>
           </div>
           <div v-if="!spending.categories.length" class="py-6 text-center text-sm text-slate-400">No spending in this period.</div>
           <ul class="space-y-4">
             <li v-for="(c, i) in spending.categories" :key="c.category_id">
               <div class="mb-1.5 flex justify-between text-sm">
                 <span class="font-medium text-slate-700">{{ c.category_name }}</span>
-                <span class="tabular text-slate-500">{{ formatMoney(c.amount) }}</span>
+                <span class="tabular text-slate-500">{{ c.amount.format() }}</span>
               </div>
               <div class="h-2.5 overflow-hidden rounded-full bg-slate-100">
                 <div class="h-full rounded-full bg-gradient-to-r" :class="barColors[i % barColors.length]" :style="{ width: pct(c.amount.amount, spendingMax) }" />
@@ -201,7 +201,7 @@ onMounted(async () => {
             <div v-for="m in cashFlow.months" :key="m.month">
               <div class="mb-2 flex justify-between text-sm">
                 <span class="font-medium text-slate-700">{{ m.month }}</span>
-                <span class="tabular font-semibold" :class="isNegative(m.net) ? 'text-rose-600' : 'text-emerald-600'">{{ formatMoney(m.net) }}</span>
+                <span class="tabular font-semibold" :class="m.net.isNegative() ? 'text-rose-600' : 'text-emerald-600'">{{ m.net.format() }}</span>
               </div>
               <div class="space-y-1.5">
                 <div class="h-2.5 overflow-hidden rounded-full bg-slate-100">

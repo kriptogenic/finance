@@ -75,7 +75,12 @@ Messages are **emoji-delimited with a fixed field order**:
 [💸/🎉 type-word] [➖/➕ amount UZS] [📍 merchant] [💳 card] [🕓 time date] [💰 balance UZS]
 ```
 
-Real samples (use as test fixtures):
+Real samples (use as test fixtures). **Field separators vary** — some messages are
+single-line (fields run together), others put each field on its own line. The parser
+must be whitespace/newline-tolerant: anchor on the emoji markers and allow any
+whitespace (incl. `\n`) around them.
+
+Single-line:
 
 ```
 💸 Оплата➖ 57.550,00 UZS📍 SP OOO HAVAS FOOD>T💳 HUMOCARD *4853🕓 10:03 14.06.2026💰 697.945,26 UZS
@@ -84,10 +89,24 @@ Real samples (use as test fixtures):
 🎉 Пополнение➕ 1.000.000,00 UZS📍 TBC HUMO P2P>TASHKEN💳 HUMOCARD *8400🕓 09:36 14.06.2026💰 1.110.241,56 UZS
 ```
 
+Multi-line (newline-delimited) — a **transfer to another person** → a lone debit, so
+it maps to an **expense**, not a transfer (no matching credit on my cards, §5.1):
+
+```
+💸 Оплата
+➖ 500.000,00 UZS
+📍 TBC P2P S HUMO NA UZ
+💳 HUMOCARD *8400
+🕓 09:39 14.06.2026
+💰 610.241,56 UZS
+```
+
 ### 4.2 Parsing rules
 
 - **Anchor on the emoji markers** (`➖/➕`, `📍`, `💳`, `🕓`, `💰`), not on the field
-  contents. Field order is stable; one tolerant regex captures all fields.
+  contents. Field order is stable; one tolerant regex captures all fields. Allow
+  **arbitrary whitespace including newlines** around every marker (messages come both
+  single-line and one-field-per-line) — use `(?s)` and `\s*` between fields.
 - **Emoji robustness:** allow an optional variation selector (`U+FE0F`) after each
   marker emoji — senders may or may not include it, and an exact-byte match will
   silently break otherwise.
@@ -130,21 +149,56 @@ onto that model:
 
 ### 5.1 Transfers are the critical case
 
-A transfer between the user's own cards arrives as **two separate messages** — a
-debit on the source card and a credit on the destination card, with the **same
-amount, same minute, opposite signs, different cards** (see the §4.1 samples).
+**Every message is for one of *my* cards only** — the notification shows my
+`card_last4`, never the counterparty's. So a lone debit is ambiguous on its own: the
+money could have gone to my *other* card or to another person. The **only** signal
+that it was an internal transfer is that a **matching credit appears on another of my
+cards**. That existence *is* the discriminator:
 
-These two messages **must be collapsed into ONE `transfer`** in the finance app. If
-posted independently as an expense + an income, the app would record a phantom
-expense and a phantom income, **double-count, and break net worth** — violating the
-app invariant that *transfers carry no category and don't change net worth*.
+| What I receive | Meaning | Post as |
+|---|---|---|
+| debit on card A **and** credit on card B (A≠B, equal amount, 🕓 within window) | transfer between my own cards | **one `transfer`** |
+| debit only, no matching credit (e.g. `➖ … 📍 TBC P2P S HUMO NA UZ 💳 *8400`) | sent to another person | **expense** |
+| credit only, no matching debit | received from another person | **income** |
 
-**Pairing rule:** hold any debit/credit whose card is one of the user's own
-accounts for up to `TRANSFER_PAIR_WINDOW` seconds, looking for a counterpart message
-with equal amount, opposite sign, same minute, and a second own-card. On a match →
-emit a single `transfer` (assign both legs a shared `transfer_group_id`). If no
-counterpart arrives within the window → emit the standalone expense/income. The
-buffer must tolerate **out-of-order arrival** and guarantee **at-most-once** posting.
+Therefore `CARD_ACCOUNT_MAP`'s job is **not** to gate "is this mine" (every message
+is mine) — it is to (a) resolve each card's `account_id` and (b) enumerate all my
+cards. An internal transfer is recognized purely by **both legs appearing**.
+
+If the two legs were posted independently as expense + income, the app would
+double-count and **break net worth** — violating the invariant that *transfers carry
+no category and don't change net worth*. They **must collapse into ONE `transfer`**
+(from = debit's account, to = credit's account, shared `transfer_group_id`,
+deterministic `external_id = tg:transfer:<id_lo>-<id_hi>`).
+
+**Fees are always a separate message/transaction.** So the two transfer legs are
+clean and **exactly equal** → match on exact amount (no fuzzy tolerance). The fee
+arrives as its own small debit (different amount → never pairs) → standalone expense.
+
+**Pairing rule.** Hold every debit/credit briefly and look in the buffer for a
+counterpart: **opposite sign, equal amount, different own-card, |🕓Δ| ≤
+`TRANSFER_PAIR_WINDOW`**. On a match → emit one `transfer` and drop both legs.
+Two distinct timers:
+
+- `TRANSFER_PAIR_WINDOW` (≈60–120s) — max gap between the two **🕓 transaction
+  times**. Legs are usually same-minute but can arrive up to ~2 min apart.
+- `HOLD_DURATION` (≈5 min, **> poll interval + skew**) — how long an unmatched leg
+  waits before it's flushed as a standalone expense/income. Must exceed poll latency
+  so a leg never times out *before* its mate is even polled (this is the safeguard
+  against double-counting).
+
+The buffer must tolerate **out-of-order arrival** (match against the buffer, so order
+is irrelevant), persist pending legs across restarts (§8), and guarantee
+**at-most-once** posting (idempotent `external_id`).
+
+**False-positive risk.** A *coincidental* equal-amount expense + income within the
+window would look like a transfer and be wrongly merged (net worth off). Guards, in
+order: keep the 🕓 window tight; use the merchant marker as a **confirmation** —
+internal own-transfers seem to carry a self-transfer hint (`U2H` in
+`DAVR MOBILE P2P U2H`, vs the external `… P2P S HUMO NA UZ`), tune against real data;
+optionally cross-check `balance_after` (card A drops by X, card B rises by X). When
+unsure, lean **conservative** — post expense + income and let the user re-merge in the
+app — and **log every auto-merge** for review.
 
 ### 5.2 Currency
 

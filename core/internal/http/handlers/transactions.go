@@ -161,6 +161,46 @@ func (s Server) GetTransaction(ctx context.Context, request api.GetTransactionRe
 	return api.GetTransaction200JSONResponse(s.toTransaction(*tx)), nil
 }
 
+func (s Server) IngestTransaction(ctx context.Context, request api.IngestTransactionRequestObject) (api.IngestTransactionResponseObject, error) {
+	if request.Body == nil {
+		return api.IngestTransaction400JSONResponse{BadRequestJSONResponse: badRequest("empty body")}, nil
+	}
+	body := request.Body
+
+	// reuse the transaction engine by adapting to the create shape
+	tx, msg := s.buildTransaction(ctx, &api.CreateTransactionRequest{
+		Date:          body.Date,
+		Type:          body.Type,
+		FromAccountId: body.FromAccountId,
+		ToAccountId:   body.ToAccountId,
+		CategoryId:    body.CategoryId,
+		Amount:        body.Amount,
+		ToAmount:      body.ToAmount,
+		RateToBase:    body.RateToBase,
+		Note:          body.Note,
+		Tags:          body.Tags,
+	})
+	if msg != "" {
+		return api.IngestTransaction400JSONResponse{BadRequestJSONResponse: badRequest(msg)}, nil
+	}
+
+	tx.ExternalID = &body.ExternalId
+	tx.TransferGroupID = body.TransferGroupId
+
+	created, err := s.transactions.Ingest(ctx, &tx)
+	if err != nil {
+		s.logger.Error("ingest transaction", zap.Error(err))
+
+		return nil, err
+	}
+
+	if created {
+		return api.IngestTransaction201JSONResponse(s.toTransaction(tx)), nil
+	}
+
+	return api.IngestTransaction200JSONResponse(s.toTransaction(tx)), nil
+}
+
 func (s Server) DeleteTransaction(ctx context.Context, request api.DeleteTransactionRequestObject) (api.DeleteTransactionResponseObject, error) {
 	err := s.transactions.Delete(ctx, request.Id)
 	if errors.Is(err, transactionrepository.ErrNotFound) {
@@ -259,6 +299,12 @@ func (s Server) toTransaction(tx entities.Transaction) api.Transaction {
 	}
 	if tx.Note != nil {
 		out.Note = nullable.NewNullableWithValue(*tx.Note)
+	}
+	if tx.ExternalID != nil {
+		out.ExternalId = nullable.NewNullableWithValue(*tx.ExternalID)
+	}
+	if tx.TransferGroupID != nil {
+		out.TransferGroupId = nullable.NewNullableWithValue(*tx.TransferGroupID)
 	}
 
 	return out

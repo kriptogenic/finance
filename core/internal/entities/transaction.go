@@ -42,6 +42,10 @@ type Transaction struct {
 	Note      *string
 	Tags      []string
 	CreatedAt time.Time
+
+	// external ingest metadata (e.g. Telegram userbot); nil for UI transactions
+	ExternalID      *string // stable idempotency key from the source
+	TransferGroupID *string // ties paired transfer legs together
 }
 
 // CreditAmount is the value credited to the receiving account, in that

@@ -158,6 +158,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ingest/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Idempotently ingest an external transaction (e.g. bank notifications) */
+        post: operations["ingestTransaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/net-worth": {
         parameters: {
             query?: never;
@@ -384,6 +401,9 @@ export interface components {
             tags: string[];
             /** Format: date-time */
             created_at: string;
+            /** @description Stable idempotency key for externally-ingested transactions. */
+            external_id?: string | null;
+            transfer_group_id?: string | null;
         };
         CreateTransactionRequest: {
             /**
@@ -409,6 +429,31 @@ export interface components {
              */
             to_amount?: number;
             /** @description Required when the primary currency differs from base. Decimal string. */
+            rate_to_base?: string;
+            note?: string;
+            tags?: string[];
+        };
+        /**
+         * @description Same shape as CreateTransactionRequest plus external_id (required, the
+         *     idempotency key) and an optional transfer_group_id. The caller resolves
+         *     cards/sources to account and category ids before posting.
+         */
+        IngestTransactionRequest: {
+            external_id: string;
+            transfer_group_id?: string;
+            /** Format: date-time */
+            date?: string;
+            type: components["schemas"]["TransactionType"];
+            /** Format: uuid */
+            from_account_id?: string;
+            /** Format: uuid */
+            to_account_id?: string;
+            /** Format: uuid */
+            category_id?: string;
+            /** Format: int64 */
+            amount: number;
+            /** Format: int64 */
+            to_amount?: number;
             rate_to_base?: string;
             note?: string;
             tags?: string[];
@@ -548,6 +593,15 @@ export interface components {
         };
         /** @description Resource not found */
         NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description Missing or invalid bearer token */
+        Unauthorized: {
             headers: {
                 [name: string]: unknown;
             };
@@ -995,6 +1049,41 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    ingestTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestTransactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Already ingested (deduped by external_id) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                };
+            };
+            /** @description Transaction created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
         };
     };
     getNetWorth: {

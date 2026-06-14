@@ -172,38 +172,50 @@ can't be reliably categorized. Options, simplest first:
 
 ## 7. Integration contract (bot → finance app)
 
-The bot delivers each record to the finance app's **ingest/import HTTP endpoint**
-(the "webhook" boundary). Suggested payload:
+The finance app **now exposes** this endpoint (built; see that app's commit
+"ingest endpoint"):
+
+```
+POST {FINANCE_API_URL}/ingest/transactions
+Authorization: Bearer {FINANCE_API_TOKEN}
+Content-Type: application/json
+```
+
+The bot resolves cards → account ids (via `CARD_ACCOUNT_MAP`) and chooses the
+category id (the Uncategorized buckets, §6) **before** posting — the app does not
+know about cards. Payload (the app validates against its OpenAPI `IngestTransactionRequest`):
 
 ```jsonc
 {
-  "external_id": "tg:<chat_id>:<message_id>",   // idempotency key
+  "external_id": "tg:<chat_id>:<message_id>",   // REQUIRED — idempotency key
   "type": "expense" | "income" | "transfer",
-  "amount_minor": 5755000,                       // int64, minor units
-  "currency": "UZS",
-  "rate_to_base": 1,                             // per §5.2
-  "card_last4": "4853",
-  "card_type": "HUMOCARD",
-  "occurred_at": "2026-06-14T10:03:00+05:00",    // Asia/Tashkent
-  "balance_after_minor": 69794526,               // for reconciliation
-  "merchant_raw": "SP OOO HAVAS FOOD>T",
-  "transfer_group_id": "…",                       // set only for paired transfers
-  "raw_text": "💸 Оплата➖ …",                    // always included
-  "parsed": true
+  "from_account_id": "<uuid>",                  // per type rules (§5)
+  "to_account_id": "<uuid>",
+  "category_id": "<uuid>",                       // required for expense/income; omit for transfer
+  "amount": 5755000,                             // int64 minor units, primary leg
+  "to_amount": 125000000,                        // transfers only, cross-currency (omit for UZS)
+  "rate_to_base": "1",                           // string decimal; omit when currency == base
+  "date": "2026-06-14T10:03:00+05:00",           // Asia/Tashkent; defaults to now
+  "note": "SP OOO HAVAS FOOD>T",                 // put merchant_raw here
+  "tags": ["humo", "*4853"],
+  "transfer_group_id": "…"                        // optional, set on both paired legs
 }
 ```
 
-- **Idempotency (required):** `external_id` is stable per Telegram message. The app
-  must **dedupe/upsert** on it so retries or reprocessing never create duplicates.
-  *App-side requirement.*
-- **Delivery:** HTTP POST with a bearer token (`FINANCE_API_TOKEN`, from env).
-  Retry with exponential backoff (generous — latency is relaxed). A message's
-  watermark is advanced **only after a 2xx / accepted / deduped** response, so a
-  crash mid-delivery re-sends rather than skips.
-- **App-side prerequisite — OPEN DECISION (§13.3).** The finance app was designed
-  local-first/single-user and may not currently expose a network ingest endpoint.
-  If it doesn't, **adding one that matches this contract is a prerequisite.** If bot
-  and app run on the same host, a localhost endpoint is fine.
+- **Currency is derived from the account** server-side (all UZS here), so the bot
+  doesn't send `currency`. With `BASE_CURRENCY=UZS` the app accepts the post with
+  no `rate_to_base` (treated as base); send `"rate_to_base"` only for non-base legs.
+- **Idempotency:** the app dedupes on `external_id` (partial-unique). Response is
+  **`201`** when created, **`200`** when it already existed (returns the stored
+  transaction unchanged). Either is a success → advance the watermark.
+- **Auth:** bearer token = `INGEST_TOKEN` on the app side. If the app's token is
+  empty (local-only), auth is skipped; otherwise a mismatch is `401`.
+- **Delivery:** HTTP POST, retry with generous exponential backoff. Advance the
+  message watermark **only after a 201/200** so a crash mid-delivery re-sends.
+- **Not sent to the app:** `balance_after`, `raw_text`, `parsed`, `card_*` — these
+  stay bot-side (reconciliation/logging). A message that fails to parse
+  (`parsed=false`) is **not** posted to the transaction endpoint; the bot logs/queues
+  it for the operator (the app feed is insert-only and strongly-typed).
 
 ---
 
@@ -287,9 +299,14 @@ The bot delivers each record to the finance app's **ingest/import HTTP endpoint*
 ## 13. Open decisions to confirm before building
 
 1. **Does the source bot edit messages** (placeholder → final value)? Determines the
-   polling strategy in §3.
-2. **Category strategy** (§6): confirm "Uncategorized + review in app" for MVP.
-3. **Does the finance app already expose an ingest endpoint** (§7)? If not, agreeing
-   and building that contract is a prerequisite.
-4. **Is UZS the app's base currency** (§5.2)? Sets `rate_to_base` handling.
-5. **`CARD_ACCOUNT_MAP` values** — the actual last4 → account_id pairs.
+   polling strategy in §3. *(Still open — observe the real feed.)*
+2. **Category strategy** (§6): ✅ **resolved — option (a).** The finance app seeds an
+   `Uncategorized` (expense) and `Uncategorized income` (income) category; point
+   `DEFAULT_EXPENSE_CATEGORY_ID` / `DEFAULT_INCOME_CATEGORY_ID` at their ids.
+3. **Does the finance app expose an ingest endpoint** (§7)? ✅ **resolved — built.**
+   `POST /ingest/transactions`, bearer `INGEST_TOKEN`, idempotent on `external_id`
+   (201 created / 200 deduped).
+4. **Is UZS the app's base currency** (§5.2)? ✅ **resolved — yes** (`BASE_CURRENCY=UZS`,
+   so `rate_to_base` is omitted/1).
+5. **`CARD_ACCOUNT_MAP` values** — the actual last4 → account_id pairs. *(Operator
+   config; gather the real card last4s and create/point at finance-app accounts.)*

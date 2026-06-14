@@ -37,6 +37,8 @@ type Repository interface {
 	// created_at are preserved.
 	Update(ctx context.Context, tx *entities.Transaction) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	// Ingest idempotently inserts by external_id; created=false means it already existed.
+	Ingest(ctx context.Context, tx *entities.Transaction) (created bool, err error)
 }
 
 type repository struct {
@@ -51,7 +53,7 @@ func NewRepository(db *database.DB) Repository {
 // on pgx numeric decoding.
 const txColumns = `id, date, type, from_account_id, to_account_id, category_id,
 	amount, currency, to_amount, to_currency, rate_to_base::text, base_amount,
-	note, tags, created_at`
+	note, tags, created_at, external_id, transfer_group_id`
 
 func scanTransaction(row pgx.Row) (entities.Transaction, error) {
 	var (
@@ -61,7 +63,7 @@ func scanTransaction(row pgx.Row) (entities.Transaction, error) {
 	err := row.Scan(
 		&t.ID, &t.Date, &t.Type, &t.FromAccountID, &t.ToAccountID, &t.CategoryID,
 		&t.Amount, &t.Currency, &t.ToAmount, &t.ToCurrency, &rateText, &t.BaseAmount,
-		&t.Note, &t.Tags, &t.CreatedAt,
+		&t.Note, &t.Tags, &t.CreatedAt, &t.ExternalID, &t.TransferGroupID,
 	)
 	if err != nil {
 		return entities.Transaction{}, err
@@ -88,19 +90,68 @@ func (r repository) Create(ctx context.Context, tx *entities.Transaction) error 
 	const query = `
 		INSERT INTO transactions
 			(date, type, from_account_id, to_account_id, category_id, amount, currency,
-			 to_amount, to_currency, rate_to_base, base_amount, note, tags)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric, $11, $12, $13)
+			 to_amount, to_currency, rate_to_base, base_amount, note, tags,
+			 external_id, transfer_group_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric, $11, $12, $13, $14, $15)
 		RETURNING id, created_at`
 
 	err := r.db.Pool.QueryRow(ctx, query,
 		tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID, tx.Amount, tx.Currency,
 		tx.ToAmount, tx.ToCurrency, rateText, tx.BaseAmount, tx.Note, tx.Tags,
+		tx.ExternalID, tx.TransferGroupID,
 	).Scan(&tx.ID, &tx.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create transaction: %w", err)
 	}
 
 	return nil
+}
+
+// Ingest idempotently inserts a transaction keyed by external_id. It returns
+// created=false (and the existing row) when external_id was already ingested, so
+// retries never duplicate. tx.ExternalID must be set.
+func (r repository) Ingest(ctx context.Context, tx *entities.Transaction) (created bool, err error) {
+	if tx.ExternalID == nil || *tx.ExternalID == "" {
+		return false, errors.New("ingest requires an external_id")
+	}
+
+	var rateText *string
+	if tx.RateToBase != nil {
+		s := tx.RateToBase.String()
+		rateText = &s
+	}
+
+	const query = `
+		INSERT INTO transactions
+			(date, type, from_account_id, to_account_id, category_id, amount, currency,
+			 to_amount, to_currency, rate_to_base, base_amount, note, tags,
+			 external_id, transfer_group_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric, $11, $12, $13, $14, $15)
+		ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING
+		RETURNING id, created_at`
+
+	err = r.db.Pool.QueryRow(ctx, query,
+		tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID, tx.Amount, tx.Currency,
+		tx.ToAmount, tx.ToCurrency, rateText, tx.BaseAmount, tx.Note, tx.Tags,
+		tx.ExternalID, tx.TransferGroupID,
+	).Scan(&tx.ID, &tx.CreatedAt)
+
+	if err == nil {
+		return true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return false, fmt.Errorf("ingest transaction: %w", err)
+	}
+
+	// conflict: the external_id already exists — return the stored transaction
+	existing, getErr := scanTransaction(r.db.Pool.QueryRow(ctx,
+		`SELECT `+txColumns+` FROM transactions WHERE external_id = $1`, *tx.ExternalID))
+	if getErr != nil {
+		return false, fmt.Errorf("ingest lookup: %w", getErr)
+	}
+	*tx = existing
+
+	return false, nil
 }
 
 func (r repository) List(ctx context.Context, filter Filter) ([]entities.Transaction, error) {

@@ -208,6 +208,14 @@ func (s *seeder) seedCategories(ctx context.Context) (map[string]entities.Catego
 			return nil, err
 		}
 	}
+	// "Uncategorized" buckets for externally-ingested transactions (e.g. the
+	// Telegram userbot references these by id when it can't categorize).
+	if _, err = create("Uncategorized", entities.CategoryExpense, nil); err != nil {
+		return nil, err
+	}
+	if _, err = create("Uncategorized income", entities.CategoryIncome, nil); err != nil {
+		return nil, err
+	}
 
 	return out, nil
 }

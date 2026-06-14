@@ -17,6 +17,7 @@ type (
 		Log
 		DB
 		Finance
+		Ingest
 	}
 
 	App struct {
@@ -48,6 +49,12 @@ type (
 	Finance struct {
 		BaseCurrency string `env:"BASE_CURRENCY" env-default:"UZS"`
 	}
+
+	// Ingest guards the external ingest endpoint. When Token is empty the
+	// endpoint is open (local dev); otherwise a matching bearer token is required.
+	Ingest struct {
+		Token string `env:"INGEST_TOKEN" env-default:""`
+	}
 )
 
 func NewConfig() (*Config, error) {
@@ -67,6 +74,7 @@ func RegisterConfigs() fx.Option {
 		func(cfg *Config) *Log { return &cfg.Log },
 		func(cfg *Config) *DB { return &cfg.DB },
 		func(cfg *Config) *Finance { return &cfg.Finance },
+		func(cfg *Config) *Ingest { return &cfg.Ingest },
 	)
 }
 

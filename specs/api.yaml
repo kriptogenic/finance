@@ -318,6 +318,36 @@ paths:
         404:
           $ref: '#/components/responses/NotFound'
 
+  /ingest/transactions:
+    post:
+      operationId: ingestTransaction
+      summary: Idempotently ingest an external transaction (e.g. bank notifications)
+      security:
+        - IngestAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestTransactionRequest'
+      responses:
+        201:
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        200:
+          description: Already ingested (deduped by external_id)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
   /reports/net-worth:
     get:
       operationId: getNetWorth
@@ -461,6 +491,11 @@ components:
         type: string
         format: uuid
 
+  securitySchemes:
+    IngestAuth:
+      type: http
+      scheme: bearer
+
   responses:
     BadRequest:
       description: Invalid input
@@ -470,6 +505,12 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     NotFound:
       description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid bearer token
       content:
         application/json:
           schema:
@@ -786,6 +827,13 @@ components:
         created_at:
           type: string
           format: date-time
+        external_id:
+          type: string
+          nullable: true
+          description: Stable idempotency key for externally-ingested transactions.
+        transfer_group_id:
+          type: string
+          nullable: true
 
     CreateTransactionRequest:
       type: object
@@ -820,6 +868,52 @@ components:
         rate_to_base:
           type: string
           description: Required when the primary currency differs from base. Decimal string.
+        note:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    IngestTransactionRequest:
+      type: object
+      additionalProperties: false
+      description: |
+        Same shape as CreateTransactionRequest plus external_id (required, the
+        idempotency key) and an optional transfer_group_id. The caller resolves
+        cards/sources to account and category ids before posting.
+      required:
+        - external_id
+        - type
+        - amount
+      properties:
+        external_id:
+          type: string
+          minLength: 1
+        transfer_group_id:
+          type: string
+        date:
+          type: string
+          format: date-time
+        type:
+          $ref: './definitions.yaml#/components/schemas/TransactionType'
+        from_account_id:
+          type: string
+          format: uuid
+        to_account_id:
+          type: string
+          format: uuid
+        category_id:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+        to_amount:
+          type: integer
+          format: int64
+        rate_to_base:
+          type: string
         note:
           type: string
         tags:

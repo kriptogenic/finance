@@ -367,3 +367,87 @@ Card→account and merchant→category are **app-side** (§6), so the bot no lon
    so `rate_to_base` is omitted/1).
 5. **`CARD_ACCOUNT_MAP` values** — the actual last4 → account_id pairs. *(Operator
    config; gather the real card last4s and create/point at finance-app accounts.)*
+
+---
+
+## 14. Developing the bot — local setup, contract, conventions
+
+Everything below is the context needed to start coding the bot in `lookout/`.
+
+### 14.1 Project layout (monorepo)
+
+```
+finance/
+  core/      Go finance app + API (DDD template; pgx, oapi-codegen, fx, zap, golang-migrate)
+  frontend/  Vue 3 + Vite + TS SPA (openapi-typescript client)
+  lookout/   ← THIS bot (Go userbot). Its own Go module.
+  specs/     OpenAPI: api.yaml + definitions.yaml (source of truth for BOTH ends)
+```
+
+The app and frontend both generate their clients/types from `specs/`. **The bot
+should do the same** — generate its ingest HTTP client from `specs/api.yaml`
+(operation `ingestTransaction`, schema `IngestTransactionRequest`) with
+`oapi-codegen`, so the contract can never drift.
+
+### 14.2 Run the finance app locally (the ingest target)
+
+```bash
+# from repo root: Postgres (mapped to host :5433)
+docker compose up -d
+
+# from core/: schema + demo data, then run the API on :8080 with auth
+cd core
+make migrate-fresh && make seed
+INGEST_TOKEN=secret123 make run
+```
+
+Seed gives the bot something to hit: debit accounts **Humo *4853** and **Humo *8400**
+(UZS), and the **Uncategorized** (expense) + **Uncategorized income** buckets. The
+`category_rules` table is empty by default (everything falls back to Uncategorized).
+
+Smoke-test the endpoint:
+
+```bash
+curl -s -X POST http://localhost:8080/ingest/transactions \
+  -H 'Authorization: Bearer secret123' -H 'content-type: application/json' \
+  -d '{"external_id":"tg:1:100","type":"expense","from_card_last4":"4853",
+       "amount":5755000,"merchant":"SP OOO HAVAS FOOD>T"}'
+# 201 created; repeat -> 200 deduped; unknown card -> 400; bad/no token -> 401
+```
+
+Response status semantics (all the bot needs):
+- **201** created · **200** already ingested (deduped) → both success, advance watermark.
+- **400** unknown card / invalid shape · **401** missing/wrong bearer token.
+
+### 14.3 Bot package layout & libraries
+
+Separate Go module (`go mod init <module>/lookout`, Go 1.26). Keep the four stages
+in **separate packages** so a slow ingest can't stall polling (§12):
+
+| Package | Role |
+|---|---|
+| `config` | env via `ilyakaznacheev/cleanenv` (§9 vars) |
+| `telegram` | `gotd/td` user session, peer resolve, history polling, watermark |
+| `parser` | message text → structured record (§4); pure, fixture-tested |
+| `pairing` | transfer leg buffer (two timers, out-of-order, persist pending) (§5.1) |
+| `delivery` | ingest client generated from `specs/api.yaml`; retries; 201/200 = ok |
+| `store` | persisted watermark + pending legs (file or embedded KV) |
+
+Conventions mirrored from `core`: structured logging with **zap**; single static
+binary (`CGO_ENABLED=0`); config via env/flags, **no secrets in code**; `gofmt` +
+`golangci-lint`.
+
+### 14.4 Tests are mandatory (§12)
+
+- **parser** against the §4.1 fixtures — both single-line and newline formats, both
+  directions, `697.945,26 → 69794526`, truncated merchant, Asia/Tashkent, and a
+  fail-loud `parsed=false` case.
+- **pairing** — in-order, out-of-order, no-mate timeout, and the false-positive guard.
+- **idempotency** — same message twice → one transaction (rely on app dedupe via a
+  stable `external_id`; transfer key = `tg:transfer:<id_lo>-<id_hi>`).
+- **reconciliation** — `balance_after` gap detection.
+
+### 14.5 Build order (recap of §11)
+
+Parser first (pure, highest value) → pairing buffer → delivery/idempotency →
+Telegram session + polling + watermark wired last → hardening (reconciliation, ops).

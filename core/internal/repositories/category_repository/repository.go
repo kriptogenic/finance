@@ -23,6 +23,10 @@ type Repository interface {
 	Get(ctx context.Context, id uuid.UUID) (*entities.Category, error)
 	Update(ctx context.Context, cat *entities.Category) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	// ResolveForIngest picks a category for an externally-ingested transaction:
+	// the first matching merchant rule, else the built-in "uncategorized_<type>"
+	// bucket. Returns ErrNotFound when no default bucket exists.
+	ResolveForIngest(ctx context.Context, typ entities.CategoryType, merchant string) (uuid.UUID, error)
 }
 
 type repository struct {
@@ -33,22 +37,22 @@ func NewRepository(db *database.DB) Repository {
 	return &repository{db: db}
 }
 
-const categoryColumns = `id, name, parent_id, type, icon, color, archived, created_at`
+const categoryColumns = `id, name, parent_id, type, icon, color, archived, created_at, system_key`
 
 func scanCategory(row pgx.Row) (entities.Category, error) {
 	var c entities.Category
-	err := row.Scan(&c.ID, &c.Name, &c.ParentID, &c.Type, &c.Icon, &c.Color, &c.Archived, &c.CreatedAt)
+	err := row.Scan(&c.ID, &c.Name, &c.ParentID, &c.Type, &c.Icon, &c.Color, &c.Archived, &c.CreatedAt, &c.SystemKey)
 
 	return c, err
 }
 
 func (r repository) Create(ctx context.Context, cat *entities.Category) error {
 	const query = `
-		INSERT INTO categories (name, parent_id, type, icon, color)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO categories (name, parent_id, type, icon, color, system_key)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, created_at`
 
-	err := r.db.Pool.QueryRow(ctx, query, cat.Name, cat.ParentID, cat.Type, cat.Icon, cat.Color).
+	err := r.db.Pool.QueryRow(ctx, query, cat.Name, cat.ParentID, cat.Type, cat.Icon, cat.Color, cat.SystemKey).
 		Scan(&cat.ID, &cat.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create category: %w", err)
@@ -121,6 +125,42 @@ func (r repository) Update(ctx context.Context, cat *entities.Category) error {
 	}
 
 	return nil
+}
+
+func (r repository) ResolveForIngest(ctx context.Context, typ entities.CategoryType, merchant string) (uuid.UUID, error) {
+	// 1) first matching rule (longest pattern wins), constrained to the type
+	if merchant != "" {
+		const ruleQuery = `
+			SELECT r.category_id
+			FROM category_rules r
+			JOIN categories c ON c.id = r.category_id
+			WHERE c.type = $1 AND $2 ILIKE '%' || r.pattern || '%'
+			ORDER BY length(r.pattern) DESC
+			LIMIT 1`
+
+		var id uuid.UUID
+		err := r.db.Pool.QueryRow(ctx, ruleQuery, typ, merchant).Scan(&id)
+		if err == nil {
+			return id, nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, fmt.Errorf("resolve category rule: %w", err)
+		}
+	}
+
+	// 2) fall back to the built-in default bucket for this type
+	key := "uncategorized_" + string(typ)
+
+	var id uuid.UUID
+	err := r.db.Pool.QueryRow(ctx, `SELECT id FROM categories WHERE system_key = $1`, key).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, ErrNotFound
+	}
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("resolve default category: %w", err)
+	}
+
+	return id, nil
 }
 
 func (r repository) Delete(ctx context.Context, id uuid.UUID) error {

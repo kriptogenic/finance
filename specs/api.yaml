@@ -584,6 +584,10 @@ components:
         created_at:
           type: string
           format: date-time
+        card_last4:
+          type: string
+          nullable: true
+          description: Card identifier used to route external ingest to this account.
         # subtype fields, present only for the relevant type
         interest_rate:
           type: number
@@ -656,6 +660,8 @@ components:
           format: date
         payment_day:
           type: integer
+        card_last4:
+          type: string
 
     UpdateAccountRequest:
       type: object
@@ -686,6 +692,8 @@ components:
           format: date
         payment_day:
           type: integer
+        card_last4:
+          type: string
 
     CategoryListResponse:
       type: object
@@ -879,9 +887,9 @@ components:
       type: object
       additionalProperties: false
       description: |
-        Same shape as CreateTransactionRequest plus external_id (required, the
-        idempotency key) and an optional transfer_group_id. The caller resolves
-        cards/sources to account and category ids before posting.
+        External transaction (e.g. bank notification). The app owns routing: it
+        resolves cards to accounts and the merchant to a category. The caller
+        sends the card(s) and merchant, not account/category ids.
       required:
         - external_id
         - type
@@ -890,6 +898,7 @@ components:
         external_id:
           type: string
           minLength: 1
+          description: Stable idempotency key (e.g. tg:<chat>:<msg> or tg:transfer:<lo>-<hi>).
         transfer_group_id:
           type: string
         date:
@@ -897,15 +906,15 @@ components:
           format: date-time
         type:
           $ref: './definitions.yaml#/components/schemas/TransactionType'
-        from_account_id:
+        from_card_last4:
           type: string
-          format: uuid
-        to_account_id:
+          description: Card whose account money leaves (expense, transfer). Resolved app-side.
+        to_card_last4:
           type: string
-          format: uuid
-        category_id:
+          description: Card whose account money enters (income, transfer). Resolved app-side.
+        merchant:
           type: string
-          format: uuid
+          description: Raw merchant/source text; used to route to a category and stored as the note.
         amount:
           type: integer
           format: int64
@@ -913,8 +922,6 @@ components:
           type: integer
           format: int64
         rate_to_base:
-          type: string
-        note:
           type: string
         tags:
           type: array

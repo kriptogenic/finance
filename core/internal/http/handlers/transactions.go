@@ -167,19 +167,52 @@ func (s Server) IngestTransaction(ctx context.Context, request api.IngestTransac
 	}
 	body := request.Body
 
-	// reuse the transaction engine by adapting to the create shape
-	tx, msg := s.buildTransaction(ctx, &api.CreateTransactionRequest{
-		Date:          body.Date,
-		Type:          body.Type,
-		FromAccountId: body.FromAccountId,
-		ToAccountId:   body.ToAccountId,
-		CategoryId:    body.CategoryId,
-		Amount:        body.Amount,
-		ToAmount:      body.ToAmount,
-		RateToBase:    body.RateToBase,
-		Note:          body.Note,
-		Tags:          body.Tags,
-	})
+	create := api.CreateTransactionRequest{
+		Date:       body.Date,
+		Type:       body.Type,
+		Amount:     body.Amount,
+		ToAmount:   body.ToAmount,
+		RateToBase: body.RateToBase,
+		Note:       body.Merchant, // raw merchant text is stored as the note
+		Tags:       body.Tags,
+	}
+
+	// the app owns routing: resolve cards -> accounts
+	if body.FromCardLast4 != nil {
+		id, resp := s.resolveCard(ctx, *body.FromCardLast4)
+		if resp != nil {
+			return resp, nil
+		}
+		create.FromAccountId = id
+	}
+	if body.ToCardLast4 != nil {
+		id, resp := s.resolveCard(ctx, *body.ToCardLast4)
+		if resp != nil {
+			return resp, nil
+		}
+		create.ToAccountId = id
+	}
+
+	// ... and the merchant -> a category (rule, else the Uncategorized bucket)
+	if body.Type != api.TransactionTypeTransfer {
+		catType := entities.CategoryExpense
+		if body.Type == api.TransactionTypeIncome {
+			catType = entities.CategoryIncome
+		}
+		merchant := ""
+		if body.Merchant != nil {
+			merchant = *body.Merchant
+		}
+		catID, err := s.categories.ResolveForIngest(ctx, catType, merchant)
+		if err != nil {
+			s.logger.Error("resolve ingest category", zap.Error(err))
+
+			return api.IngestTransaction400JSONResponse{BadRequestJSONResponse: badRequest("could not resolve a category (seed the Uncategorized buckets)")}, nil
+		}
+		create.CategoryId = &catID
+	}
+
+	tx, msg := s.buildTransaction(ctx, &create)
 	if msg != "" {
 		return api.IngestTransaction400JSONResponse{BadRequestJSONResponse: badRequest(msg)}, nil
 	}
@@ -199,6 +232,21 @@ func (s Server) IngestTransaction(ctx context.Context, request api.IngestTransac
 	}
 
 	return api.IngestTransaction200JSONResponse(s.toTransaction(tx)), nil
+}
+
+// resolveCard maps a card last4 to its account id, or returns a 400 response.
+func (s Server) resolveCard(ctx context.Context, last4 string) (*uuid.UUID, api.IngestTransactionResponseObject) {
+	acc, err := s.accounts.ByCardLast4(ctx, last4)
+	if errors.Is(err, accountrepository.ErrNotFound) {
+		return nil, api.IngestTransaction400JSONResponse{BadRequestJSONResponse: badRequest("unknown card: " + last4)}
+	}
+	if err != nil {
+		s.logger.Error("resolve card", zap.Error(err))
+
+		return nil, api.IngestTransaction400JSONResponse{BadRequestJSONResponse: badRequest("card resolution failed")}
+	}
+
+	return &acc.ID, nil
 }
 
 func (s Server) DeleteTransaction(ctx context.Context, request api.DeleteTransactionRequestObject) (api.DeleteTransactionResponseObject, error) {

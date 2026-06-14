@@ -57,6 +57,7 @@ func (s Server) CreateAccount(ctx context.Context, request api.CreateAccountRequ
 		Principal:      body.Principal,
 		StartDate:      datePtr(body.StartDate),
 		PaymentDay:     body.PaymentDay,
+		CardLast4:      body.CardLast4,
 	}
 	if body.OpeningBalance != nil {
 		acc.OpeningBalance = *body.OpeningBalance
@@ -139,6 +140,9 @@ func (s Server) UpdateAccount(ctx context.Context, request api.UpdateAccountRequ
 	}
 	if body.PaymentDay != nil {
 		acc.PaymentDay = body.PaymentDay
+	}
+	if body.CardLast4 != nil {
+		acc.CardLast4 = body.CardLast4
 	}
 
 	if err = s.accounts.Update(ctx, acc); err != nil {
@@ -275,6 +279,9 @@ func toAccount(acc entities.Account, balance int64) api.Account {
 	}
 	if acc.PaymentDay != nil {
 		a.PaymentDay = nullable.NewNullableWithValue(*acc.PaymentDay)
+	}
+	if acc.CardLast4 != nil {
+		a.CardLast4 = nullable.NewNullableWithValue(*acc.CardLast4)
 	}
 
 	return a

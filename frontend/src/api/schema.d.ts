@@ -295,6 +295,8 @@ export interface components {
             archived: boolean;
             /** Format: date-time */
             created_at: string;
+            /** @description Card identifier used to route external ingest to this account. */
+            card_last4?: string | null;
             interest_rate?: number | null;
             term_months?: number | null;
             /** Format: date */
@@ -330,6 +332,7 @@ export interface components {
             /** Format: date */
             start_date?: string;
             payment_day?: number;
+            card_last4?: string;
         };
         UpdateAccountRequest: {
             name?: string;
@@ -346,6 +349,7 @@ export interface components {
             /** Format: date */
             start_date?: string;
             payment_day?: number;
+            card_last4?: string;
         };
         CategoryListResponse: {
             categories: components["schemas"]["Category"][];
@@ -434,28 +438,28 @@ export interface components {
             tags?: string[];
         };
         /**
-         * @description Same shape as CreateTransactionRequest plus external_id (required, the
-         *     idempotency key) and an optional transfer_group_id. The caller resolves
-         *     cards/sources to account and category ids before posting.
+         * @description External transaction (e.g. bank notification). The app owns routing: it
+         *     resolves cards to accounts and the merchant to a category. The caller
+         *     sends the card(s) and merchant, not account/category ids.
          */
         IngestTransactionRequest: {
+            /** @description Stable idempotency key (e.g. tg:<chat>:<msg> or tg:transfer:<lo>-<hi>). */
             external_id: string;
             transfer_group_id?: string;
             /** Format: date-time */
             date?: string;
             type: components["schemas"]["TransactionType"];
-            /** Format: uuid */
-            from_account_id?: string;
-            /** Format: uuid */
-            to_account_id?: string;
-            /** Format: uuid */
-            category_id?: string;
+            /** @description Card whose account money leaves (expense, transfer). Resolved app-side. */
+            from_card_last4?: string;
+            /** @description Card whose account money enters (income, transfer). Resolved app-side. */
+            to_card_last4?: string;
+            /** @description Raw merchant/source text; used to route to a category and stored as the note. */
+            merchant?: string;
             /** Format: int64 */
             amount: number;
             /** Format: int64 */
             to_amount?: number;
             rate_to_base?: string;
-            note?: string;
             tags?: string[];
         };
         NetWorthReport: {

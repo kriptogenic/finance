@@ -22,6 +22,8 @@ type Repository interface {
 	Create(ctx context.Context, acc *entities.Account) error
 	List(ctx context.Context, includeArchived bool) ([]entities.Account, error)
 	Get(ctx context.Context, id uuid.UUID) (*entities.Account, error)
+	// ByCardLast4 resolves the account that owns a card (external ingest routing).
+	ByCardLast4(ctx context.Context, last4 string) (*entities.Account, error)
 	Update(ctx context.Context, acc *entities.Account) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	// Balances returns the derived balance (account currency, minor units) for
@@ -39,14 +41,14 @@ func NewRepository(db *database.DB) Repository {
 
 const accountColumns = `id, name, kind, type, currency, opening_balance, archived, created_at,
 	interest_rate, term_months, maturity_date, capitalization,
-	credit_limit, principal, start_date, payment_day`
+	credit_limit, principal, start_date, payment_day, card_last4`
 
 func scanAccount(row pgx.Row) (entities.Account, error) {
 	var a entities.Account
 	err := row.Scan(
 		&a.ID, &a.Name, &a.Kind, &a.Type, &a.Currency, &a.OpeningBalance, &a.Archived, &a.CreatedAt,
 		&a.InterestRate, &a.TermMonths, &a.MaturityDate, &a.Capitalization,
-		&a.CreditLimit, &a.Principal, &a.StartDate, &a.PaymentDay,
+		&a.CreditLimit, &a.Principal, &a.StartDate, &a.PaymentDay, &a.CardLast4,
 	)
 
 	return a, err
@@ -57,14 +59,14 @@ func (r repository) Create(ctx context.Context, acc *entities.Account) error {
 		INSERT INTO accounts
 			(name, kind, type, currency, opening_balance, archived,
 			 interest_rate, term_months, maturity_date, capitalization,
-			 credit_limit, principal, start_date, payment_day)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			 credit_limit, principal, start_date, payment_day, card_last4)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id, created_at`
 
 	err := r.db.Pool.QueryRow(ctx, query,
 		acc.Name, acc.Kind, acc.Type, acc.Currency, acc.OpeningBalance, acc.Archived,
 		acc.InterestRate, acc.TermMonths, acc.MaturityDate, acc.Capitalization,
-		acc.CreditLimit, acc.Principal, acc.StartDate, acc.PaymentDay,
+		acc.CreditLimit, acc.Principal, acc.StartDate, acc.PaymentDay, acc.CardLast4,
 	).Scan(&acc.ID, &acc.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create account: %w", err)
@@ -116,18 +118,32 @@ func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Account, e
 	return &a, nil
 }
 
+func (r repository) ByCardLast4(ctx context.Context, last4 string) (*entities.Account, error) {
+	query := `SELECT ` + accountColumns + ` FROM accounts WHERE card_last4 = $1`
+
+	a, err := scanAccount(r.db.Pool.QueryRow(ctx, query, last4))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get account by card: %w", err)
+	}
+
+	return &a, nil
+}
+
 func (r repository) Update(ctx context.Context, acc *entities.Account) error {
 	const query = `
 		UPDATE accounts SET
 			name = $2, archived = $3, interest_rate = $4, term_months = $5,
 			maturity_date = $6, capitalization = $7, credit_limit = $8,
-			principal = $9, start_date = $10, payment_day = $11
+			principal = $9, start_date = $10, payment_day = $11, card_last4 = $12
 		WHERE id = $1`
 
 	res, err := r.db.Pool.Exec(ctx, query,
 		acc.ID, acc.Name, acc.Archived, acc.InterestRate, acc.TermMonths,
 		acc.MaturityDate, acc.Capitalization, acc.CreditLimit,
-		acc.Principal, acc.StartDate, acc.PaymentDay,
+		acc.Principal, acc.StartDate, acc.PaymentDay, acc.CardLast4,
 	)
 	if err != nil {
 		return fmt.Errorf("update account: %w", err)

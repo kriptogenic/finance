@@ -27,4 +27,6 @@ type Category struct {
 	Color     *string
 	Archived  bool
 	CreatedAt time.Time
+
+	SystemKey *string // marks built-in buckets (e.g. "uncategorized_expense") for ingest
 }

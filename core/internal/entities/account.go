@@ -38,6 +38,8 @@ type Account struct {
 	Archived       bool
 	CreatedAt      time.Time
 
+	CardLast4 *string // identifies the account for external ingest (e.g. card alerts)
+
 	// deposit subtype
 	InterestRate   *float64
 	TermMonths     *int

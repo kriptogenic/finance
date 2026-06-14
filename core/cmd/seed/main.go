@@ -144,6 +144,8 @@ func ptr[T any](v T) *T { return &v }
 func (s *seeder) seedAccounts(ctx context.Context) (map[string]entities.Account, error) {
 	defs := []entities.Account{
 		{Name: "Cash", Kind: entities.KindAsset, Type: entities.TypeCash, Currency: "UZS", OpeningBalance: 2_000_000_00},
+		{Name: "Humo *4853", Kind: entities.KindAsset, Type: entities.TypeDebitCard, Currency: "UZS", OpeningBalance: 700_000_00, CardLast4: ptr("4853")},
+		{Name: "Humo *8400", Kind: entities.KindAsset, Type: entities.TypeDebitCard, Currency: "UZS", OpeningBalance: 1_100_000_00, CardLast4: ptr("8400")},
 		{Name: "USD Wallet", Kind: entities.KindAsset, Type: entities.TypeCash, Currency: "USD", OpeningBalance: 0},
 		{
 			Name: "Savings", Kind: entities.KindAsset, Type: entities.TypeDeposit, Currency: "UZS",
@@ -208,16 +210,26 @@ func (s *seeder) seedCategories(ctx context.Context) (map[string]entities.Catego
 			return nil, err
 		}
 	}
-	// "Uncategorized" buckets for externally-ingested transactions (e.g. the
-	// Telegram userbot references these by id when it can't categorize).
-	if _, err = create("Uncategorized", entities.CategoryExpense, nil); err != nil {
+	// "Uncategorized" buckets for externally-ingested transactions; tagged with a
+	// system_key so the ingest endpoint can find them as the default category.
+	if err = s.createSystemCategory(ctx, out, "Uncategorized", entities.CategoryExpense, "uncategorized_expense"); err != nil {
 		return nil, err
 	}
-	if _, err = create("Uncategorized income", entities.CategoryIncome, nil); err != nil {
+	if err = s.createSystemCategory(ctx, out, "Uncategorized income", entities.CategoryIncome, "uncategorized_income"); err != nil {
 		return nil, err
 	}
 
 	return out, nil
+}
+
+func (s *seeder) createSystemCategory(ctx context.Context, out map[string]entities.Category, name string, typ entities.CategoryType, key string) error {
+	c := entities.Category{Name: name, Type: typ, SystemKey: &key}
+	if err := s.categories.Create(ctx, &c); err != nil {
+		return fmt.Errorf("seed system category %q: %w", name, err)
+	}
+	out[name] = c
+
+	return nil
 }
 
 func (s *seeder) seedTransactions(ctx context.Context, acc map[string]entities.Account, cat map[string]entities.Category) error {

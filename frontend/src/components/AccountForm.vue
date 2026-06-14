@@ -39,6 +39,7 @@ interface FormState {
   credit_limit: Num
   interest_rate: Num
   term_months: Num
+  card_last4: string
   archived: boolean
 }
 
@@ -51,6 +52,7 @@ const form = reactive<FormState>({
   credit_limit: props.account?.credit_limit != null ? toMajor(props.account.credit_limit, props.account.currency) : null,
   interest_rate: props.account?.interest_rate ?? null,
   term_months: props.account?.term_months ?? null,
+  card_last4: props.account?.card_last4 ?? '',
   archived: props.account?.archived ?? false,
 })
 
@@ -73,6 +75,7 @@ async function submit() {
       const body: UpdateAccountRequest = {
         name: form.name,
         archived: form.archived,
+        ...(form.card_last4 ? { card_last4: form.card_last4 } : {}),
         ...(form.type === 'credit_card' && form.credit_limit != null ? { credit_limit: toMinor(form.credit_limit, cur) } : {}),
         ...(form.type === 'deposit' || form.type === 'loan'
           ? { interest_rate: numOrUndef(form.interest_rate), term_months: numOrUndef(form.term_months) }
@@ -86,6 +89,7 @@ async function submit() {
         type: form.type,
         currency: cur,
         opening_balance: toMinor(form.opening, cur),
+        ...(form.card_last4 ? { card_last4: form.card_last4 } : {}),
         ...(form.type === 'credit_card' && form.credit_limit != null ? { credit_limit: toMinor(form.credit_limit, cur) } : {}),
         ...(form.type === 'deposit' || form.type === 'loan'
           ? { interest_rate: numOrUndef(form.interest_rate), term_months: numOrUndef(form.term_months) }
@@ -141,6 +145,12 @@ async function submit() {
       <div v-else class="flex items-center gap-2">
         <input id="archived" v-model="form.archived" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
         <label for="archived" class="text-sm text-slate-600">Archived</label>
+      </div>
+
+      <div>
+        <label class="lbl">Card last 4 (optional)</label>
+        <input v-model="form.card_last4" class="field" maxlength="4" placeholder="4853" />
+        <p class="mt-1 text-xs text-slate-400">Routes external bank-notification ingest to this account.</p>
       </div>
 
       <div v-if="form.type === 'credit_card'">

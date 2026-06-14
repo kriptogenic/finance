@@ -5,7 +5,7 @@ import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
 import type { Budget, Category } from '../api/types'
-import { formatMoney, formatDate } from '../lib/format'
+import { formatMoney, formatDate, isNegative, absolute } from '../lib/format'
 import BudgetForm from '../components/BudgetForm.vue'
 
 const budgets = ref<Budget[]>([])
@@ -111,8 +111,8 @@ onMounted(async () => {
         <div class="h-2.5 overflow-hidden rounded-full bg-slate-100">
           <div class="h-full rounded-full transition-all" :class="tone(b.percent).bar" :style="{ width: Math.min(100, b.percent) + '%' }" />
         </div>
-        <p class="mt-2 text-xs" :class="b.remaining.amount < 0 ? 'text-rose-600' : 'text-slate-400'">
-          {{ b.remaining.amount < 0 ? 'Over by ' + formatMoney({ amount: -b.remaining.amount, currency: b.remaining.currency }) : formatMoney(b.remaining) + ' left' }}
+        <p class="mt-2 text-xs" :class="isNegative(b.remaining) ? 'text-rose-600' : 'text-slate-400'">
+          {{ isNegative(b.remaining) ? 'Over by ' + formatMoney(absolute(b.remaining)) : formatMoney(b.remaining) + ' left' }}
         </p>
       </div>
     </div>

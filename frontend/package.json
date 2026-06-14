@@ -7,10 +7,11 @@
     "dev": "npm run gen:api && vite",
     "build": "npm run gen:api && vite build",
     "preview": "vite preview",
-    "gen:api": "openapi-typescript ../specs/api.yaml -o src/api/schema.d.ts",
+    "gen:api": "node scripts/gen-api.mjs",
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "dinero.js": "^2.0.2",
     "openapi-fetch": "^0.13.5",
     "vue": "^3.5.34",
     "vue-router": "^4.6.4"

@@ -47,8 +47,8 @@ const form = reactive<FormState>({
   kind: props.account?.kind ?? 'asset',
   type: props.account?.type ?? 'cash',
   currency: props.account?.currency ?? props.base,
-  opening: props.account ? toMajor(props.account.opening_balance) : 0,
-  credit_limit: props.account?.credit_limit != null ? toMajor(props.account.credit_limit) : null,
+  opening: props.account ? toMajor(props.account.opening_balance, props.account.currency) : 0,
+  credit_limit: props.account?.credit_limit != null ? toMajor(props.account.credit_limit, props.account.currency) : null,
   interest_rate: props.account?.interest_rate ?? null,
   term_months: props.account?.term_months ?? null,
   archived: props.account?.archived ?? false,
@@ -68,11 +68,12 @@ async function submit() {
   error.value = ''
   saving.value = true
   try {
+    const cur = props.account ? props.account.currency : form.currency.toUpperCase()
     if (props.account) {
       const body: UpdateAccountRequest = {
         name: form.name,
         archived: form.archived,
-        ...(form.type === 'credit_card' && form.credit_limit != null ? { credit_limit: toMinor(form.credit_limit) } : {}),
+        ...(form.type === 'credit_card' && form.credit_limit != null ? { credit_limit: toMinor(form.credit_limit, cur) } : {}),
         ...(form.type === 'deposit' || form.type === 'loan'
           ? { interest_rate: numOrUndef(form.interest_rate), term_months: numOrUndef(form.term_months) }
           : {}),
@@ -83,9 +84,9 @@ async function submit() {
         name: form.name,
         kind: form.kind,
         type: form.type,
-        currency: form.currency.toUpperCase(),
-        opening_balance: toMinor(form.opening),
-        ...(form.type === 'credit_card' && form.credit_limit != null ? { credit_limit: toMinor(form.credit_limit) } : {}),
+        currency: cur,
+        opening_balance: toMinor(form.opening, cur),
+        ...(form.type === 'credit_card' && form.credit_limit != null ? { credit_limit: toMinor(form.credit_limit, cur) } : {}),
         ...(form.type === 'deposit' || form.type === 'loan'
           ? { interest_rate: numOrUndef(form.interest_rate), term_months: numOrUndef(form.term_months) }
           : {}),

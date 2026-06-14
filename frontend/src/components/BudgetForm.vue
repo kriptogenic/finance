@@ -24,7 +24,7 @@ const saving = ref(false)
 const form = reactive({
   categoryId: props.budget?.category_id ?? '',
   period: (props.budget?.period ?? 'monthly') as BudgetPeriod,
-  amount: props.budget ? toMajor(props.budget.amount.amount) : ('' as number | string),
+  amount: props.budget ? toMajor(props.budget.amount.amount, props.budget.amount.currency) : ('' as number | string),
   rollover: props.budget?.rollover ?? false,
   startPeriod: props.budget?.start_period ?? '',
 })
@@ -41,7 +41,7 @@ async function submit() {
     if (props.budget) {
       const body: UpdateBudgetRequest = {
         period: form.period,
-        amount: toMinor(form.amount),
+        amount: toMinor(form.amount, props.base),
         rollover: form.rollover,
         ...(form.startPeriod ? { start_period: form.startPeriod } : {}),
       }
@@ -50,7 +50,7 @@ async function submit() {
       const body: CreateBudgetRequest = {
         category_id: form.categoryId,
         period: form.period,
-        amount: toMinor(form.amount),
+        amount: toMinor(form.amount, props.base),
         rollover: form.rollover,
         ...(form.startPeriod ? { start_period: form.startPeriod } : {}),
       }

@@ -4,7 +4,7 @@ import { accountsApi } from '../api/accounts'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
 import type { Account } from '../api/types'
-import { formatMoney } from '../lib/format'
+import { formatMoney, isNegative } from '../lib/format'
 import AccountForm from '../components/AccountForm.vue'
 import LoanScheduleModal from '../components/LoanScheduleModal.vue'
 
@@ -105,7 +105,7 @@ onMounted(async () => {
                 <p class="truncate font-semibold text-slate-800">{{ a.name }}</p>
                 <p class="text-xs text-slate-400">{{ typeLabel[a.type] || a.type }} · {{ a.currency }}</p>
               </div>
-              <p class="tabular ml-auto text-right text-lg font-semibold" :class="a.balance.amount < 0 ? 'text-rose-600' : 'text-slate-900'">
+              <p class="tabular ml-auto text-right text-lg font-semibold" :class="isNegative(a.balance) ? 'text-rose-600' : 'text-slate-900'">
                 {{ formatMoney(a.balance) }}
               </p>
               <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">

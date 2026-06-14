@@ -3,7 +3,7 @@ import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
 import type { CashFlowReport, NetWorthReport, SpendingReport } from '../api/types'
-import { formatMoney, formatMoneyShort, formatMinor } from '../lib/format'
+import { formatMoney, formatMoneyShort, formatMinor, isNegative } from '../lib/format'
 
 const netWorth = ref<NetWorthReport | null>(null)
 const spending = ref<SpendingReport | null>(null)
@@ -138,7 +138,7 @@ onMounted(async () => {
           <li v-for="e in netWorth.by_currency" :key="e.currency" class="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
             <span class="grid h-9 w-9 place-items-center rounded-xl bg-white text-xs font-bold text-slate-600 ring-1 ring-slate-200">{{ e.currency }}</span>
             <div class="text-right">
-              <p class="tabular text-sm font-semibold" :class="e.net < 0 ? 'text-rose-600' : 'text-slate-800'">{{ formatMinor(e.net, e.currency) }}</p>
+              <p class="tabular text-sm font-semibold" :class="isNegative({ amount: e.net, currency: e.currency }) ? 'text-rose-600' : 'text-slate-800'">{{ formatMinor(e.net, e.currency) }}</p>
               <p class="tabular text-xs text-slate-400">{{ e.rate_known ? formatMoney(e.net_in_base) : 'no rate' }}</p>
             </div>
           </li>
@@ -201,7 +201,7 @@ onMounted(async () => {
             <div v-for="m in cashFlow.months" :key="m.month">
               <div class="mb-2 flex justify-between text-sm">
                 <span class="font-medium text-slate-700">{{ m.month }}</span>
-                <span class="tabular font-semibold" :class="m.net.amount < 0 ? 'text-rose-600' : 'text-emerald-600'">{{ formatMoney(m.net) }}</span>
+                <span class="tabular font-semibold" :class="isNegative(m.net) ? 'text-rose-600' : 'text-emerald-600'">{{ formatMoney(m.net) }}</span>
               </div>
               <div class="space-y-1.5">
                 <div class="h-2.5 overflow-hidden rounded-full bg-slate-100">

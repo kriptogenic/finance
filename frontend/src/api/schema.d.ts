@@ -3,6 +3,7 @@
  * Do not make direct changes to the file.
  */
 
+import type { Money } from "./money";
 export interface paths {
     "/health": {
         parameters: {
@@ -527,15 +528,7 @@ export interface components {
          */
         Currency: string;
         /** @description Monetary value as integer minor units plus an ISO-4217 currency code. */
-        Money: {
-            /**
-             * Format: int64
-             * @description Amount in minor units (e.g. cents). Never floating point.
-             * @example 100000
-             */
-            amount: number;
-            currency: components["schemas"]["Currency"];
-        };
+        Money: Money;
         /** @enum {string} */
         CategoryType: "expense" | "income";
         /** @enum {string} */

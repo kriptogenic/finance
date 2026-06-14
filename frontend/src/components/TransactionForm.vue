@@ -28,8 +28,8 @@ const form = reactive({
   fromId: t?.from_account_id ?? '',
   toId: t?.to_account_id ?? '',
   categoryId: t?.category_id ?? '',
-  amount: t ? toMajor(t.amount.amount) : ('' as number | string),
-  toAmount: t?.to_amount ? toMajor(t.to_amount.amount) : ('' as number | string),
+  amount: t ? toMajor(t.amount.amount, t.amount.currency) : ('' as number | string),
+  toAmount: t?.to_amount ? toMajor(t.to_amount.amount, t.to_amount.currency) : ('' as number | string),
   rate: t?.rate_to_base ?? '',
   note: t?.note ?? '',
   tags: (t?.tags ?? []).join(', '),
@@ -63,12 +63,12 @@ async function submit() {
     const payload: CreateTransactionRequest = {
       type: form.type,
       date: new Date(form.date).toISOString(),
-      amount: toMinor(form.amount),
+      amount: toMinor(form.amount, primaryCurrency.value ?? props.base),
     }
     if (form.type !== 'income') payload.from_account_id = form.fromId
     if (form.type !== 'expense') payload.to_account_id = form.toId
     if (form.type !== 'transfer') payload.category_id = form.categoryId
-    if (isCross.value) payload.to_amount = toMinor(form.toAmount)
+    if (isCross.value) payload.to_amount = toMinor(form.toAmount, toAcc.value?.currency ?? props.base)
     if (needsRate.value && form.rate !== '') payload.rate_to_base = String(form.rate)
     if (form.note) payload.note = form.note
     const tags = form.tags.split(',').map((s) => s.trim()).filter(Boolean)

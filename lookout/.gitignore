@@ -6,3 +6,5 @@ lookout-state.json
 
 # Build output
 dist/
+
+/generated/core/*.go

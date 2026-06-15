@@ -1,14 +1,14 @@
 package delivery
 
 import (
-	"finance/lookout/generated/api"
+	"finance/lookout/generated/core"
 	"finance/lookout/internal/pairing"
 )
 
-func toRequest(p pairing.Posting) api.IngestTransactionRequest {
-	req := api.IngestTransactionRequest{
+func toRequest(p pairing.Posting) core.IngestTransactionRequest {
+	req := core.IngestTransactionRequest{
 		ExternalId: p.ExternalID,
-		Type:       api.TransactionType(p.Type),
+		Type:       core.TransactionType(p.Type),
 		Amount:     p.Amount,
 	}
 	if !p.Date.IsZero() {

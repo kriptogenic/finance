@@ -4,8 +4,8 @@ SPECS := ../specs
 # Regenerate the ingest client + models from the shared OpenAPI spec so the
 # bot↔app contract can never drift (REQUIREMENTS §14.1).
 generate gen:
-	go tool oapi-codegen -config generated/api/definitions-cfg.yaml $(SPECS)/definitions.yaml
-	go tool oapi-codegen -config generated/api/cfg.yaml $(SPECS)/api.yaml
+	go tool oapi-codegen -config generated/core/definitions-cfg.yaml $(SPECS)/definitions.yaml
+	go tool oapi-codegen -config generated/core/cfg.yaml $(SPECS)/api.yaml
 
 .PHONY: build
 build: generate

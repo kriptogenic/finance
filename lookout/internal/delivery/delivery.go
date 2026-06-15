@@ -9,7 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"finance/lookout/generated/api"
+	"finance/lookout/generated/core"
 	"finance/lookout/internal/pairing"
 )
 
@@ -35,7 +35,7 @@ func (c Config) withDefaults() Config {
 }
 
 type Client struct {
-	api *api.ClientWithResponses
+	api *core.ClientWithResponses
 	cfg Config
 	log *zap.Logger
 }
@@ -44,14 +44,14 @@ func New(baseURL, token string, httpClient *http.Client, cfg Config, log *zap.Lo
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 30 * time.Second}
 	}
-	opts := []api.ClientOption{api.WithHTTPClient(httpClient)}
+	opts := []core.ClientOption{core.WithHTTPClient(httpClient)}
 	if token != "" {
-		opts = append(opts, api.WithRequestEditorFn(func(_ context.Context, req *http.Request) error {
+		opts = append(opts, core.WithRequestEditorFn(func(_ context.Context, req *http.Request) error {
 			req.Header.Set("Authorization", "Bearer "+token)
 			return nil
 		}))
 	}
-	c, err := api.NewClientWithResponses(baseURL, opts...)
+	c, err := core.NewClientWithResponses(baseURL, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("build ingest client: %w", err)
 	}
@@ -90,7 +90,7 @@ func (c *Client) Post(ctx context.Context, p pairing.Posting) error {
 	}
 }
 
-func (c *Client) attempt(ctx context.Context, body api.IngestTransactionRequest) error {
+func (c *Client) attempt(ctx context.Context, body core.IngestTransactionRequest) error {
 	resp, err := c.api.IngestTransactionWithResponse(ctx, body)
 	if err != nil {
 		return fmt.Errorf("post ingest: %w", err)

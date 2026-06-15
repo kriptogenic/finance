@@ -1,0 +1,8 @@
+# Secrets & state — never commit
+.env
+session.json
+*.session
+lookout-state.json
+
+# Build output
+dist/

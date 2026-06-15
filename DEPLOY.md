@@ -25,6 +25,15 @@ needed. The SPA calls the API at the relative `/api` path.
 > The `/api` route **must enable "Strip Path"** so core (whose routes live at the
 > root: `/health`, `/accounts`, …) receives `/accounts`, not `/api/accounts`.
 
+> ⚠️ **Build context = repo root for every app.** Dokploy defaults a Dockerfile
+> app's build context to the *directory of the Dockerfile*. These Dockerfiles
+> must build from the **repo root** — core/lookout pull in the shared `specs/`
+> dir (and lookout the `core/` module), which live outside each service folder.
+> So in every app's build settings set **Docker Context Path = `.`** while
+> keeping **Docker File = `<service>/Dockerfile`**. If the context is wrong the
+> build fails with `COPY … "not found"` (e.g. `/core/migrations`), sometimes only
+> after a cache layer is invalidated — so clear the build cache when changing it.
+
 ## 1. Create the Postgres Database
 
 1. **+ Create → Database → Postgres** (in the same Dokploy project).
@@ -55,8 +64,8 @@ needed. The SPA calls the API at the relative `/api` path.
    ```
 4. **Domains:** add host `app.example.com`, **Path `/api`**, **Strip Path = on**,
    container port **8080**.
-5. Deploy. The container runs `migrate up` before starting the API
-   (`core/docker-entrypoint.sh`), so the schema is created/updated automatically.
+5. Deploy. The container's ENTRYPOINT runs `migrate up` before starting the API,
+   so the schema is created/updated automatically.
    Health check: `GET /health` → `{"status":"ok"}`.
 
 ## 3. Create the `frontend` Application

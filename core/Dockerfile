@@ -28,7 +28,7 @@ WORKDIR /app
 COPY --from=build /out/server /out/migrate /usr/local/bin/
 # Migrations are read from the filesystem (golang-migrate file:// source).
 COPY core/migrations/ ./migrations/
-COPY core/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY core/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 ENV DB_MIGRATIONS_PATH=migrations
 USER app
@@ -36,4 +36,4 @@ EXPOSE 8080
 
 # Apply pending migrations, then start the API server. Invoked via sh so the
 # script needs no executable bit (kept 0644 to avoid build-context mode quirks).
-ENTRYPOINT ["sh", "/usr/local/bin/docker-entrypoint.sh"]
+ENTRYPOINT ["sh", "/usr/local/bin/entrypoint.sh"]

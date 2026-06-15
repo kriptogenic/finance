@@ -5,10 +5,13 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
+	"github.com/joho/godotenv"
 )
 
 // Config is the full bot configuration (§9).
@@ -47,6 +50,13 @@ type Config struct {
 // invariants the type system can't (e.g. hold must outlive the poll cadence so a
 // transfer leg is never flushed before its mate is even polled, §5.1).
 func Load() (*Config, error) {
+	// Best-effort: load a local .env into the process environment before reading
+	// config, mirroring core. A missing file is fine (real env vars are used in
+	// production); any other error is surfaced.
+	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("load .env: %w", err)
+	}
+
 	cfg := &Config{}
 	if err := cleanenv.ReadEnv(cfg); err != nil {
 		return nil, fmt.Errorf("read config: %w", err)

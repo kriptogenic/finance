@@ -5,9 +5,7 @@
 package config
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"log"
 	"time"
 
@@ -55,11 +53,8 @@ func Load() (*Config, error) {
 	// config, mirroring core. A missing file is fine (real env vars are used in
 	// production) — warn and continue. Other read errors (e.g. malformed) are
 	// surfaced. The structured logger isn't built yet, so warn via stderr.
-	switch err := godotenv.Load(".env"); {
-	case errors.Is(err, fs.ErrNotExist):
+	if err := godotenv.Load(".env"); err != nil {
 		log.Println("warning: no .env file found, using environment variables only")
-	case err != nil:
-		return nil, fmt.Errorf("load .env: %w", err)
 	}
 
 	cfg := &Config{}

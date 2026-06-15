@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
@@ -52,8 +53,12 @@ type Config struct {
 func Load() (*Config, error) {
 	// Best-effort: load a local .env into the process environment before reading
 	// config, mirroring core. A missing file is fine (real env vars are used in
-	// production); any other error is surfaced.
-	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	// production) — warn and continue. Other read errors (e.g. malformed) are
+	// surfaced. The structured logger isn't built yet, so warn via stderr.
+	switch err := godotenv.Load(".env"); {
+	case errors.Is(err, fs.ErrNotExist):
+		log.Println("warning: no .env file found, using environment variables only")
+	case err != nil:
 		return nil, fmt.Errorf("load .env: %w", err)
 	}
 

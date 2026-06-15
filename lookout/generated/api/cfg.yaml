@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/HEAD/configuration-schema.json
+# Generates the ingest HTTP client + request/response models from the shared
+# OpenAPI spec so the bot↔app contract can never drift (REQUIREMENTS §14.1).
+package: api
+generate:
+  client: true
+  models: true
+output: generated/api/gen.go
+output-options:
+  nullable-type: true
+  # Avoid a collision: the spec has a schema literally named HealthResponse,
+  # which would clash with the client's generated <op>Response wrapper types.
+  response-type-suffix: Resp
+import-mapping:
+  ./definitions.yaml: "-"

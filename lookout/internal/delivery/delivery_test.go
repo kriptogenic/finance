@@ -24,8 +24,6 @@ func testClient(t *testing.T, baseURL, token string) *Client {
 	return c
 }
 
-// Mapping: an expense Posting becomes a well-formed ingest request with the
-// card as from_card_last4, the raw merchant, and no rate_to_base (UZS base).
 func TestToRequest_Expense(t *testing.T) {
 	p := pairing.Posting{
 		ExternalID:    "tg:1:100",
@@ -54,7 +52,6 @@ func TestToRequest_Expense(t *testing.T) {
 	}
 }
 
-// A transfer Posting sets both cards, a transfer_group_id, and NO merchant.
 func TestToRequest_Transfer(t *testing.T) {
 	p := pairing.Posting{
 		ExternalID:      "tg:transfer:10-11",
@@ -76,7 +73,6 @@ func TestToRequest_Transfer(t *testing.T) {
 	}
 }
 
-// 201 created is success; the bearer token is forwarded.
 func TestPost_CreatedAndAuth(t *testing.T) {
 	var gotAuth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -95,8 +91,6 @@ func TestPost_CreatedAndAuth(t *testing.T) {
 	}
 }
 
-// 200 (already ingested / deduped) is also success — posting the same message
-// twice must not error, so the watermark can advance (idempotency, §7).
 func TestPost_DedupedIsSuccess(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -110,8 +104,6 @@ func TestPost_DedupedIsSuccess(t *testing.T) {
 	}
 }
 
-// 400/401 are permanent — not retried, surfaced as ErrPermanent so the watermark
-// does not advance past them.
 func TestPost_PermanentErrors(t *testing.T) {
 	for _, code := range []int{http.StatusBadRequest, http.StatusUnauthorized} {
 		var calls int32
@@ -132,7 +124,6 @@ func TestPost_PermanentErrors(t *testing.T) {
 	}
 }
 
-// Transient failures (5xx) are retried and eventually succeed.
 func TestPost_RetriesTransient(t *testing.T) {
 	var calls int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

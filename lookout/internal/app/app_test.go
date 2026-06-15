@@ -18,9 +18,6 @@ import (
 	"finance/lookout/internal/telegram"
 )
 
-// fakeFetcher serves scripted messages and, like the real transport, only
-// returns those with ID greater than the watermark — so the orchestrator's
-// watermark advancement is exercised honestly.
 type fakeFetcher struct {
 	msgs []telegram.Message
 }
@@ -38,7 +35,6 @@ func (f *fakeFetcher) FetchNewer(_ context.Context, sinceID int) ([]telegram.Mes
 	return out, nil
 }
 
-// fakePoster records postings and can be made to fail permanently.
 type fakePoster struct {
 	mu        sync.Mutex
 	posted    []pairing.Posting
@@ -83,9 +79,6 @@ const (
 	xferCredit = "🎉 Пополнение➕ 1.000.000,00 UZS📍 TBC HUMO P2P>TASHKEN💳 HUMOCARD *8400🕓 09:36 14.06.2026💰 1.110.241,56 UZS"
 )
 
-// A lone debit is held for the transfer window, then — when no mate arrives —
-// flushes as one expense. The watermark advances as soon as the message is
-// consumed (buffered), before the expense is posted.
 func TestApp_ExpenseFlow(t *testing.T) {
 	poster := &fakePoster{}
 	a, st := newApp(t, poster)
@@ -94,8 +87,6 @@ func TestApp_ExpenseFlow(t *testing.T) {
 
 	f := &fakeFetcher{msgs: []telegram.Message{{ID: 100, Date: clock, Text: debit4853}}}
 
-	// First cycle: the leg is buffered (awaiting a possible mate); nothing posts
-	// yet, but the watermark already advanced.
 	if err := a.cycle(context.Background(), f); err != nil {
 		t.Fatalf("cycle: %v", err)
 	}
@@ -106,7 +97,6 @@ func TestApp_ExpenseFlow(t *testing.T) {
 		t.Errorf("watermark not advanced/persisted: %d", st.State().Watermark)
 	}
 
-	// Advance past the hold; the next cycle flushes it as a standalone expense.
 	clock = clock.Add(6 * time.Minute)
 	if err := a.cycle(context.Background(), f); err != nil {
 		t.Fatalf("cycle (flush): %v", err)
@@ -120,8 +110,6 @@ func TestApp_ExpenseFlow(t *testing.T) {
 	}
 }
 
-// Two legs of an internal transfer in one batch collapse into ONE transfer
-// posting — no phantom expense+income (the net-worth invariant, §5.1).
 func TestApp_TransferPairing(t *testing.T) {
 	poster := &fakePoster{}
 	a, _ := newApp(t, poster)
@@ -145,9 +133,6 @@ func TestApp_TransferPairing(t *testing.T) {
 	}
 }
 
-// Idempotency: a message is consumed once. Even after it flushes and many more
-// cycles run, it is posted exactly once (watermark prevents re-fetch; the buffer
-// no longer holds it).
 func TestApp_WatermarkPreventsReprocess(t *testing.T) {
 	poster := &fakePoster{}
 	a, _ := newApp(t, poster)
@@ -159,20 +144,17 @@ func TestApp_WatermarkPreventsReprocess(t *testing.T) {
 		if err := a.cycle(context.Background(), f); err != nil {
 			t.Fatalf("cycle %d: %v", i, err)
 		}
-		clock = clock.Add(3 * time.Minute) // eventually crosses the hold
+		clock = clock.Add(3 * time.Minute)
 	}
 	if poster.count() != 1 {
 		t.Fatalf("message must post exactly once across repeated cycles, got %d", poster.count())
 	}
 }
 
-// A buffered transfer leg survives a restart: a new App restores it from the
-// store and pairs it with the mate that arrives after the restart.
 func TestApp_RestartResumesPendingLeg(t *testing.T) {
 	poster := &fakePoster{}
 	a, st := newApp(t, poster)
 
-	// First leg arrives and is buffered (no mate yet).
 	f1 := &fakeFetcher{msgs: []telegram.Message{{ID: 200, Date: time.Now(), Text: xferDebit}}}
 	if err := a.cycle(context.Background(), f1); err != nil {
 		t.Fatal(err)
@@ -184,13 +166,12 @@ func TestApp_RestartResumesPendingLeg(t *testing.T) {
 		t.Fatalf("pending leg should be persisted, have %d", len(st.State().Pending))
 	}
 
-	// "Restart": a fresh App from the same store restores the pending leg.
 	loc, _ := time.LoadLocation("Asia/Tashkent")
 	a2 := New(parser.New(loc), pairing.New(2*time.Minute, 5*time.Minute), poster, st, recon.New(zap.NewNop()), time.Minute, zap.NewNop())
 
 	f2 := &fakeFetcher{msgs: []telegram.Message{
-		{ID: 200, Date: time.Now(), Text: xferDebit},  // already consumed (≤ watermark)
-		{ID: 201, Date: time.Now(), Text: xferCredit}, // the mate
+		{ID: 200, Date: time.Now(), Text: xferDebit},
+		{ID: 201, Date: time.Now(), Text: xferCredit},
 	}}
 	if err := a2.cycle(context.Background(), f2); err != nil {
 		t.Fatal(err)
@@ -200,8 +181,6 @@ func TestApp_RestartResumesPendingLeg(t *testing.T) {
 	}
 }
 
-// An unparseable message is not posted, but the watermark still advances so the
-// loop doesn't get stuck on it (it's logged for the operator).
 func TestApp_UnparsableAdvancesWithoutPosting(t *testing.T) {
 	poster := &fakePoster{}
 	a, st := newApp(t, poster)
@@ -218,12 +197,10 @@ func TestApp_UnparsableAdvancesWithoutPosting(t *testing.T) {
 	}
 }
 
-// A permanent delivery error stops the cycle without advancing the watermark, so
-// the message is retried next cycle (once the operator fixes the cause).
 func TestApp_PermanentErrorHoldsWatermark(t *testing.T) {
 	poster := &fakePoster{failPerm: true}
 	a, st := newApp(t, poster)
-	// Two transfer legs so a posting is actually attempted within the cycle.
+
 	f := &fakeFetcher{msgs: []telegram.Message{
 		{ID: 200, Date: time.Now(), Text: xferDebit},
 		{ID: 201, Date: time.Now(), Text: xferCredit},
@@ -233,8 +210,7 @@ func TestApp_PermanentErrorHoldsWatermark(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected the cycle to surface the permanent error")
 	}
-	// The first leg (200) buffered and committed watermark=200; the second leg
-	// formed a transfer that failed to deliver, so watermark must not reach 201.
+
 	if wm := st.State().Watermark; wm >= 201 {
 		t.Errorf("watermark must not advance past a failed delivery, got %d", wm)
 	}

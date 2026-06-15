@@ -1,7 +1,3 @@
-// Command lookout is the Telegram bank-notification userbot (see
-// lookout/REQUIREMENTS.md). It reads bank alerts from one Telegram DM, parses
-// them, pairs internal transfers, and posts transactions to the finance app's
-// ingest API. It is read-only on Telegram and idempotent on the app side.
 package main
 
 import (
@@ -44,12 +40,9 @@ func run() error {
 	}
 	defer func() { _ = log.Sync() }()
 
-	// Cancel on SIGINT/SIGTERM for graceful shutdown (finish in-flight delivery,
-	// persist state, flush pending legs) (§8).
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// Stages (§14.3): each a separate package so a slow ingest can't stall polling.
 	p := parser.New(cfg.Location())
 
 	buffer := pairing.New(cfg.TransferPairWindow, cfg.TransferHoldDuration)
@@ -82,8 +75,6 @@ func run() error {
 		zap.String("timezone", cfg.Timezone),
 	)
 
-	// Source.Run owns the Telegram connection; the orchestrator's Run is invoked
-	// inside it with a Fetcher and owns the poll cadence + processing.
 	if err := source.Run(ctx, orchestrator.Run); err != nil && ctx.Err() == nil {
 		return err
 	}
@@ -91,8 +82,6 @@ func run() error {
 	return nil
 }
 
-// newLogger builds a production zap logger at the given level, mirroring core's
-// structured-logging convention.
 func newLogger(level string) (*zap.Logger, error) {
 	var lvl zap.AtomicLevel
 	if err := lvl.UnmarshalText([]byte(level)); err != nil {

@@ -5,12 +5,6 @@ import (
 	"strings"
 )
 
-// parseMoney converts a European/Uzbek-formatted amount into int64 minor units:
-// '.' is the thousands separator and ',' the decimal separator, e.g.
-// "697.945,26" → 69794526 (§4.2). It never uses float — money is integer minor
-// units everywhere (§12). The decimal part is normalised to exactly two digits;
-// a missing or differently-sized fraction is padded/rejected so we never
-// silently lose or invent precision.
 func parseMoney(s string) (int64, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -19,7 +13,6 @@ func parseMoney(s string) (int64, error) {
 
 	intPart, fracPart, hasFrac := strings.Cut(s, ",")
 
-	// Thousands separators are decorative; drop them from the integer part.
 	intPart = strings.ReplaceAll(intPart, ".", "")
 	if intPart == "" {
 		intPart = "0"

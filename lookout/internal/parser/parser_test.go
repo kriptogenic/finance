@@ -14,7 +14,6 @@ func mustTashkent(t *testing.T) *time.Location {
 	return loc
 }
 
-// the real §4.1 fixtures, both single-line and one-field-per-line.
 func TestParse_Fixtures(t *testing.T) {
 	loc := mustTashkent(t)
 	p := New(loc)
@@ -121,8 +120,6 @@ func TestParse_Fixtures(t *testing.T) {
 	}
 }
 
-// Direction must come from the sign marker, not the descriptive word: Операция
-// appears on both a debit and (hypothetically) other legs, so only ➖/➕ decides.
 func TestParse_DirectionFromSignNotWord(t *testing.T) {
 	p := New(mustTashkent(t))
 	rec := p.Parse(1, 1, "💸 Операция➖ 1.000.000,00 UZS📍 X>Y💳 HUMOCARD *4853🕓 09:36 14.06.2026💰 1.088.245,26 UZS")
@@ -134,7 +131,6 @@ func TestParse_DirectionFromSignNotWord(t *testing.T) {
 	}
 }
 
-// An optional U+FE0F variation selector after a marker emoji must still parse.
 func TestParse_VariationSelectorTolerant(t *testing.T) {
 	p := New(mustTashkent(t))
 	raw := "💸 Оплата➖ 57.550,00 UZS📍️ SP OOO HAVAS FOOD>T💳️ HUMOCARD *4853🕓️ 10:03 14.06.2026💰️ 697.945,26 UZS"
@@ -147,8 +143,6 @@ func TestParse_VariationSelectorTolerant(t *testing.T) {
 	}
 }
 
-// Fail-loud: an unparseable message must not panic and must come back
-// Parsed=false with the raw text retained, never dropped (§4.2).
 func TestParse_FailLoudRawPassthrough(t *testing.T) {
 	p := New(mustTashkent(t))
 	raw := "this is not a bank notification at all"

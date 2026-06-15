@@ -25,8 +25,6 @@ func leg(id int, dir parser.Direction, amount int64, card string, txTime time.Ti
 	}
 }
 
-// In-order: debit then matching credit on another own card collapse into one
-// transfer; both legs leave the buffer.
 func TestPair_InOrder(t *testing.T) {
 	b := New(pairWindow, hold)
 	t0 := time.Date(2026, 6, 14, 9, 36, 0, 0, time.UTC)
@@ -58,8 +56,6 @@ func TestPair_InOrder(t *testing.T) {
 	}
 }
 
-// Out-of-order: credit arrives first, debit second. Same deterministic key,
-// from/to still resolved by sign not arrival order.
 func TestPair_OutOfOrder(t *testing.T) {
 	b := New(pairWindow, hold)
 	t0 := time.Date(2026, 6, 14, 9, 36, 0, 0, time.UTC)
@@ -77,14 +73,12 @@ func TestPair_OutOfOrder(t *testing.T) {
 	}
 }
 
-// No mate within the hold → the lone leg flushes as a standalone expense/income.
 func TestPair_NoMateTimeout(t *testing.T) {
 	b := New(pairWindow, hold)
 	t0 := time.Date(2026, 6, 14, 9, 39, 0, 0, time.UTC)
 
 	b.Add(leg(20, parser.Debit, 50000000, "8400", t0), t0)
 
-	// Before the hold elapses, nothing flushes.
 	if out := b.Tick(t0.Add(hold - time.Second)); len(out) != 0 {
 		t.Fatalf("leg flushed too early: %+v", out)
 	}
@@ -103,7 +97,6 @@ func TestPair_NoMateTimeout(t *testing.T) {
 	}
 }
 
-// Credit with no mate flushes as income.
 func TestPair_LoneCreditIsIncome(t *testing.T) {
 	b := New(pairWindow, hold)
 	t0 := time.Date(2026, 6, 14, 9, 39, 0, 0, time.UTC)
@@ -114,14 +107,12 @@ func TestPair_LoneCreditIsIncome(t *testing.T) {
 	}
 }
 
-// False-positive guard: an equal-amount opposite pair whose 🕓 times are further
-// apart than pairWindow must NOT merge — they flush as separate expense+income.
 func TestPair_WindowGuardPreventsFalseMerge(t *testing.T) {
 	b := New(pairWindow, hold)
 	t0 := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
 
 	b.Add(leg(30, parser.Debit, 100000000, "4853", t0), t0)
-	// credit's 🕓 is 5 minutes later — outside the 2-minute pair window.
+
 	got := b.Add(leg(31, parser.Credit, 100000000, "8400", t0.Add(5*time.Minute)), t0.Add(10*time.Second))
 	if got != nil {
 		t.Fatalf("legs outside the pair window must not merge, got %+v", got)
@@ -131,8 +122,6 @@ func TestPair_WindowGuardPreventsFalseMerge(t *testing.T) {
 	}
 }
 
-// Same-card equal-amount opposite legs must not merge (a transfer is between two
-// DIFFERENT own cards).
 func TestPair_SameCardDoesNotMerge(t *testing.T) {
 	b := New(pairWindow, hold)
 	t0 := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
@@ -142,7 +131,6 @@ func TestPair_SameCardDoesNotMerge(t *testing.T) {
 	}
 }
 
-// Fees arrive as a separate, differently-sized debit → never pairs.
 func TestPair_DifferentAmountDoesNotMerge(t *testing.T) {
 	b := New(pairWindow, hold)
 	t0 := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
@@ -152,7 +140,6 @@ func TestPair_DifferentAmountDoesNotMerge(t *testing.T) {
 	}
 }
 
-// Pending legs survive a snapshot/restore round-trip (restart safety, §8).
 func TestPair_SnapshotRestore(t *testing.T) {
 	b := New(pairWindow, hold)
 	t0 := time.Date(2026, 6, 14, 9, 36, 0, 0, time.UTC)
@@ -162,7 +149,7 @@ func TestPair_SnapshotRestore(t *testing.T) {
 
 	b2 := New(pairWindow, hold)
 	b2.Restore(snap)
-	// The mate arriving after restore should still pair.
+
 	got := b2.Add(leg(61, parser.Credit, 100000000, "8400", t0), t0.Add(30*time.Second))
 	if got == nil || got.ExternalID != "tg:transfer:60-61" {
 		t.Fatalf("restored leg should still pair, got %+v", got)

@@ -29,7 +29,6 @@ func TestStore_RoundTrip(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 
-	// Reopen from disk and verify the watermark and pending legs survived.
 	s2, err := Open(path)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)

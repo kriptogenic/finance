@@ -34,5 +34,6 @@ ENV DB_MIGRATIONS_PATH=migrations
 USER app
 EXPOSE 8080
 
-# Apply pending migrations, then start the API server.
-ENTRYPOINT ["docker-entrypoint.sh"]
+# Apply pending migrations, then start the API server. Invoked via sh so the
+# script needs no executable bit (kept 0644 to avoid build-context mode quirks).
+ENTRYPOINT ["sh", "/usr/local/bin/docker-entrypoint.sh"]

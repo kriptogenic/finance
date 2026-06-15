@@ -8,9 +8,36 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
+	"github.com/gotd/td/telegram/auth/qrlogin"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
+	"github.com/mdp/qrterminal/v3"
 )
+
+func (s *Source) authenticateQR(ctx context.Context, client *telegram.Client, dispatcher tg.UpdateDispatcher) error {
+	loggedIn := qrlogin.OnLoginToken(dispatcher)
+	_, err := client.QR().Auth(ctx, loggedIn, func(ctx context.Context, token qrlogin.Token) error {
+		fmt.Fprintln(s.out, "Scan this QR code in Telegram → Settings → Devices → Link Desktop Device:")
+		qrterminal.GenerateHalfBlock(token.URL(), qrterminal.L, s.out)
+		return nil
+	})
+	if err == nil {
+		return nil
+	}
+	if !tgerr.Is(err, "SESSION_PASSWORD_NEEDED") {
+		return err
+	}
+	password, perr := newTermAuth(s.in, s.out, s.cfg.Phone).Password(ctx)
+	if perr != nil {
+		return perr
+	}
+	if _, err := client.Auth().Password(ctx, password); err != nil {
+		return fmt.Errorf("2fa password: %w", err)
+	}
+	return nil
+}
 
 type termAuth struct {
 	in    *bufio.Reader

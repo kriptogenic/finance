@@ -22,6 +22,7 @@ type Config struct {
 	SessionFile  string
 	SourceBot    string
 	Phone        string
+	AuthMode     string
 	PollInterval time.Duration
 }
 
@@ -59,14 +60,16 @@ func New(cfg Config, log *zap.Logger, authIn io.Reader, authOut io.Writer) *Sour
 
 func (s *Source) Run(ctx context.Context, run func(ctx context.Context, f Fetcher) error) error {
 	waiter := floodwait.NewSimpleWaiter()
+	dispatcher := tg.NewUpdateDispatcher()
 	client := telegram.NewClient(s.cfg.APIID, s.cfg.APIHash, telegram.Options{
 		SessionStorage: &telegram.FileSessionStorage{Path: s.cfg.SessionFile},
 		Logger:         logzap.New(s.log.Named("gotd")),
 		Middlewares:    []telegram.Middleware{waiter},
+		UpdateHandler:  dispatcher,
 	})
 
 	return client.Run(ctx, func(ctx context.Context) error {
-		if err := s.authenticate(ctx, client); err != nil {
+		if err := s.authenticate(ctx, client, dispatcher); err != nil {
 			return fmt.Errorf("authenticate: %w", err)
 		}
 		peer, err := s.resolvePeer(ctx, client.API())
@@ -79,13 +82,16 @@ func (s *Source) Run(ctx context.Context, run func(ctx context.Context, f Fetche
 	})
 }
 
-func (s *Source) authenticate(ctx context.Context, client *telegram.Client) error {
+func (s *Source) authenticate(ctx context.Context, client *telegram.Client, dispatcher tg.UpdateDispatcher) error {
 	status, err := client.Auth().Status(ctx)
 	if err != nil {
 		return fmt.Errorf("auth status: %w", err)
 	}
 	if status.Authorized {
 		return nil
+	}
+	if strings.EqualFold(s.cfg.AuthMode, "qr") {
+		return s.authenticateQR(ctx, client, dispatcher)
 	}
 	flow := auth.NewFlow(newTermAuth(s.in, s.out, s.cfg.Phone), auth.SendCodeOptions{})
 	return client.Auth().IfNecessary(ctx, flow)

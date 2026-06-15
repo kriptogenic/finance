@@ -66,6 +66,8 @@ func run() error {
 		APIHash:      cfg.TelegramAPIHash,
 		SessionFile:  cfg.SessionFile,
 		SourceBot:    cfg.SourceBot,
+		Phone:        cfg.TelegramPhone,
+		AuthMode:     cfg.AuthMode,
 		PollInterval: cfg.PollInterval,
 	}, log.Named("telegram"), nil, nil)
 

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
@@ -14,6 +15,9 @@ type Config struct {
 	TelegramAPIHash string `env:"TELEGRAM_API_HASH" env-required:"true"`
 	SessionFile     string `env:"SESSION_FILE" env-default:"session.json"`
 	SourceBot       string `env:"SOURCE_BOT" env-required:"true"`
+
+	AuthMode      string `env:"AUTH_MODE" env-default:"code"`
+	TelegramPhone string `env:"TELEGRAM_PHONE" env-default:""`
 
 	PollInterval time.Duration `env:"POLL_INTERVAL" env-default:"60s"`
 
@@ -50,6 +54,12 @@ func Load() (*Config, error) {
 func (c *Config) validate() error {
 	if _, err := time.LoadLocation(c.Timezone); err != nil {
 		return fmt.Errorf("invalid TIMEZONE %q: %w", c.Timezone, err)
+	}
+
+	switch strings.ToLower(c.AuthMode) {
+	case "code", "qr":
+	default:
+		return fmt.Errorf("invalid AUTH_MODE %q: must be \"code\" or \"qr\"", c.AuthMode)
 	}
 
 	if c.TransferHoldDuration <= c.PollInterval {

@@ -7,4 +7,5 @@ echo "core: applying database migrations..."
 migrate up
 
 echo "core: starting server..."
+
 exec server

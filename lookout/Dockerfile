@@ -19,8 +19,10 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata \
  && adduser -D -u 10001 app
 
-WORKDIR /data
 COPY --from=build /out/lookout /usr/local/bin/lookout
+
+RUN mkdir -p /data && chown app:app /data
+WORKDIR /data
 
 ENV SESSION_FILE=session.json \
     STATE_FILE=lookout-state.json

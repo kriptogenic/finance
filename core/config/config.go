@@ -18,6 +18,7 @@ type (
 		DB
 		Finance
 		Ingest
+		Auth
 	}
 
 	App struct {
@@ -55,6 +56,11 @@ type (
 	Ingest struct {
 		Token string `env:"INGEST_TOKEN" env-default:""`
 	}
+
+	Auth struct {
+		Username string `env:"AUTH_USERNAME" env-required:"true"`
+		Password string `env:"AUTH_PASSWORD" env-required:"true"`
+	}
 )
 
 func NewConfig() (*Config, error) {
@@ -75,6 +81,7 @@ func RegisterConfigs() fx.Option {
 		func(cfg *Config) *DB { return &cfg.DB },
 		func(cfg *Config) *Finance { return &cfg.Finance },
 		func(cfg *Config) *Ingest { return &cfg.Ingest },
+		func(cfg *Config) *Auth { return &cfg.Auth },
 	)
 }
 

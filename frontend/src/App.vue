@@ -1,4 +1,26 @@
 <script setup lang="ts">
+import { computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { clearCredentials } from './api/auth'
+
+const route = useRoute()
+const router = useRouter()
+
+// The login screen renders standalone, without the app chrome.
+const showChrome = computed(() => route.name !== 'login')
+
+function logout() {
+  clearCredentials()
+  router.push({ name: 'login' })
+}
+
+// A 401 from any request boots the user back to the login screen.
+function onUnauthorized() {
+  if (route.name !== 'login') router.push({ name: 'login' })
+}
+onMounted(() => window.addEventListener('auth:unauthorized', onUnauthorized))
+onUnmounted(() => window.removeEventListener('auth:unauthorized', onUnauthorized))
+
 const nav = [
   {
     to: '/',
@@ -29,7 +51,9 @@ const nav = [
 </script>
 
 <template>
-  <div class="flex min-h-screen bg-slate-100 text-slate-800">
+  <RouterView v-if="!showChrome" />
+
+  <div v-else class="flex min-h-screen bg-slate-100 text-slate-800">
     <!-- sidebar -->
     <aside class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-slate-900 px-4 py-6 text-slate-300 md:flex">
       <div class="mb-8 flex items-center gap-2 px-2">
@@ -52,7 +76,16 @@ const nav = [
         </RouterLink>
       </nav>
 
-      <div class="mt-auto px-3 text-xs text-slate-600">Phase 1 · MVP</div>
+      <button
+        class="mt-auto flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
+        @click="logout"
+      >
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+        </svg>
+        Sign out
+      </button>
+      <div class="mt-4 px-3 text-xs text-slate-600">Phase 1 · MVP</div>
     </aside>
 
     <!-- content -->

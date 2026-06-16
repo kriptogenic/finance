@@ -48,7 +48,7 @@ func CreateApp() fx.Option {
 	)
 }
 
-func httpHandler(server *handlers.Server, spec *openapi3.T, cfg *config.HTTP, ingest *config.Ingest) http.Handler {
+func httpHandler(server *handlers.Server, spec *openapi3.T, cfg *config.HTTP, ingest *config.Ingest, auth *config.Auth) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.Recoverer)
 
@@ -65,7 +65,7 @@ func httpHandler(server *handlers.Server, spec *openapi3.T, cfg *config.HTTP, in
 	return api.HandlerWithOptions(strictServer, api.ChiServerOptions{
 		BaseRouter: r,
 		Middlewares: []api.MiddlewareFunc{
-			middlewares.OpenAPIRequestValidator(spec, ingest.Token),
+			middlewares.OpenAPIRequestValidator(spec, auth, ingest),
 		},
 	})
 }

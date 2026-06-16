@@ -4,11 +4,14 @@ info:
   title: Finance API
   license:
     name: private
+security:
+  - BasicAuth: []
 paths:
   /health:
     get:
       operationId: health
       summary: Liveness/readiness probe
+      security: []  # No auth for the health probe
       responses:
         200:
           description: Service is healthy
@@ -492,6 +495,9 @@ components:
         format: uuid
 
   securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
     IngestAuth:
       type: http
       scheme: bearer

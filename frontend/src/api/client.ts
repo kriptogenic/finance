@@ -1,9 +1,27 @@
 import createClient from 'openapi-fetch'
 import type { paths } from './schema'
 import { Money } from './money'
+import { apiBaseUrl, authHeader, clearCredentials } from './auth'
 
 export const api = createClient<paths>({
-  baseUrl: import.meta.env.VITE_API_URL || 'http://localhost:8080',
+  baseUrl: apiBaseUrl,
+})
+
+// Attach the stored Basic credentials to every request, and on a 401 drop them
+// and let the app fall back to the login screen (App.vue listens for the event).
+api.use({
+  onRequest({ request }) {
+    const header = authHeader()
+    if (header) request.headers.set('Authorization', header)
+    return request
+  },
+  onResponse({ response }) {
+    if (response.status === 401) {
+      clearCredentials()
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+    }
+    return response
+  },
 })
 
 export class ApiError extends Error {

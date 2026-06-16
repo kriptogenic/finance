@@ -54,7 +54,9 @@ needed. The SPA calls the API at the relative `/api` path.
    LOG_LEVEL=info
    BASE_CURRENCY=UZS
    CORS_ORIGIN=                             # empty — same-origin, no CORS
-   INGEST_TOKEN=<strong-shared-secret>
+   INGEST_TOKEN=<strong-shared-secret>      # bearer for lookout's ingest calls
+   AUTH_USERNAME=<login>                    # HTTP Basic creds the UI logs in with
+   AUTH_PASSWORD=<strong-password>
    POSTGRES_HOST=<managed-db-internal-host> # from step 1
    POSTGRES_PORT=5432
    POSTGRES_USER=<from step 1>

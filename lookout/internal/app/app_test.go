@@ -74,9 +74,9 @@ func newApp(t *testing.T, poster Poster) (*App, *store.Store) {
 }
 
 const (
-	debit4853  = "💸 Оплата➖ 57.550,00 UZS📍 SP OOO HAVAS FOOD>T💳 HUMOCARD *4853🕓 10:03 14.06.2026💰 697.945,26 UZS"
-	xferDebit  = "💸 Операция➖ 1.000.000,00 UZS📍 TBC HUMO P2P>TASHKEN💳 HUMOCARD *4853🕓 09:36 14.06.2026💰 1.088.245,26 UZS"
-	xferCredit = "🎉 Пополнение➕ 1.000.000,00 UZS📍 TBC HUMO P2P>TASHKEN💳 HUMOCARD *8400🕓 09:36 14.06.2026💰 1.110.241,56 UZS"
+	debit4853  = "💸 Оплата\n➖ 57.550,00 UZS\n📍 SP OOO HAVAS FOOD>T\n💳 HUMOCARD *4853\n🕓 10:03 14.06.2026\n💰 697.945,26 UZS"
+	xferDebit  = "💸 Операция\n➖ 1.000.000,00 UZS\n📍 TBC HUMO P2P>TASHKEN\n💳 HUMOCARD *4853\n🕓 09:36 14.06.2026\n💰 1.088.245,26 UZS"
+	xferCredit = "🎉 Пополнение\n➕ 1.000.000,00 UZS\n📍 TBC HUMO P2P>TASHKEN\n💳 HUMOCARD *8400\n🕓 09:36 14.06.2026\n💰 1.110.241,56 UZS"
 )
 
 func TestApp_ExpenseFlow(t *testing.T) {

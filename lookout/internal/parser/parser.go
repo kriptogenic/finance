@@ -53,15 +53,17 @@ const dateLayout = "15:04 02.01.2006"
 
 const vs = `\x{fe0f}?`
 
-const ws = `[\s\p{Zs}]*`
+const ws = `[\t\f\r\p{Zs}]*`
 
-var re = regexp.MustCompile(`(?s)` +
+const nl = ws + `\n` + ws
+
+var re = regexp.MustCompile(
 	`([➖➕])` + vs + ws +
-	`([0-9.,]+)` + ws + `UZS` +
-	ws + emoji("📍") + ws + `(.*?)` +
-	ws + emoji("💳") + ws + `([A-Za-z]+)` + ws + `\*` + ws + `([0-9]+)` +
-	ws + emoji("🕓") + ws + `([0-9:.]+` + ws + `[0-9.]+)` +
-	ws + emoji("💰") + ws + `([0-9.,]+)` + ws + `UZS`)
+		`([0-9.,]+)` + ws + `UZS` +
+		nl + emoji("📍") + ws + `(.*?)` +
+		nl + emoji("💳") + ws + `([A-Za-z]+)` + ws + `\*` + ws + `([0-9]+)` +
+		nl + emoji("🕓") + ws + `([0-9:.]+` + ws + `[0-9.]+)` +
+		nl + emoji("💰") + ws + `([0-9.,]+)` + ws + `UZS`)
 
 func emoji(e string) string { return regexp.QuoteMeta(e) + vs }
 

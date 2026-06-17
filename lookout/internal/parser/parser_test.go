@@ -30,8 +30,13 @@ func TestParse_Fixtures(t *testing.T) {
 		when      time.Time
 	}{
 		{
-			name:      "single-line debit",
-			raw:       "💸 Оплата➖ 57.550,00 UZS📍 SP OOO HAVAS FOOD>T💳 HUMOCARD *4853🕓 10:03 14.06.2026💰 697.945,26 UZS",
+			name: "debit",
+			raw: `💸 Оплата
+➖ 57.550,00 UZS
+📍 SP OOO HAVAS FOOD>T
+💳 HUMOCARD *4853
+🕓 10:03 14.06.2026
+💰 697.945,26 UZS`,
 			dir:       Debit,
 			amount:    5755000,
 			merchant:  "SP OOO HAVAS FOOD>T",
@@ -41,8 +46,13 @@ func TestParse_Fixtures(t *testing.T) {
 			when:      time.Date(2026, 6, 14, 10, 3, 0, 0, loc),
 		},
 		{
-			name:      "single-line credit",
-			raw:       "🎉 Пополнение➕ 520.000,00 UZS📍 DAVR MOBILE P2P U2H>💳 HUMOCARD *4853🕓 23:17 13.06.2026💰 2.088.245,26 UZS",
+			name: "credit",
+			raw: `🎉 Пополнение
+➕ 520.000,00 UZS
+📍 DAVR MOBILE P2P U2H>
+💳 HUMOCARD *4853
+🕓 23:17 13.06.2026
+💰 2.088.245,26 UZS`,
 			dir:       Credit,
 			amount:    52000000,
 			merchant:  "DAVR MOBILE P2P U2H>",
@@ -52,8 +62,13 @@ func TestParse_Fixtures(t *testing.T) {
 			when:      time.Date(2026, 6, 13, 23, 17, 0, 0, loc),
 		},
 		{
-			name:      "single-line transfer debit leg",
-			raw:       "💸 Операция➖ 1.000.000,00 UZS📍 TBC HUMO P2P>TASHKEN💳 HUMOCARD *4853🕓 09:36 14.06.2026💰 1.088.245,26 UZS",
+			name: "transfer debit leg",
+			raw: `💸 Операция
+➖ 1.000.000,00 UZS
+📍 TBC HUMO P2P>TASHKEN
+💳 HUMOCARD *4853
+🕓 09:36 14.06.2026
+💰 1.088.245,26 UZS`,
 			dir:       Debit,
 			amount:    100000000,
 			merchant:  "TBC HUMO P2P>TASHKEN",
@@ -63,8 +78,13 @@ func TestParse_Fixtures(t *testing.T) {
 			when:      time.Date(2026, 6, 14, 9, 36, 0, 0, loc),
 		},
 		{
-			name:      "single-line transfer credit leg",
-			raw:       "🎉 Пополнение➕ 1.000.000,00 UZS📍 TBC HUMO P2P>TASHKEN💳 HUMOCARD *8400🕓 09:36 14.06.2026💰 1.110.241,56 UZS",
+			name: "transfer credit leg",
+			raw: `🎉 Пополнение
+➕ 1.000.000,00 UZS
+📍 TBC HUMO P2P>TASHKEN
+💳 HUMOCARD *8400
+🕓 09:36 14.06.2026
+💰 1.110.241,56 UZS`,
 			dir:       Credit,
 			amount:    100000000,
 			merchant:  "TBC HUMO P2P>TASHKEN",
@@ -74,8 +94,13 @@ func TestParse_Fixtures(t *testing.T) {
 			when:      time.Date(2026, 6, 14, 9, 36, 0, 0, loc),
 		},
 		{
-			name:      "multi-line debit (P2P to person)",
-			raw:       "💸 Оплата\n➖ 500.000,00 UZS\n📍 TBC P2P S HUMO NA UZ\n💳 HUMOCARD *8400\n🕓 09:39 14.06.2026\n💰 610.241,56 UZS",
+			name: "multi-line debit (P2P to person)",
+			raw: `💸 Оплата
+➖ 500.000,00 UZS
+📍 TBC P2P S HUMO NA UZ
+💳 HUMOCARD *8400
+🕓 09:39 14.06.2026
+💰 610.241,56 UZS`,
 			dir:       Debit,
 			amount:    50000000,
 			merchant:  "TBC P2P S HUMO NA UZ",
@@ -122,7 +147,12 @@ func TestParse_Fixtures(t *testing.T) {
 
 func TestParse_DirectionFromSignNotWord(t *testing.T) {
 	p := New(mustTashkent(t))
-	rec := p.Parse(1, 1, "💸 Операция➖ 1.000.000,00 UZS📍 X>Y💳 HUMOCARD *4853🕓 09:36 14.06.2026💰 1.088.245,26 UZS")
+	rec := p.Parse(1, 1, `💸 Операция
+➖ 1.000.000,00 UZS
+📍 X>Y
+💳 HUMOCARD *4853
+🕓 09:36 14.06.2026
+💰 1.088.245,26 UZS`)
 	if rec.Direction != Debit {
 		t.Fatalf("Операция with ➖ must be Debit, got %v", rec.Direction)
 	}
@@ -133,13 +163,28 @@ func TestParse_DirectionFromSignNotWord(t *testing.T) {
 
 func TestParse_VariationSelectorTolerant(t *testing.T) {
 	p := New(mustTashkent(t))
-	raw := "💸 Оплата➖ 57.550,00 UZS📍️ SP OOO HAVAS FOOD>T💳️ HUMOCARD *4853🕓️ 10:03 14.06.2026💰️ 697.945,26 UZS"
+	raw := `💸 Оплата
+➖ 57.550,00 UZS
+📍️ SP OOO HAVAS FOOD>T
+💳️ HUMOCARD *4853
+🕓️ 10:03 14.06.2026
+💰️ 697.945,26 UZS`
 	rec := p.Parse(1, 1, raw)
 	if !rec.Parsed {
 		t.Fatalf("variation-selector message should still parse")
 	}
 	if rec.Amount != 5755000 {
 		t.Errorf("amount: got %d want 5755000", rec.Amount)
+	}
+}
+
+func TestParse_SingleLineRejected(t *testing.T) {
+	p := New(mustTashkent(t))
+	// production notifications are always multiline; a single-line message
+	// (fields not separated by newlines) must not parse.
+	raw := "💸 Оплата➖ 57.550,00 UZS📍 SP OOO HAVAS FOOD>T💳 HUMOCARD *4853🕓 10:03 14.06.2026💰 697.945,26 UZS"
+	if rec := p.Parse(1, 1, raw); rec.Parsed {
+		t.Fatalf("single-line message must not parse")
 	}
 }
 

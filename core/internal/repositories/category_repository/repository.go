@@ -23,9 +23,6 @@ type Repository interface {
 	Get(ctx context.Context, id uuid.UUID) (*entities.Category, error)
 	Update(ctx context.Context, cat *entities.Category) error
 	Delete(ctx context.Context, id uuid.UUID) error
-	// ResolveForIngest picks a category for an externally-ingested transaction:
-	// the first matching merchant rule, else the built-in "uncategorized_<type>"
-	// bucket. Returns ErrNotFound when no default bucket exists.
 	ResolveForIngest(ctx context.Context, typ entities.CategoryType, merchant string) (uuid.UUID, error)
 }
 
@@ -128,7 +125,6 @@ func (r repository) Update(ctx context.Context, cat *entities.Category) error {
 }
 
 func (r repository) ResolveForIngest(ctx context.Context, typ entities.CategoryType, merchant string) (uuid.UUID, error) {
-	// 1) first matching rule (longest pattern wins), constrained to the type
 	if merchant != "" {
 		const ruleQuery = `
 			SELECT r.category_id
@@ -148,19 +144,35 @@ func (r repository) ResolveForIngest(ctx context.Context, typ entities.CategoryT
 		}
 	}
 
-	// 2) fall back to the built-in default bucket for this type
 	key := "uncategorized_" + string(typ)
 
 	var id uuid.UUID
 	err := r.db.Pool.QueryRow(ctx, `SELECT id FROM categories WHERE system_key = $1`, key).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return uuid.Nil, ErrNotFound
+	if err == nil {
+		return id, nil
 	}
-	if err != nil {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, fmt.Errorf("resolve default category: %w", err)
 	}
 
+	err = r.db.Pool.QueryRow(ctx, `
+		INSERT INTO categories (name, type, system_key)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (system_key) WHERE system_key IS NOT NULL
+		DO UPDATE SET system_key = EXCLUDED.system_key
+		RETURNING id`, uncategorizedName(typ), typ, key).Scan(&id)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("create default category: %w", err)
+	}
+
 	return id, nil
+}
+
+func uncategorizedName(typ entities.CategoryType) string {
+	if typ == entities.CategoryIncome {
+		return "Uncategorized income"
+	}
+	return "Uncategorized"
 }
 
 func (r repository) Delete(ctx context.Context, id uuid.UUID) error {

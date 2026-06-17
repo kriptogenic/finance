@@ -56,7 +56,7 @@ func (a *App) Run(ctx context.Context, f telegram.Fetcher) error {
 		zap.Duration("interval", a.interval),
 	)
 
-	if err := a.cycle(ctx, f); err != nil {
+	if err := a.runCycle(ctx, f); err != nil {
 		return err
 	}
 	ticker := time.NewTicker(a.interval)
@@ -71,15 +71,21 @@ func (a *App) Run(ctx context.Context, f telegram.Fetcher) error {
 			}
 			return ctx.Err()
 		case <-ticker.C:
-			if err := a.cycle(ctx, f); err != nil {
-				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-					return err
-				}
-
-				a.log.Error("poll cycle failed, will retry", zap.Error(err))
+			if err := a.runCycle(ctx, f); err != nil {
+				return err
 			}
 		}
 	}
+}
+
+func (a *App) runCycle(ctx context.Context, f telegram.Fetcher) error {
+	if err := a.cycle(ctx, f); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+		a.log.Error("poll cycle failed, will retry", zap.Error(err))
+	}
+	return nil
 }
 
 func (a *App) cycle(ctx context.Context, f telegram.Fetcher) error {

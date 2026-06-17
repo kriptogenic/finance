@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // Category icon field: shows the current selection, an LLM-suggested set (fed
-// from the parent as the name is typed), and an optional browse grid of common
-// icons. v-model is the bare Tabler icon name, matching the category API.
-import { ref, computed } from 'vue'
-import { ICON_GROUPS } from '../lib/icons'
+// from the parent as the name is typed), and a browse grid covering the full
+// Tabler icon set (searchable, rendered incrementally so 6k SVGs don't mount at
+// once). v-model is the bare Tabler icon name, matching the category API.
+import { ref, computed, watch } from 'vue'
+import { ALL_ICON_NAMES } from '../lib/tablerIcon'
 import CategoryIcon from './CategoryIcon.vue'
 
 const props = defineProps<{
@@ -17,15 +18,26 @@ const emit = defineEmits<{ 'update:modelValue': [string] }>()
 const browseOpen = ref(false)
 const query = ref('')
 
+const PAGE = 120
+const visibleCount = ref(PAGE)
+
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
-  return ICON_GROUPS.map((g) => ({
-    label: g.label,
-    icons: q
-      ? g.icons.filter((i) => i.name.includes(q) || (i.keywords ?? '').includes(q))
-      : g.icons,
-  })).filter((g) => g.icons.length)
+  return q ? ALL_ICON_NAMES.filter((n) => n.includes(q)) : ALL_ICON_NAMES
 })
+const visible = computed(() => filtered.value.slice(0, visibleCount.value))
+
+// Reset the window when the query changes so results start from the top.
+watch(query, () => {
+  visibleCount.value = PAGE
+})
+
+function onScroll(e: Event) {
+  const el = e.target as HTMLElement
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200 && visibleCount.value < filtered.value.length) {
+    visibleCount.value += PAGE
+  }
+}
 
 function pick(name: string) {
   emit('update:modelValue', props.modelValue === name ? '' : name)
@@ -68,29 +80,31 @@ function pick(name: string) {
       <p v-else-if="!loading" class="text-xs text-slate-400">Type a name to get icon suggestions.</p>
     </div>
 
-    <!-- manual browse -->
+    <!-- browse the full icon set -->
     <button type="button" class="text-xs text-slate-400 hover:text-slate-600" @click="browseOpen = !browseOpen">
-      {{ browseOpen ? 'Hide icons' : 'Browse icons' }}
+      {{ browseOpen ? 'Hide icons' : 'Browse all icons' }}
     </button>
-    <div v-if="browseOpen" class="max-h-56 overflow-y-auto rounded-xl border border-slate-200 p-3">
-      <input v-model="query" class="field mb-2" placeholder="Search icons…" />
-      <div v-for="g in filtered" :key="g.label" class="mb-3 last:mb-0">
-        <p class="mb-1 text-[11px] font-semibold tracking-wide text-slate-400 uppercase">{{ g.label }}</p>
+    <div v-if="browseOpen" class="rounded-xl border border-slate-200 p-3">
+      <input v-model="query" class="field mb-2" placeholder="Search all icons…" />
+      <div class="max-h-56 overflow-y-auto" @scroll="onScroll">
         <div class="grid grid-cols-7 gap-1">
           <button
-            v-for="i in g.icons"
-            :key="i.name"
+            v-for="name in visible"
+            :key="name"
             type="button"
-            :title="i.name"
+            :title="name"
             class="grid h-8 w-8 place-items-center rounded-lg transition hover:bg-slate-100"
-            :class="modelValue === i.name ? 'bg-slate-900 text-white hover:bg-slate-800' : 'text-slate-600'"
-            @click="pick(i.name)"
+            :class="modelValue === name ? 'bg-slate-900 text-white hover:bg-slate-800' : 'text-slate-600'"
+            @click="pick(name)"
           >
-            <CategoryIcon :icon="i.name" :size="18" />
+            <CategoryIcon :icon="name" :size="18" />
           </button>
         </div>
+        <p v-if="!filtered.length" class="py-2 text-center text-sm text-slate-400">No icons found</p>
       </div>
-      <p v-if="!filtered.length" class="py-2 text-center text-sm text-slate-400">No icons found</p>
+      <p class="mt-1.5 text-[11px] text-slate-400">
+        {{ filtered.length }} icons<span v-if="visible.length < filtered.length"> · scroll for more</span>
+      </p>
     </div>
   </div>
 </template>

@@ -217,6 +217,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /categories/suggest-icons:
+    post:
+      operationId: suggestIcons
+      summary: Suggest Tabler icon names for a category name, using an LLM
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuggestIconsRequest'
+      responses:
+        200:
+          description: >-
+            Suggested icon names, most relevant first. Empty when suggestions
+            are not configured or the upstream model is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuggestIconsResponse'
+        400:
+          $ref: '#/components/responses/BadRequest'
+
   /transactions:
     get:
       operationId: listTransactions
@@ -778,6 +800,31 @@ components:
           type: string
         archived:
           type: boolean
+
+    SuggestIconsRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          minLength: 1
+        type:
+          $ref: './definitions.yaml#/components/schemas/CategoryType'
+
+    SuggestIconsResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - icons
+      properties:
+        icons:
+          type: array
+          description: Tabler icon names in kebab-case (e.g. "shopping-cart"), most relevant first.
+          items:
+            type: string
 
     TransactionListResponse:
       type: object

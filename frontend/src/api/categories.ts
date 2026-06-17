@@ -13,4 +13,7 @@ export const categoriesApi = {
     call(api.PATCH('/categories/{id}', { params: { path: { id } }, body })),
 
   remove: (id: string): Promise<unknown> => call(api.DELETE('/categories/{id}', { params: { path: { id } } })),
+
+  suggestIcons: (body: { name: string; type: CategoryType }): Promise<string[]> =>
+    call(api.POST('/categories/suggest-icons', { body })).then((d) => d.icons),
 }

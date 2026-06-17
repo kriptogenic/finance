@@ -19,6 +19,7 @@ type (
 		Finance
 		Ingest
 		Auth
+		Anthropic
 	}
 
 	App struct {
@@ -45,14 +46,10 @@ type (
 		MigrationsPath string `env:"DB_MIGRATIONS_PATH" env-required:"true"`
 	}
 
-	// Finance holds domain-level settings. BaseCurrency is the single
-	// reporting currency all cross-account totals and net worth convert to (§3).
 	Finance struct {
 		BaseCurrency string `env:"BASE_CURRENCY" env-default:"UZS"`
 	}
 
-	// Ingest guards the external ingest endpoint. When Token is empty the
-	// endpoint is open (local dev); otherwise a matching bearer token is required.
 	Ingest struct {
 		Token string `env:"INGEST_TOKEN" env-default:""`
 	}
@@ -60,6 +57,11 @@ type (
 	Auth struct {
 		Username string `env:"AUTH_USERNAME" env-required:"true"`
 		Password string `env:"AUTH_PASSWORD" env-required:"true"`
+	}
+
+	Anthropic struct {
+		APIKey string `env:"ANTHROPIC_API_KEY" env-default:""`
+		Model  string `env:"ANTHROPIC_MODEL"   env-default:"claude-haiku-4-5"`
 	}
 )
 
@@ -82,6 +84,7 @@ func RegisterConfigs() fx.Option {
 		func(cfg *Config) *Finance { return &cfg.Finance },
 		func(cfg *Config) *Ingest { return &cfg.Ingest },
 		func(cfg *Config) *Auth { return &cfg.Auth },
+		func(cfg *Config) *Anthropic { return &cfg.Anthropic },
 	)
 }
 

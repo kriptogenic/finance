@@ -150,6 +150,23 @@ func (s Server) DeleteCategory(ctx context.Context, request api.DeleteCategoryRe
 	return api.DeleteCategory204Response{}, nil
 }
 
+func (s Server) SuggestIcons(ctx context.Context, request api.SuggestIconsRequestObject) (api.SuggestIconsResponseObject, error) {
+	if request.Body == nil || request.Body.Name == "" {
+		return api.SuggestIcons400JSONResponse{BadRequestJSONResponse: badRequest("name is required")}, nil
+	}
+
+	icons, err := s.icons.Suggest(ctx, request.Body.Name, entities.CategoryType(request.Body.Type))
+	if err != nil {
+		s.logger.Error("suggest icons", zap.Error(err))
+		icons = nil
+	}
+	if icons == nil {
+		icons = []string{}
+	}
+
+	return api.SuggestIcons200JSONResponse{Icons: icons}, nil
+}
+
 func toCategory(c entities.Category) api.Category {
 	out := api.Category{
 		Id:        c.ID,

@@ -119,6 +119,23 @@ export interface paths {
         patch: operations["updateCategory"];
         trace?: never;
     };
+    "/categories/suggest-icons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suggest Tabler icon names for a category name, using an LLM */
+        post: operations["suggestIcons"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/transactions": {
         parameters: {
             query?: never;
@@ -380,6 +397,14 @@ export interface components {
             icon?: string;
             color?: string;
             archived?: boolean;
+        };
+        SuggestIconsRequest: {
+            name: string;
+            type: components["schemas"]["CategoryType"];
+        };
+        SuggestIconsResponse: {
+            /** @description Tabler icon names in kebab-case (e.g. "shopping-cart"), most relevant first. */
+            icons: string[];
         };
         TransactionListResponse: {
             transactions: components["schemas"]["Transaction"][];
@@ -925,6 +950,31 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    suggestIcons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestIconsRequest"];
+            };
+        };
+        responses: {
+            /** @description Suggested icon names, most relevant first. Empty when suggestions are not configured or the upstream model is unavailable. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestIconsResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
         };
     };
     listTransactions: {

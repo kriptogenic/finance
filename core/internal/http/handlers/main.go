@@ -7,6 +7,7 @@ import (
 
 	"finance/config"
 	"finance/generated/api"
+	"finance/internal/iconsuggest"
 	accountrepository "finance/internal/repositories/account_repository"
 	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
@@ -23,6 +24,7 @@ type Server struct {
 	transactions transactionrepository.Repository
 	reports      reportrepository.Repository
 	budgets      budgetrepository.Repository
+	icons        iconsuggest.Suggester
 	base         string // reporting currency (§3)
 	logger       *zap.Logger
 }
@@ -35,6 +37,7 @@ func NewServer(
 	transactions transactionrepository.Repository,
 	reports reportrepository.Repository,
 	budgets budgetrepository.Repository,
+	icons iconsuggest.Suggester,
 	finance *config.Finance,
 	logger *zap.Logger,
 ) *Server {
@@ -44,6 +47,7 @@ func NewServer(
 		transactions: transactions,
 		reports:      reports,
 		budgets:      budgets,
+		icons:        icons,
 		base:         finance.BaseCurrency,
 		logger:       logger,
 	}

@@ -4,6 +4,7 @@ import { categoriesApi } from '../api/categories'
 import { errMessage } from '../api/client'
 import type { Category, CategoryType } from '../api/types'
 import CategoryForm from '../components/CategoryForm.vue'
+import CategoryIcon from '../components/CategoryIcon.vue'
 
 const categories = ref<Category[]>([])
 const loading = ref(true)
@@ -86,6 +87,7 @@ onMounted(load)
         <ul class="space-y-4">
           <li v-for="top in group.items" :key="top.id" class="group">
             <div class="flex items-center gap-2">
+              <CategoryIcon :icon="top.icon" :color="top.color" class="text-lg leading-none text-slate-500" />
               <p class="font-semibold text-slate-800">{{ top.name }}</p>
               <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">
                 <button class="text-xs text-slate-400 hover:text-slate-700" title="Edit" @click="openEdit(top)">✎</button>
@@ -99,6 +101,7 @@ onMounted(load)
                 class="group/c flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
                 :class="group.chip"
               >
+                <CategoryIcon v-if="child.icon" :icon="child.icon" :color="child.color" class="leading-none" />
                 {{ child.name }}
                 <button class="opacity-0 transition group-hover/c:opacity-100" title="Delete" @click="remove(child)">×</button>
               </span>

@@ -58,15 +58,19 @@ func New(cfg Config, log *zap.Logger, authIn io.Reader, authOut io.Writer) *Sour
 	return &Source{cfg: cfg, log: log, in: authIn, out: authOut}
 }
 
-func (s *Source) Run(ctx context.Context, run func(ctx context.Context, f Fetcher) error) error {
+func (s *Source) newClient(dispatcher tg.UpdateDispatcher) *telegram.Client {
 	waiter := floodwait.NewSimpleWaiter()
-	dispatcher := tg.NewUpdateDispatcher()
-	client := telegram.NewClient(s.cfg.APIID, s.cfg.APIHash, telegram.Options{
+	return telegram.NewClient(s.cfg.APIID, s.cfg.APIHash, telegram.Options{
 		SessionStorage: &telegram.FileSessionStorage{Path: s.cfg.SessionFile},
 		Logger:         logzap.New(s.log.Named("gotd")),
 		Middlewares:    []telegram.Middleware{waiter},
 		UpdateHandler:  dispatcher,
 	})
+}
+
+func (s *Source) Run(ctx context.Context, run func(ctx context.Context, f Fetcher) error) error {
+	dispatcher := tg.NewUpdateDispatcher()
+	client := s.newClient(dispatcher)
 
 	return client.Run(ctx, func(ctx context.Context) error {
 		if err := s.authenticate(ctx, client, dispatcher); err != nil {
@@ -79,6 +83,19 @@ func (s *Source) Run(ctx context.Context, run func(ctx context.Context, f Fetche
 		s.log.Info("connected; source peer resolved", zap.String("source_bot", s.cfg.SourceBot))
 		f := &fetcher{api: client.API(), peer: peer, chatID: peerID(peer), log: s.log}
 		return run(ctx, f)
+	})
+}
+
+func (s *Source) SignIn(ctx context.Context) error {
+	dispatcher := tg.NewUpdateDispatcher()
+	client := s.newClient(dispatcher)
+
+	return client.Run(ctx, func(ctx context.Context) error {
+		if err := s.authenticate(ctx, client, dispatcher); err != nil {
+			return fmt.Errorf("authenticate: %w", err)
+		}
+		s.log.Info("authenticated; session stored", zap.String("session_file", s.cfg.SessionFile))
+		return nil
 	})
 }
 

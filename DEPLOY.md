@@ -111,11 +111,25 @@ needed. The SPA calls the API at the relative `/api` path.
    - mount path **`/data`** (the container's working dir; `SESSION_FILE` and
      `STATE_FILE` are written there).
 4. No domain needed (lookout only makes outbound calls).
-5. Deploy, then do the **one-time login**: open the `lookout` app's **logs** —
-   it prints a QR. In Telegram: **Settings → Devices → Link Desktop Device** and
-   scan it. The session is saved to the `/data` volume; later redeploys log in
-   silently.
+5. Deploy. The container runs `lookout --wait-session`: with no session file yet
+   it **idles**, logging `no session file yet; waiting for sign-in` every 10s
+   (it does *not* crash-loop and does *not* attempt interactive auth — a deploy
+   container has no TTY to type a 2FA password into).
+6. Do the **one-time login** from an interactive shell into the container. In
+   Dokploy open the `lookout` app's **Terminal** (or `docker exec -it <container>
+   sh` on the host) and run:
+   ```
+   lookout --sign-in
+   ```
+   It prints a QR — in Telegram: **Settings → Devices → Link Desktop Device** and
+   scan it, then (because the account has 2FA) **type the cloud password** at the
+   prompt. On success it writes `session.json` to `/data` and exits. The
+   `--wait-session` process then detects the file and starts the poll loop;
+   later redeploys log in silently.
 
+   > A real TTY is required for `--sign-in` (the QR is shown and the 2FA password
+   > is read from stdin). Dokploy's Terminal and `docker exec -it` both provide one.
+   >
    > Alternative: create `session.json` locally (`cd lookout && make run`) and
    > upload it into the `/data` volume.
 

@@ -111,27 +111,18 @@ needed. The SPA calls the API at the relative `/api` path.
    - mount path **`/data`** (the container's working dir; `SESSION_FILE` and
      `STATE_FILE` are written there).
 4. No domain needed (lookout only makes outbound calls).
-5. Deploy. The container runs `lookout --wait-session`: with no session file yet
-   it **idles**, logging `no session file yet; waiting for sign-in` every 10s
-   (it does *not* crash-loop and does *not* attempt interactive auth — a deploy
-   container has no TTY to type a 2FA password into).
-6. Do the **one-time login** from an interactive shell into the container. In
-   Dokploy open the `lookout` app's **Terminal** (or `docker exec -it <container>
-   sh` on the host) and run:
-   ```
-   lookout --sign-in
-   ```
-   It prints a QR — in Telegram: **Settings → Devices → Link Desktop Device** and
-   scan it, then (because the account has 2FA) **type the cloud password** at the
-   prompt. On success it writes `session.json` to `/data` and exits. The
-   `--wait-session` process then detects the file and starts the poll loop;
-   later redeploys log in silently.
-
-   > A real TTY is required for `--sign-in` (the QR is shown and the 2FA password
-   > is read from stdin). Dokploy's Terminal and `docker exec -it` both provide one.
-   >
-   > Alternative: create `session.json` locally (`cd lookout && make run`) and
-   > upload it into the `/data` volume.
+5. **One-time login (do this before/at first deploy):** the account has 2FA, and
+   a deploy container has no TTY to scan a QR / type the cloud password — so
+   authenticate **locally** and upload the resulting session into the volume:
+   1. `cd lookout && make run` on your machine — scan the QR (Telegram:
+      **Settings → Devices → Link Desktop Device**), then type the 2FA password.
+      This writes `lookout/session.json`.
+   2. Upload that `session.json` into the app's `/data` volume (see "uploading a
+      file to a volume" — `docker cp` into the container or copy into the volume's
+      host mountpoint), naming it `/data/session.json`.
+6. Deploy. On boot lookout loads the uploaded session and starts the poll loop;
+   the session + watermark persist on `/data`, so later redeploys start silently
+   with no re-login.
 
 ## Zero-downtime redeploys
 

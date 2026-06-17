@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -31,12 +29,6 @@ func main() {
 }
 
 func run() error {
-	var (
-		signIn      = flag.Bool("sign-in", false, "interactively authenticate Telegram (scan QR / enter 2FA), write the session file, then exit")
-		waitSession = flag.Bool("wait-session", false, "wait for the Telegram session file to exist before starting the poll loop (deploy mode)")
-	)
-	flag.Parse()
-
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -50,30 +42,6 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-
-	source := telegram.New(telegram.Config{
-		APIID:        cfg.TelegramAPIID,
-		APIHash:      cfg.TelegramAPIHash,
-		SessionFile:  cfg.SessionFile,
-		SourceBot:    cfg.SourceBot,
-		Phone:        cfg.TelegramPhone,
-		AuthMode:     cfg.AuthMode,
-		PollInterval: cfg.PollInterval,
-	}, log.Named("telegram"), nil, nil)
-
-	if *signIn {
-		log.Info("sign-in mode: authenticate by hand", zap.String("auth_mode", cfg.AuthMode))
-		if err := source.SignIn(ctx); err != nil && ctx.Err() == nil {
-			return err
-		}
-		return nil
-	}
-
-	if *waitSession {
-		if err := waitForSession(ctx, log, cfg.SessionFile); err != nil {
-			return err
-		}
-	}
 
 	p := parser.New(cfg.Location())
 
@@ -93,6 +61,16 @@ func run() error {
 
 	orchestrator := app.New(p, buffer, poster, st, rc, cfg.PollInterval, log.Named("app"))
 
+	source := telegram.New(telegram.Config{
+		APIID:        cfg.TelegramAPIID,
+		APIHash:      cfg.TelegramAPIHash,
+		SessionFile:  cfg.SessionFile,
+		SourceBot:    cfg.SourceBot,
+		Phone:        cfg.TelegramPhone,
+		AuthMode:     cfg.AuthMode,
+		PollInterval: cfg.PollInterval,
+	}, log.Named("telegram"), nil, nil)
+
 	log.Info("lookout starting",
 		zap.String("source_bot", cfg.SourceBot),
 		zap.String("finance_api", cfg.FinanceAPIURL),
@@ -104,30 +82,6 @@ func run() error {
 	}
 	log.Info("lookout stopped")
 	return nil
-}
-
-const sessionWaitInterval = 10 * time.Second
-
-func waitForSession(ctx context.Context, log *zap.Logger, path string) error {
-	for {
-		switch _, err := os.Stat(path); {
-		case err == nil:
-			log.Info("session file found; starting", zap.String("session_file", path))
-			return nil
-		case !errors.Is(err, os.ErrNotExist):
-			return fmt.Errorf("stat session file %q: %w", path, err)
-		}
-
-		log.Info("no session file yet; waiting for sign-in",
-			zap.String("session_file", path),
-			zap.Duration("retry_in", sessionWaitInterval),
-		)
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(sessionWaitInterval):
-		}
-	}
 }
 
 func newLogger(level string) (*zap.Logger, error) {

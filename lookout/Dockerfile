@@ -29,4 +29,3 @@ ENV SESSION_FILE=session.json \
 USER app
 
 ENTRYPOINT ["lookout"]
-CMD ["--wait-session"]

@@ -89,7 +89,7 @@ const nav = [
     </aside>
 
     <!-- content -->
-    <div class="flex-1">
+    <div class="min-w-0 flex-1">
       <!-- mobile top bar -->
       <header class="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur md:hidden">
         <span class="flex items-center gap-2 text-lg font-semibold">

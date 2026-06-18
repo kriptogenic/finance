@@ -8,6 +8,7 @@ import { errMessage } from '../api/client'
 import type { Account, Category, Transaction, TransactionType } from '../api/types'
 import { formatDate } from '../lib/format'
 import TransactionForm from '../components/TransactionForm.vue'
+import TransactionDetail from '../components/TransactionDetail.vue'
 
 const transactions = ref<Transaction[]>([])
 const accounts = ref<Account[]>([])
@@ -18,6 +19,11 @@ const loading = ref(true)
 const error = ref('')
 const formOpen = ref(false)
 const editing = ref<Transaction | null>(null)
+const viewing = ref<Transaction | null>(null)
+
+function openDetail(t: Transaction) {
+  viewing.value = t
+}
 
 const filters = reactive({
   q: '',
@@ -29,9 +35,16 @@ const filters = reactive({
   tag: '',
 })
 
-const hasActiveFilters = computed(() =>
-  !!(filters.q || filters.type || filters.accountId || filters.categoryId || filters.dateFrom || filters.dateTo || filters.tag),
+const activeFilterCount = computed(() =>
+  [filters.q, filters.type, filters.accountId, filters.categoryId, filters.dateFrom, filters.dateTo, filters.tag].filter(Boolean).length,
 )
+const hasActiveFilters = computed(() => activeFilterCount.value > 0)
+
+// Filters live behind a disclosure; open it when any filter is already active.
+const showFilters = ref(false)
+watch(hasActiveFilters, (active) => {
+  if (active) showFilters.value = true
+})
 
 const meta = {
   expense: { icon: '↗', ring: 'bg-rose-50 text-rose-600', sign: '−', amount: 'text-rose-600' },
@@ -107,14 +120,26 @@ function onSaved() {
   formOpen.value = false
   loadTransactions()
 }
-async function remove(t: Transaction) {
-  if (!confirm('Delete this transaction?')) return
+async function remove(t: Transaction): Promise<boolean> {
+  if (!confirm('Delete this transaction?')) return false
   try {
     await transactionsApi.remove(t.id)
     loadTransactions()
+    return true
   } catch (e) {
     alert(errMessage(e))
+    return false
   }
+}
+
+function detailEdit() {
+  const t = viewing.value
+  viewing.value = null
+  if (t) openEdit(t)
+}
+async function detailRemove() {
+  const t = viewing.value
+  if (t && (await remove(t))) viewing.value = null
 }
 
 let timer: number | undefined
@@ -150,31 +175,45 @@ onMounted(async () => {
 
     <!-- filter bar -->
     <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="relative lg:col-span-2">
-          <span class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400">🔍</span>
-          <input v-model="filters.q" class="field pl-9" placeholder="Search notes…" />
+      <button
+        type="button"
+        class="flex w-full items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-slate-700"
+        @click="showFilters = !showFilters"
+      >
+        <svg class="h-4 w-4 transition-transform" :class="showFilters ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+        </svg>
+        Search
+        <span v-if="activeFilterCount" class="ml-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">{{ activeFilterCount }} active</span>
+      </button>
+
+      <div v-show="showFilters" class="mt-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="relative lg:col-span-2">
+            <span class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400">🔍</span>
+            <input v-model="filters.q" class="field pl-9" placeholder="Search notes…" />
+          </div>
+          <select v-model="filters.type" class="field">
+            <option value="">All types</option>
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+            <option value="transfer">Transfer</option>
+          </select>
+          <select v-model="filters.accountId" class="field">
+            <option value="">All accounts</option>
+            <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }}</option>
+          </select>
+          <select v-model="filters.categoryId" class="field">
+            <option value="">All categories</option>
+            <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.parent_id ? '— ' : '' }}{{ c.name }}</option>
+          </select>
+          <input v-model="filters.tag" class="field" placeholder="Tag" />
+          <input v-model="filters.dateFrom" type="date" class="field" title="From date" />
+          <input v-model="filters.dateTo" type="date" class="field" title="To date" />
         </div>
-        <select v-model="filters.type" class="field">
-          <option value="">All types</option>
-          <option value="expense">Expense</option>
-          <option value="income">Income</option>
-          <option value="transfer">Transfer</option>
-        </select>
-        <select v-model="filters.accountId" class="field">
-          <option value="">All accounts</option>
-          <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }}</option>
-        </select>
-        <select v-model="filters.categoryId" class="field">
-          <option value="">All categories</option>
-          <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.parent_id ? '— ' : '' }}{{ c.name }}</option>
-        </select>
-        <input v-model="filters.tag" class="field" placeholder="Tag" />
-        <input v-model="filters.dateFrom" type="date" class="field" title="From date" />
-        <input v-model="filters.dateTo" type="date" class="field" title="To date" />
-      </div>
-      <div v-if="hasActiveFilters" class="mt-3 flex justify-end">
-        <button class="btn btn-soft" @click="clearFilters">Clear filters</button>
+        <div v-if="hasActiveFilters" class="mt-3 flex justify-end">
+          <button class="btn btn-soft" @click="clearFilters">Clear filters</button>
+        </div>
       </div>
     </div>
 
@@ -182,7 +221,7 @@ onMounted(async () => {
 
     <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
       <ul class="divide-y divide-slate-100">
-        <li v-for="t in transactions" :key="t.id" class="group flex items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50 sm:gap-4 sm:px-5">
+        <li v-for="t in transactions" :key="t.id" class="group flex cursor-pointer items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50 sm:gap-4 sm:px-5" @click="openDetail(t)">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg font-semibold" :class="meta[t.type].ring">{{ meta[t.type].icon }}</span>
           <div class="min-w-0">
             <p class="truncate font-medium text-slate-800">{{ title(t) }}</p>
@@ -193,8 +232,8 @@ onMounted(async () => {
             <p class="text-xs text-slate-400">{{ formatDate(t.date) }}</p>
           </div>
           <div class="flex shrink-0 gap-0.5 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100 sm:gap-1">
-            <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700 sm:h-8 sm:w-8" title="Edit" @click="openEdit(t)">✎</button>
-            <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600 sm:h-8 sm:w-8" title="Delete" @click="remove(t)">🗑</button>
+            <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700 sm:h-8 sm:w-8" title="Edit" @click.stop="openEdit(t)">✎</button>
+            <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600 sm:h-8 sm:w-8" title="Delete" @click.stop="remove(t)">🗑</button>
           </div>
         </li>
         <li v-if="loading" class="px-5 py-8 text-center text-sm text-slate-400">Loading…</li>
@@ -203,6 +242,16 @@ onMounted(async () => {
         </li>
       </ul>
     </div>
+
+    <TransactionDetail
+      v-if="viewing"
+      :transaction="viewing"
+      :names="names"
+      :base="base"
+      @close="viewing = null"
+      @edit="detailEdit"
+      @remove="detailRemove"
+    />
 
     <TransactionForm
       v-if="formOpen"

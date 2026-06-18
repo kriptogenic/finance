@@ -169,7 +169,6 @@ private fun FailureRow(item: ParseFailureEntity, onDismiss: () -> Unit) {
 private fun SettingsScreen(vm: NotifierViewModel) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.baseUrl) }
     var token by rememberSaveable { mutableStateOf(vm.token) }
-    var card by rememberSaveable { mutableStateOf(vm.card) }
     var saved by remember { mutableStateOf(false) }
 
     Column(
@@ -191,14 +190,7 @@ private fun SettingsScreen(vm: NotifierViewModel) {
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
-        OutlinedTextField(
-            value = card,
-            onValueChange = { card = it; saved = false },
-            label = { Text("Card (masked)") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-        Button(onClick = { vm.saveSettings(baseUrl, token, card); saved = true }) { Text("Save") }
+        Button(onClick = { vm.saveSettings(baseUrl, token); saved = true }) { Text("Save") }
         if (saved) Text("Saved.", color = MaterialTheme.colorScheme.primary)
 
         HorizontalDivider()

@@ -30,17 +30,14 @@ class NotifierViewModel(app: Application) : AndroidViewModel(app) {
     // Settings are read once into editable state; persisted on save.
     var baseUrl: String = config.ingestBaseUrl
     var token: String = config.ingestToken
-    var card: String = config.knownCard
 
     val isConfigured: Boolean get() = config.isConfigured
 
-    fun saveSettings(baseUrl: String, token: String, card: String) {
+    fun saveSettings(baseUrl: String, token: String) {
         config.ingestBaseUrl = baseUrl
         config.ingestToken = token
-        config.knownCard = card
         this.baseUrl = config.ingestBaseUrl
         this.token = config.ingestToken
-        this.card = config.knownCard
     }
 
     fun dismissFailure(externalId: String) = viewModelScope.launch(Dispatchers.IO) {

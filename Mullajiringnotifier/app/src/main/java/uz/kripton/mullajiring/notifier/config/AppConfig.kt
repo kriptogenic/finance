@@ -37,9 +37,7 @@ class AppConfig private constructor(private val prefs: SharedPreferences) {
         private const val FILE = "notifier_secure_prefs"
         private const val KEY_BASE_URL = "ingest_base_url"
         private const val KEY_TOKEN = "ingest_token"
-        private const val KEY_CARD = "known_card"
         private const val KEY_BACKFILL_DONE = "backfill_done"
-        private const val DEFAULT_CARD = "404800***7476"
 
         @Volatile
         private var instance: AppConfig? = null

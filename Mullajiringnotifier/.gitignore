@@ -13,3 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+# Release signing — keep secrets out of git
+/keystore.properties
+*.keystore
+*.jks

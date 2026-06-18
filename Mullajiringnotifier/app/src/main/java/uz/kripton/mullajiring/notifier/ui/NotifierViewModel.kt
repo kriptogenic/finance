@@ -11,7 +11,6 @@ import uz.kripton.mullajiring.notifier.Graph
 import uz.kripton.mullajiring.notifier.data.OutboxEntity
 import uz.kripton.mullajiring.notifier.data.ParseFailureEntity
 import uz.kripton.mullajiring.notifier.delivery.DeliveryWorker
-import uz.kripton.mullajiring.notifier.sms.SmsBackfill
 
 class NotifierViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -30,22 +29,21 @@ class NotifierViewModel(app: Application) : AndroidViewModel(app) {
     // Settings are read once into editable state; persisted on save.
     var baseUrl: String = config.ingestBaseUrl
     var token: String = config.ingestToken
+    var senderName: String = config.senderName
 
     val isConfigured: Boolean get() = config.isConfigured
 
-    fun saveSettings(baseUrl: String, token: String) {
+    fun saveSettings(baseUrl: String, token: String, senderName: String) {
         config.ingestBaseUrl = baseUrl
         config.ingestToken = token
+        config.senderName = senderName
         this.baseUrl = config.ingestBaseUrl
         this.token = config.ingestToken
+        this.senderName = config.senderName
     }
 
     fun dismissFailure(externalId: String) = viewModelScope.launch(Dispatchers.IO) {
         repo.dismissParseFailure(externalId)
-    }
-
-    fun runBackfill() = viewModelScope.launch(Dispatchers.IO) {
-        SmsBackfill.run(getApplication())
     }
 
     fun retryNow() = DeliveryWorker.schedule(getApplication())

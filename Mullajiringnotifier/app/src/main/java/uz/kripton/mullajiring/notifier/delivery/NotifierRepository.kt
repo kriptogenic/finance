@@ -43,7 +43,7 @@ class NotifierRepository(
      * OTP / non-transaction messages are dropped silently and never stored.
      */
     suspend fun ingestSms(rawBody: String, sender: String): List<NotifierEvent> {
-        if (!sender.trim().equals(SmsParser.SENDER, ignoreCase = true)) {
+        if (!sender.trim().equals(config.senderName, ignoreCase = true)) {
             return emptyList() // not our bank — ignore entirely, never log
         }
         val externalId = IdempotencyKey.of(rawBody, sender)

@@ -12,24 +12,37 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import uz.kripton.mullajiring.notifier.data.OutboxEntity
@@ -169,13 +182,25 @@ private fun FailureRow(item: ParseFailureEntity, onDismiss: () -> Unit) {
 private fun SettingsScreen(vm: NotifierViewModel) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.baseUrl) }
     var token by rememberSaveable { mutableStateOf(vm.token) }
+    var senderName by rememberSaveable { mutableStateOf(vm.senderName) }
+    var tokenVisible by rememberSaveable { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
+    val smsGranted = rememberSmsPermissionGranted()
 
     Column(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        PermissionStatusCard(smsGranted)
+
         Text("Ingest configuration", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = senderName,
+            onValueChange = { senderName = it; saved = false },
+            label = { Text("SMS sender name") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
         OutlinedTextField(
             value = baseUrl,
             onValueChange = { baseUrl = it; saved = false },
@@ -189,14 +214,87 @@ private fun SettingsScreen(vm: NotifierViewModel) {
             label = { Text("Ingest token (bearer)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            visualTransformation = if (tokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                if (token.isNotEmpty()) {
+                    TextButton(onClick = { tokenVisible = !tokenVisible }) {
+                        Text(if (tokenVisible) "Hide" else "Show")
+                    }
+                }
+            },
         )
-        Button(onClick = { vm.saveSettings(baseUrl, token); saved = true }) { Text("Save") }
+        Button(onClick = {
+            vm.saveSettings(baseUrl, token, senderName)
+            tokenVisible = false // hide the token again after saving
+            saved = true
+        }) { Text("Save") }
         if (saved) Text("Saved.", color = MaterialTheme.colorScheme.primary)
-
-        HorizontalDivider()
-        Text("Maintenance", style = MaterialTheme.typography.titleMedium)
-        OutlinedButton(onClick = { vm.runBackfill() }) { Text("Backfill inbox now") }
     }
+}
+
+/** Reads RECEIVE_SMS grant state, refreshing whenever the screen resumes. */
+@Composable
+private fun rememberSmsPermissionGranted(): Boolean {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var granted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) ==
+                PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) ==
+                    PackageManager.PERMISSION_GRANTED
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return granted
+}
+
+@Composable
+private fun PermissionStatusCard(granted: Boolean) {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* status refreshes on resume */ }
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("SMS reception", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (granted) "RECEIVE_SMS: granted" else "RECEIVE_SMS: not granted",
+                color = if (granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            )
+            if (!granted) {
+                Text(
+                    "Without this permission no bank messages can be received.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!granted) {
+                    Button(onClick = { launcher.launch(Manifest.permission.RECEIVE_SMS) }) {
+                        Text("Grant permission")
+                    }
+                }
+                TextButton(onClick = { context.openAppSettings() }) {
+                    Text("Open app settings")
+                }
+            }
+        }
+    }
+}
+
+private fun android.content.Context.openAppSettings() {
+    startActivity(
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+    )
 }
 
 private fun statusLabel(status: OutboxStatus) = when (status) {

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import uz.kripton.mullajiring.notifier.parser.SmsParser
 
 /**
  * App configuration in Keystore-backed encrypted SharedPreferences.
@@ -20,9 +21,10 @@ class AppConfig private constructor(private val prefs: SharedPreferences) {
         get() = prefs.getString(KEY_TOKEN, "").orEmpty()
         set(value) = prefs.edit().putString(KEY_TOKEN, value.trim()).apply()
 
-    var firstLaunchBackfillDone: Boolean
-        get() = prefs.getBoolean(KEY_BACKFILL_DONE, false)
-        set(value) = prefs.edit().putBoolean(KEY_BACKFILL_DONE, value).apply()
+    /** SMS sender to accept (case-insensitive). Falls back to the default if blank. */
+    var senderName: String
+        get() = prefs.getString(KEY_SENDER, SmsParser.SENDER)?.ifBlank { SmsParser.SENDER } ?: SmsParser.SENDER
+        set(value) = prefs.edit().putString(KEY_SENDER, value.trim()).apply()
 
     val isConfigured: Boolean
         get() = ingestBaseUrl.isNotEmpty() && ingestToken.isNotEmpty()
@@ -37,7 +39,7 @@ class AppConfig private constructor(private val prefs: SharedPreferences) {
         private const val FILE = "notifier_secure_prefs"
         private const val KEY_BASE_URL = "ingest_base_url"
         private const val KEY_TOKEN = "ingest_token"
-        private const val KEY_BACKFILL_DONE = "backfill_done"
+        private const val KEY_SENDER = "sender_name"
 
         @Volatile
         private var instance: AppConfig? = null

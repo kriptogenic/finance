@@ -1,47 +1,46 @@
 package uz.kripton.mullajiring.notifier
 
+import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.activity.result.contract.ActivityResultContracts
+import uz.kripton.mullajiring.notifier.sms.SmsBackfill
+import uz.kripton.mullajiring.notifier.ui.AppScreen
 import uz.kripton.mullajiring.notifier.ui.theme.MullajiringNotifierTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+            // With SMS read access, backfill the inbox once.
+            if (grants[Manifest.permission.READ_SMS] == true) {
+                CoroutineScope(Dispatchers.IO).launch { SmsBackfill.run(applicationContext) }
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        requestPermissions()
         setContent {
             MullajiringNotifierTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                AppScreen()
             }
         }
     }
-}
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    MullajiringNotifierTheme {
-        Greeting("Android")
+    private fun requestPermissions() {
+        permissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.RECEIVE_SMS,
+                Manifest.permission.READ_SMS,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ),
+        )
     }
 }

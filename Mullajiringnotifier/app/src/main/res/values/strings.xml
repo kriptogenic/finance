@@ -1,3 +1,23 @@
 <resources>
     <string name="app_name">Mullajiring notifier</string>
+
+    <!-- Notification channels -->
+    <string name="channel_service">Delivery service</string>
+    <string name="channel_alerts">Alerts</string>
+
+    <!-- Foreground service notification -->
+    <string name="service_title">Forwarding bank transactions</string>
+    <string name="service_text">Delivering pending transactions to the finance app</string>
+
+    <!-- Alerts -->
+    <string name="alert_parse_title">Bank message could not be parsed</string>
+    <string name="alert_parse_text">1 bank message could not be parsed — tap to review</string>
+    <string name="alert_delivery_title">Transaction delivery failed</string>
+    <string name="alert_recon_title">Possible missed transaction</string>
+    <string name="alert_recon_text">Balance gap detected on card ••••%1$s</string>
+
+    <!-- UI -->
+    <string name="tab_status">Status</string>
+    <string name="tab_failures">Failures</string>
+    <string name="tab_settings">Settings</string>
 </resources>

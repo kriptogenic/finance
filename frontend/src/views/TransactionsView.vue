@@ -145,7 +145,7 @@ onMounted(async () => {
         <h1 class="text-2xl font-bold tracking-tight text-slate-900">Transactions</h1>
         <p class="text-sm text-slate-500">{{ transactions.length }} result{{ transactions.length === 1 ? '' : 's' }}</p>
       </div>
-      <button class="btn btn-primary" @click="openNew">+ New transaction</button>
+      <button class="btn btn-primary shrink-0" @click="openNew">+ New<span class="hidden sm:inline"> transaction</span></button>
     </div>
 
     <!-- filter bar -->
@@ -192,7 +192,7 @@ onMounted(async () => {
             <p class="tabular font-semibold" :class="meta[t.type].amount">{{ meta[t.type].sign }}{{ t.amount.format() }}</p>
             <p class="text-xs text-slate-400">{{ formatDate(t.date) }}</p>
           </div>
-          <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">
+          <div class="flex gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100">
             <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700" title="Edit" @click="openEdit(t)">✎</button>
             <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600" title="Delete" @click="remove(t)">🗑</button>
           </div>

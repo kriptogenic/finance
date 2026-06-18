@@ -78,7 +78,7 @@ onMounted(async () => {
         <h1 class="text-2xl font-bold tracking-tight text-slate-900">Budgets</h1>
         <p class="text-sm text-slate-500">Spending limits by category, current period</p>
       </div>
-      <button class="btn btn-primary" @click="openNew">+ New budget</button>
+      <button class="btn btn-primary shrink-0" @click="openNew">+ New<span class="hidden sm:inline"> budget</span></button>
     </div>
 
     <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
@@ -97,7 +97,7 @@ onMounted(async () => {
           </div>
           <div class="flex items-center gap-2">
             <span class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="tone(b.percent).chip">{{ Math.round(b.percent) }}%</span>
-            <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">
+            <div class="flex gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100">
               <button class="text-xs text-slate-400 hover:text-slate-700" title="Edit" @click="openEdit(b)">✎</button>
               <button class="text-xs text-slate-400 hover:text-rose-600" title="Delete" @click="remove(b)">🗑</button>
             </div>

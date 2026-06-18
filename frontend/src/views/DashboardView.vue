@@ -159,10 +159,10 @@ onMounted(async () => {
             {{ p.label }}
           </button>
         </div>
-        <div class="ml-auto flex items-center gap-2">
-          <input v-model="range.from" type="date" class="field !w-auto !py-1.5" title="From" @change="activePreset = 'custom'" />
+        <div class="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+          <input v-model="range.from" type="date" class="field min-w-0 flex-1 !py-1.5 sm:!w-auto sm:flex-none" title="From" @change="activePreset = 'custom'" />
           <span class="text-slate-300">–</span>
-          <input v-model="range.to" type="date" class="field !w-auto !py-1.5" title="To" @change="activePreset = 'custom'" />
+          <input v-model="range.to" type="date" class="field min-w-0 flex-1 !py-1.5 sm:!w-auto sm:flex-none" title="To" @change="activePreset = 'custom'" />
         </div>
       </div>
 

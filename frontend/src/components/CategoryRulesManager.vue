@@ -95,7 +95,7 @@ onMounted(load)
         <span class="text-slate-300">→</span>
         <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-600">{{ r.category_name }}</span>
         <button
-          class="ml-auto text-xs text-slate-400 opacity-0 transition group-hover:opacity-100 hover:text-rose-600"
+          class="ml-auto text-xs text-slate-400 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100 hover:text-rose-600"
           title="Delete"
           @click="remove(r)"
         >

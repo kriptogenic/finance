@@ -35,7 +35,7 @@ onMounted(async () => {
     <p v-else-if="loading" class="py-6 text-center text-sm text-slate-400">Loading…</p>
 
     <div v-else-if="schedule" class="space-y-5">
-      <div class="grid grid-cols-3 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div class="rounded-xl bg-slate-50 p-4">
           <p class="text-xs text-slate-500">Monthly payment</p>
           <p class="tabular mt-1 text-lg font-bold text-slate-900">{{ schedule.monthly_payment.format() }}</p>
@@ -50,8 +50,8 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div class="max-h-[55vh] overflow-y-auto rounded-xl ring-1 ring-slate-200">
-        <table class="w-full text-sm">
+      <div class="max-h-[55vh] overflow-auto rounded-xl ring-1 ring-slate-200">
+        <table class="w-full min-w-[34rem] text-sm">
           <thead class="sticky top-0 bg-slate-50 text-left text-xs tracking-wide text-slate-400 uppercase">
             <tr>
               <th class="px-3 py-2">#</th>

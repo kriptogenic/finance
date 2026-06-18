@@ -77,7 +77,7 @@ onMounted(async () => {
         <h1 class="text-2xl font-bold tracking-tight text-slate-900">Accounts</h1>
         <p class="text-sm text-slate-500">Balances are derived from your transactions</p>
       </div>
-      <button class="btn btn-primary" @click="openNew">+ New account</button>
+      <button class="btn btn-primary shrink-0" @click="openNew">+ New<span class="hidden sm:inline"> account</span></button>
     </div>
 
     <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
@@ -107,7 +107,7 @@ onMounted(async () => {
               <p class="tabular ml-auto text-right text-lg font-semibold" :class="a.balance.isNegative() ? 'text-rose-600' : 'text-slate-900'">
                 {{ a.balance.format() }}
               </p>
-              <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">
+              <div class="flex gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100">
                 <button v-if="a.type === 'loan'" class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-indigo-100 hover:text-indigo-600" title="Amortization schedule" @click="scheduleFor = a">📅</button>
                 <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700" title="Edit" @click="openEdit(a)">✎</button>
                 <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600" title="Delete" @click="remove(a)">🗑</button>

@@ -64,7 +64,7 @@ onMounted(load)
         <h1 class="text-2xl font-bold tracking-tight text-slate-900">Categories</h1>
         <p class="text-sm text-slate-500">Two-level expense and income trees</p>
       </div>
-      <button class="btn btn-primary" @click="openNew">+ New category</button>
+      <button class="btn btn-primary shrink-0" @click="openNew">+ New<span class="hidden sm:inline"> category</span></button>
     </div>
 
     <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
@@ -90,7 +90,7 @@ onMounted(load)
             <div class="flex items-center gap-2">
               <CategoryIcon :icon="top.icon" :color="top.color" class="text-lg leading-none text-slate-500" />
               <p class="font-semibold text-slate-800">{{ top.name }}</p>
-              <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">
+              <div class="flex gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100">
                 <button class="text-xs text-slate-400 hover:text-slate-700" title="Edit" @click="openEdit(top)">✎</button>
                 <button class="text-xs text-slate-400 hover:text-rose-600" title="Delete" @click="remove(top)">🗑</button>
               </div>
@@ -104,7 +104,7 @@ onMounted(load)
               >
                 <CategoryIcon v-if="child.icon" :icon="child.icon" :color="child.color" class="leading-none" />
                 {{ child.name }}
-                <button class="opacity-0 transition group-hover/c:opacity-100" title="Delete" @click="remove(child)">×</button>
+                <button class="opacity-100 transition can-hover:opacity-0 can-hover:group-hover/c:opacity-100" title="Delete" @click="remove(child)">×</button>
               </span>
             </div>
           </li>

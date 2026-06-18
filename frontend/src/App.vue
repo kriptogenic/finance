@@ -91,27 +91,44 @@ const nav = [
     <!-- content -->
     <div class="flex-1">
       <!-- mobile top bar -->
-      <header class="flex items-center gap-4 border-b border-slate-200 bg-white px-5 py-3 md:hidden">
+      <header class="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur md:hidden">
         <span class="flex items-center gap-2 text-lg font-semibold">
           <img src="/favicon.svg" alt="" class="h-7 w-7" />
           Mullajiring
         </span>
-        <nav class="flex gap-1 overflow-x-auto text-sm">
-          <RouterLink
-            v-for="item in nav"
-            :key="item.to"
-            :to="item.to"
-            class="rounded-lg px-3 py-1.5 font-medium text-slate-500"
-            exact-active-class="bg-slate-900 text-white"
-          >
-            {{ item.label }}
-          </RouterLink>
-        </nav>
+        <button
+          class="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+          aria-label="Sign out"
+          @click="logout"
+        >
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+          </svg>
+        </button>
       </header>
 
-      <main class="mx-auto max-w-6xl px-6 py-8 lg:px-10">
+      <main class="mx-auto max-w-6xl px-4 py-6 pb-24 sm:px-6 md:py-8 md:pb-8 lg:px-10">
         <RouterView />
       </main>
     </div>
+
+    <!-- mobile bottom nav -->
+    <nav
+      class="fixed inset-x-0 bottom-0 z-30 flex border-t border-slate-200 bg-white/95 backdrop-blur md:hidden"
+      style="padding-bottom: env(safe-area-inset-bottom)"
+    >
+      <RouterLink
+        v-for="item in nav"
+        :key="item.to"
+        :to="item.to"
+        class="flex flex-1 flex-col items-center gap-1 px-1 py-2 text-[10px] leading-tight font-medium text-slate-400 transition"
+        exact-active-class="!text-indigo-600"
+      >
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" :d="item.icon" />
+        </svg>
+        {{ item.label }}
+      </RouterLink>
+    </nav>
   </div>
 </template>

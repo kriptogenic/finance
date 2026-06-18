@@ -1,5 +1,9 @@
 @import 'tailwindcss';
 
+/* Reveal-on-hover only where hovering actually exists; on touch devices the
+   guarded element stays visible (otherwise row actions are unreachable). */
+@custom-variant can-hover (@media (hover: hover) and (pointer: fine));
+
 :root {
   color-scheme: light;
 }

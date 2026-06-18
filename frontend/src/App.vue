@@ -57,7 +57,7 @@ const nav = [
     <!-- sidebar -->
     <aside class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-slate-900 px-4 py-6 text-slate-300 md:flex">
       <div class="mb-8 flex items-center gap-2 px-2">
-        <span class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-lg">💰</span>
+        <img src="/favicon.svg" alt="" class="h-9 w-9 rounded-xl bg-white p-1" />
         <span class="text-lg font-semibold tracking-tight text-white">Mullajiring</span>
       </div>
 
@@ -92,7 +92,10 @@ const nav = [
     <div class="flex-1">
       <!-- mobile top bar -->
       <header class="flex items-center gap-4 border-b border-slate-200 bg-white px-5 py-3 md:hidden">
-        <span class="text-lg font-semibold">💰 Mullajiring</span>
+        <span class="flex items-center gap-2 text-lg font-semibold">
+          <img src="/favicon.svg" alt="" class="h-7 w-7" />
+          Mullajiring
+        </span>
         <nav class="flex gap-1 overflow-x-auto text-sm">
           <RouterLink
             v-for="item in nav"

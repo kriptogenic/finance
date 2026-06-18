@@ -58,6 +58,9 @@ const form = reactive<FormState>({
 
 const availableTypes = computed(() => typesByKind[form.kind])
 
+// card_last4 only applies to card accounts (it routes bank-notification ingest).
+const isCard = computed(() => form.type === 'debit_card' || form.type === 'credit_card')
+
 function onKindChange() {
   if (!availableTypes.value.includes(form.type)) form.type = availableTypes.value[0]
 }
@@ -75,7 +78,7 @@ async function submit() {
       const body: UpdateAccountRequest = {
         name: form.name,
         archived: form.archived,
-        ...(form.card_last4 ? { card_last4: form.card_last4 } : {}),
+        ...(isCard.value && form.card_last4 ? { card_last4: form.card_last4 } : {}),
         ...(form.type === 'credit_card' && form.credit_limit != null ? { credit_limit: toMinor(form.credit_limit, cur) } : {}),
         ...(form.type === 'deposit' || form.type === 'loan'
           ? { interest_rate: numOrUndef(form.interest_rate), term_months: numOrUndef(form.term_months) }
@@ -89,7 +92,7 @@ async function submit() {
         type: form.type,
         currency: cur,
         opening_balance: toMinor(form.opening, cur),
-        ...(form.card_last4 ? { card_last4: form.card_last4 } : {}),
+        ...(isCard.value && form.card_last4 ? { card_last4: form.card_last4 } : {}),
         ...(form.type === 'credit_card' && form.credit_limit != null ? { credit_limit: toMinor(form.credit_limit, cur) } : {}),
         ...(form.type === 'deposit' || form.type === 'loan'
           ? { interest_rate: numOrUndef(form.interest_rate), term_months: numOrUndef(form.term_months) }
@@ -147,7 +150,7 @@ async function submit() {
         <label for="archived" class="text-sm text-slate-600">Archived</label>
       </div>
 
-      <div>
+      <div v-if="isCard">
         <label class="lbl">Card last 4 (optional)</label>
         <input v-model="form.card_last4" class="field" maxlength="4" placeholder="4853" />
         <p class="mt-1 text-xs text-slate-400">Routes external bank-notification ingest to this account.</p>

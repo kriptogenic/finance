@@ -39,7 +39,7 @@ async function submit() {
       @submit.prevent="submit"
     >
       <div class="flex items-center gap-2">
-        <span class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-lg">💰</span>
+        <img src="/favicon.svg" alt="" class="h-9 w-9" />
         <span class="text-lg font-semibold tracking-tight text-slate-900">Mullajiring</span>
       </div>
 

@@ -5,6 +5,7 @@ import { errMessage } from '../api/client'
 import type { Budget, BudgetPeriod, Category, CreateBudgetRequest, UpdateBudgetRequest } from '../api/types'
 import { toMinor, toMajor } from '../lib/format'
 import Modal from './Modal.vue'
+import MoneyInput from './MoneyInput.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -91,7 +92,7 @@ async function submit() {
         </div>
         <div>
           <label class="lbl">Limit ({{ base }})</label>
-          <input v-model="form.amount" type="number" step="any" class="field" required placeholder="0.00" />
+          <MoneyInput v-model="form.amount" :currency="base" class="field" required placeholder="0,00" />
         </div>
       </div>
 

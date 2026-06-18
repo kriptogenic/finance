@@ -6,6 +6,7 @@ import type { Account, Category, CreateTransactionRequest, Transaction, Transact
 import { toMinor, toMajor, toLocalInput } from '../lib/format'
 import Modal from './Modal.vue'
 import CategoryIcon from './CategoryIcon.vue'
+import MoneyInput from './MoneyInput.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -131,14 +132,12 @@ async function submit() {
       <div>
         <label class="lbl">Amount</label>
         <div class="relative">
-          <input
+          <MoneyInput
             v-model="form.amount"
-            type="number"
-            inputmode="decimal"
-            step="any"
+            :currency="amountCurrency"
             class="field tabular !py-3 !pr-20 text-2xl font-semibold"
             required
-            placeholder="0.00"
+            placeholder="0,00"
             autofocus
           />
           <span class="absolute top-1/2 right-3 -translate-y-1/2 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">
@@ -231,7 +230,7 @@ async function submit() {
 
           <div v-if="isCross">
             <label class="lbl">Received ({{ toAcc?.currency }})</label>
-            <input v-model="form.toAmount" type="number" step="any" class="field" required placeholder="0.00" />
+            <MoneyInput v-model="form.toAmount" :currency="toAcc?.currency" class="field" required placeholder="0,00" />
           </div>
 
           <div v-if="needsRate">

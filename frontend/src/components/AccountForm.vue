@@ -5,6 +5,7 @@ import { errMessage } from '../api/client'
 import type { Account, AccountKind, AccountType, CreateAccountRequest, UpdateAccountRequest } from '../api/types'
 import { toMinor, toMajor } from '../lib/format'
 import Modal from './Modal.vue'
+import MoneyInput from './MoneyInput.vue'
 
 const props = withDefaults(
   defineProps<{ account?: Account | null; base?: string }>(),
@@ -140,7 +141,7 @@ async function submit() {
           </div>
           <div>
             <label class="lbl">Opening balance</label>
-            <input v-model="form.opening" type="number" step="any" class="field" />
+            <MoneyInput v-model="form.opening" :currency="form.currency || base" allow-negative class="field" />
           </div>
         </div>
       </template>
@@ -158,7 +159,7 @@ async function submit() {
 
       <div v-if="form.type === 'credit_card'">
         <label class="lbl">Credit limit</label>
-        <input v-model="form.credit_limit" type="number" step="any" class="field" />
+        <MoneyInput v-model="form.credit_limit" :currency="form.currency || base" class="field" />
       </div>
       <div v-if="form.type === 'deposit' || form.type === 'loan'" class="grid grid-cols-2 gap-3">
         <div>

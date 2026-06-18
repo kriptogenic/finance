@@ -33,3 +33,7 @@ folder structure:
 /frontend - vue app
 
 For every third part package should be wrapper in pkg with options pattern
+
+## File Reading
+Use `Read` tool directly instead of shell commands for reading files.
+Prefer `Read` over `cat`, `sed`, `head` in bash.

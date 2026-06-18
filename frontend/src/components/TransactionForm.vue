@@ -84,6 +84,10 @@ const detailsHint = computed(() => {
 
 async function submit() {
   error.value = ''
+  if (form.type !== 'transfer' && !form.categoryId) {
+    error.value = 'Please choose a category.'
+    return
+  }
   saving.value = true
   try {
     const payload: CreateTransactionRequest = {

@@ -182,19 +182,19 @@ onMounted(async () => {
 
     <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
       <ul class="divide-y divide-slate-100">
-        <li v-for="t in transactions" :key="t.id" class="group flex items-center gap-4 px-5 py-3.5 transition hover:bg-slate-50">
-          <span class="grid h-10 w-10 place-items-center rounded-full text-lg font-semibold" :class="meta[t.type].ring">{{ meta[t.type].icon }}</span>
+        <li v-for="t in transactions" :key="t.id" class="group flex items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50 sm:gap-4 sm:px-5">
+          <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg font-semibold" :class="meta[t.type].ring">{{ meta[t.type].icon }}</span>
           <div class="min-w-0">
             <p class="truncate font-medium text-slate-800">{{ title(t) }}</p>
             <p class="truncate text-xs text-slate-400">{{ subtitle(t) }}<span v-if="t.note"> · {{ t.note }}</span></p>
           </div>
-          <div class="ml-auto text-right">
-            <p class="tabular font-semibold" :class="meta[t.type].amount">{{ meta[t.type].sign }}{{ t.amount.format() }}</p>
+          <div class="ml-auto shrink-0 text-right">
+            <p class="tabular font-semibold text-sm sm:text-base" :class="meta[t.type].amount">{{ meta[t.type].sign }}{{ t.amount.format() }}</p>
             <p class="text-xs text-slate-400">{{ formatDate(t.date) }}</p>
           </div>
-          <div class="flex gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100">
-            <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700" title="Edit" @click="openEdit(t)">✎</button>
-            <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600" title="Delete" @click="remove(t)">🗑</button>
+          <div class="flex shrink-0 gap-0.5 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100 sm:gap-1">
+            <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700 sm:h-8 sm:w-8" title="Edit" @click="openEdit(t)">✎</button>
+            <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600 sm:h-8 sm:w-8" title="Delete" @click="remove(t)">🗑</button>
           </div>
         </li>
         <li v-if="loading" class="px-5 py-8 text-center text-sm text-slate-400">Loading…</li>

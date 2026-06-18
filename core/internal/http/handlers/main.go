@@ -11,6 +11,7 @@ import (
 	accountrepository "finance/internal/repositories/account_repository"
 	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
+	categoryrulerepository "finance/internal/repositories/category_rule_repository"
 	reportrepository "finance/internal/repositories/report_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
 )
@@ -19,14 +20,15 @@ import (
 // (accounts, categories, transactions, reports) hang off this type as methods
 // in their own files.
 type Server struct {
-	accounts     accountrepository.Repository
-	categories   categoryrepository.Repository
-	transactions transactionrepository.Repository
-	reports      reportrepository.Repository
-	budgets      budgetrepository.Repository
-	icons        iconsuggest.Suggester
-	base         string // reporting currency (§3)
-	logger       *zap.Logger
+	accounts      accountrepository.Repository
+	categories    categoryrepository.Repository
+	categoryRules categoryrulerepository.Repository
+	transactions  transactionrepository.Repository
+	reports       reportrepository.Repository
+	budgets       budgetrepository.Repository
+	icons         iconsuggest.Suggester
+	base          string // reporting currency (§3)
+	logger        *zap.Logger
 }
 
 var _ api.StrictServerInterface = (*Server)(nil)
@@ -34,6 +36,7 @@ var _ api.StrictServerInterface = (*Server)(nil)
 func NewServer(
 	accounts accountrepository.Repository,
 	categories categoryrepository.Repository,
+	categoryRules categoryrulerepository.Repository,
 	transactions transactionrepository.Repository,
 	reports reportrepository.Repository,
 	budgets budgetrepository.Repository,
@@ -42,14 +45,15 @@ func NewServer(
 	logger *zap.Logger,
 ) *Server {
 	return &Server{
-		accounts:     accounts,
-		categories:   categories,
-		transactions: transactions,
-		reports:      reports,
-		budgets:      budgets,
-		icons:        icons,
-		base:         finance.BaseCurrency,
-		logger:       logger,
+		accounts:      accounts,
+		categories:    categories,
+		categoryRules: categoryRules,
+		transactions:  transactions,
+		reports:       reports,
+		budgets:       budgets,
+		icons:         icons,
+		base:          finance.BaseCurrency,
+		logger:        logger,
 	}
 }
 

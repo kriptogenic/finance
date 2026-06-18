@@ -281,6 +281,44 @@ export interface paths {
         patch: operations["updateBudget"];
         trace?: never;
     };
+    "/category-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List merchant → category ingest routing rules */
+        get: operations["listCategoryRules"];
+        put?: never;
+        /** Create a merchant → category routing rule */
+        post: operations["createCategoryRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/category-rules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CategoryRuleId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a routing rule */
+        delete: operations["deleteCategoryRule"];
+        options?: never;
+        head?: never;
+        /** Update a routing rule */
+        patch: operations["updateCategoryRule"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -397,6 +435,30 @@ export interface components {
             icon?: string;
             color?: string;
             archived?: boolean;
+        };
+        CategoryRule: {
+            /** Format: uuid */
+            id: string;
+            /** @description Case-insensitive merchant substring that routes ingest to the category. */
+            pattern: string;
+            /** Format: uuid */
+            category_id: string;
+            category_name: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        CategoryRuleListResponse: {
+            rules: components["schemas"]["CategoryRule"][];
+        };
+        CreateCategoryRuleRequest: {
+            pattern: string;
+            /** Format: uuid */
+            category_id: string;
+        };
+        UpdateCategoryRuleRequest: {
+            pattern?: string;
+            /** Format: uuid */
+            category_id?: string;
         };
         SuggestIconsRequest: {
             name: string;
@@ -641,6 +703,7 @@ export interface components {
     };
     parameters: {
         BudgetId: string;
+        CategoryRuleId: string;
         AccountId: string;
         CategoryId: string;
         TransactionId: string;
@@ -1294,6 +1357,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Budget"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listCategoryRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rules list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryRuleListResponse"];
+                };
+            };
+        };
+    };
+    createCategoryRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCategoryRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Rule created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryRule"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    deleteCategoryRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CategoryRuleId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rule deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateCategoryRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CategoryRuleId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCategoryRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Rule updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryRule"];
                 };
             };
             400: components["responses"]["BadRequest"];

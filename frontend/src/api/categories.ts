@@ -1,5 +1,13 @@
 import { api, call } from './client'
-import type { Category, CategoryType, CreateCategoryRequest, UpdateCategoryRequest } from './types'
+import type {
+  Category,
+  CategoryRule,
+  CategoryType,
+  CreateCategoryRequest,
+  CreateCategoryRuleRequest,
+  UpdateCategoryRequest,
+  UpdateCategoryRuleRequest,
+} from './types'
 
 export const categoriesApi = {
   list: (query: { type?: CategoryType; include_archived?: boolean } = {}): Promise<Category[]> =>
@@ -16,4 +24,17 @@ export const categoriesApi = {
 
   suggestIcons: (body: { name: string; type: CategoryType }): Promise<string[]> =>
     call(api.POST('/categories/suggest-icons', { body })).then((d) => d.icons),
+}
+
+export const categoryRulesApi = {
+  list: (): Promise<CategoryRule[]> => call(api.GET('/category-rules')).then((d) => d.rules),
+
+  create: (body: CreateCategoryRuleRequest): Promise<CategoryRule> =>
+    call(api.POST('/category-rules', { body })),
+
+  update: (id: string, body: UpdateCategoryRuleRequest): Promise<CategoryRule> =>
+    call(api.PATCH('/category-rules/{id}', { params: { path: { id } }, body })),
+
+  remove: (id: string): Promise<unknown> =>
+    call(api.DELETE('/category-rules/{id}', { params: { path: { id } } })),
 }

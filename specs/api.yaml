@@ -485,9 +485,78 @@ paths:
         404:
           $ref: '#/components/responses/NotFound'
 
+  /category-rules:
+    get:
+      operationId: listCategoryRules
+      summary: List merchant → category ingest routing rules
+      responses:
+        200:
+          description: Rules list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryRuleListResponse'
+    post:
+      operationId: createCategoryRule
+      summary: Create a merchant → category routing rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRuleRequest'
+      responses:
+        201:
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryRule'
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /category-rules/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CategoryRuleId'
+    patch:
+      operationId: updateCategoryRule
+      summary: Update a routing rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCategoryRuleRequest'
+      responses:
+        200:
+          description: Rule updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryRule'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteCategoryRule
+      summary: Delete a routing rule
+      responses:
+        204:
+          description: Rule deleted
+        404:
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
     BudgetId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CategoryRuleId:
       name: id
       in: path
       required: true
@@ -800,6 +869,67 @@ components:
           type: string
         archived:
           type: boolean
+
+    CategoryRule:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - pattern
+        - category_id
+        - category_name
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        pattern:
+          type: string
+          description: Case-insensitive merchant substring that routes ingest to the category.
+        category_id:
+          type: string
+          format: uuid
+        category_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    CategoryRuleListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - rules
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryRule'
+
+    CreateCategoryRuleRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - pattern
+        - category_id
+      properties:
+        pattern:
+          type: string
+          minLength: 1
+        category_id:
+          type: string
+          format: uuid
+
+    UpdateCategoryRuleRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        pattern:
+          type: string
+          minLength: 1
+        category_id:
+          type: string
+          format: uuid
 
     SuggestIconsRequest:
       type: object

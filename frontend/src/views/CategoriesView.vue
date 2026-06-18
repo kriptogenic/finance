@@ -5,6 +5,7 @@ import { errMessage } from '../api/client'
 import type { Category, CategoryType } from '../api/types'
 import CategoryForm from '../components/CategoryForm.vue'
 import CategoryIcon from '../components/CategoryIcon.vue'
+import CategoryRulesManager from '../components/CategoryRulesManager.vue'
 
 const categories = ref<Category[]>([])
 const loading = ref(true)
@@ -110,6 +111,8 @@ onMounted(load)
         </ul>
       </section>
     </div>
+
+    <CategoryRulesManager v-if="!loading && !error" :categories="categories" />
 
     <CategoryForm v-if="formOpen" :category="editing" :categories="categories" @close="formOpen = false" @saved="onSaved" />
   </div>

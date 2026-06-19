@@ -25,7 +25,7 @@ func (s Server) ListCategoryRules(ctx context.Context, _ api.ListCategoryRulesRe
 
 	out := make([]api.CategoryRule, len(rules))
 	for i, r := range rules {
-		out[i] = toCategoryRule(r, names[r.CategoryID])
+		out[i] = toCategoryRule(r, names[*r.CategoryID])
 	}
 
 	return api.ListCategoryRules200JSONResponse{Rules: out}, nil
@@ -48,7 +48,7 @@ func (s Server) CreateCategoryRule(ctx context.Context, request api.CreateCatego
 		return nil, err
 	}
 
-	rule := entities.CategoryRule{Pattern: body.Pattern, CategoryID: body.CategoryId}
+	rule := entities.CategoryRule{Pattern: body.Pattern, CategoryID: &body.CategoryId}
 	if err = s.categoryRules.Create(ctx, &rule); err != nil {
 		s.logger.Error("create category rule", zap.Error(err))
 
@@ -85,7 +85,7 @@ func (s Server) UpdateCategoryRule(ctx context.Context, request api.UpdateCatego
 		if cerr != nil {
 			return nil, cerr
 		}
-		rule.CategoryID = *body.CategoryId
+		rule.CategoryID = body.CategoryId
 	}
 
 	if err = s.categoryRules.Update(ctx, rule); err != nil {
@@ -94,12 +94,16 @@ func (s Server) UpdateCategoryRule(ctx context.Context, request api.UpdateCatego
 		return nil, err
 	}
 
-	cat, err := s.categories.Get(ctx, rule.CategoryID)
-	if err != nil {
-		return nil, err
+	name := ""
+	if rule.CategoryID != nil {
+		cat, cerr := s.categories.Get(ctx, *rule.CategoryID)
+		if cerr != nil {
+			return nil, cerr
+		}
+		name = cat.Name
 	}
 
-	return api.UpdateCategoryRule200JSONResponse(toCategoryRule(*rule, cat.Name)), nil
+	return api.UpdateCategoryRule200JSONResponse(toCategoryRule(*rule, name)), nil
 }
 
 func (s Server) DeleteCategoryRule(ctx context.Context, request api.DeleteCategoryRuleRequestObject) (api.DeleteCategoryRuleResponseObject, error) {
@@ -115,11 +119,15 @@ func (s Server) DeleteCategoryRule(ctx context.Context, request api.DeleteCatego
 }
 
 func toCategoryRule(r entities.CategoryRule, categoryName string) api.CategoryRule {
-	return api.CategoryRule{
+	rule := api.CategoryRule{
 		Id:           r.ID,
 		Pattern:      r.Pattern,
-		CategoryId:   r.CategoryID,
 		CategoryName: categoryName,
 		CreatedAt:    r.CreatedAt,
 	}
+	if r.CategoryID != nil {
+		rule.CategoryId = *r.CategoryID
+	}
+
+	return rule
 }

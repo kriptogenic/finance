@@ -1,5 +1,5 @@
 import { api, call } from './client'
-import type { CreateTransactionRequest, Transaction, TransactionType } from './types'
+import type { CategorySuggestion, CreateTransactionRequest, Transaction, TransactionType } from './types'
 
 export interface TransactionFilter {
   account_id?: string
@@ -8,6 +8,7 @@ export interface TransactionFilter {
   date_from?: string
   date_to?: string
   tag?: string
+  uncategorized?: boolean
   q?: string
   limit?: number
   offset?: number
@@ -23,6 +24,12 @@ export const transactionsApi = {
 
   update: (id: string, body: CreateTransactionRequest): Promise<Transaction> =>
     call(api.PUT('/transactions/{id}', { params: { path: { id } }, body })),
+
+  patchCategory: (id: string, category_id: string): Promise<Transaction> =>
+    call(api.PATCH('/transactions/{id}', { params: { path: { id } }, body: { category_id } })),
+
+  suggestCategories: (id: string): Promise<CategorySuggestion[]> =>
+    call(api.GET('/transactions/{id}/category-suggestions', { params: { path: { id } } })).then((d) => d.suggestions),
 
   remove: (id: string): Promise<unknown> => call(api.DELETE('/transactions/{id}', { params: { path: { id } } })),
 }

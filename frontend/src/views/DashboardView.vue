@@ -3,6 +3,7 @@ import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
 import type { CashFlowReport, NetWorthReport, SpendingReport } from '../api/types'
+import CategorizeCard from '../components/CategorizeCard.vue'
 
 const netWorth = ref<NetWorthReport | null>(null)
 const spending = ref<SpendingReport | null>(null)
@@ -98,6 +99,9 @@ onMounted(async () => {
       <h1 class="text-2xl font-bold tracking-tight text-slate-900">Dashboard</h1>
       <p class="text-sm text-slate-500">Your money at a glance</p>
     </div>
+
+    <!-- uncategorized review; loads independently of the reports below -->
+    <CategorizeCard :base="netWorth?.base ?? 'UZS'" />
 
     <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
     <p v-else-if="loading" class="text-slate-500">Loading…</p>

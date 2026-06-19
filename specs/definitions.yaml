@@ -35,6 +35,10 @@ components:
     TransactionType:
       type: string
       enum: [expense, income, transfer]
+    SuggestionSource:
+      type: string
+      description: Where a category suggestion came from.
+      enum: [rule, ai]
     BudgetPeriod:
       type: string
       enum: [weekly, monthly, yearly]

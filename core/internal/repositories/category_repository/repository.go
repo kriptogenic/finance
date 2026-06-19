@@ -24,6 +24,7 @@ type Repository interface {
 	Update(ctx context.Context, cat *entities.Category) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	ResolveForIngest(ctx context.Context, typ entities.CategoryType, merchant string) (uuid.UUID, error)
+	MatchRule(ctx context.Context, typ entities.CategoryType, merchant string) (*uuid.UUID, error)
 }
 
 type repository struct {
@@ -124,30 +125,44 @@ func (r repository) Update(ctx context.Context, cat *entities.Category) error {
 	return nil
 }
 
-func (r repository) ResolveForIngest(ctx context.Context, typ entities.CategoryType, merchant string) (uuid.UUID, error) {
-	if merchant != "" {
-		const ruleQuery = `
-			SELECT r.category_id
-			FROM category_rules r
-			JOIN categories c ON c.id = r.category_id
-			WHERE c.type = $1 AND $2 ILIKE '%' || r.pattern || '%'
-			ORDER BY length(r.pattern) DESC
-			LIMIT 1`
+func (r repository) MatchRule(ctx context.Context, typ entities.CategoryType, merchant string) (*uuid.UUID, error) {
+	if merchant == "" {
+		return nil, nil
+	}
 
-		var id uuid.UUID
-		err := r.db.Pool.QueryRow(ctx, ruleQuery, typ, merchant).Scan(&id)
-		if err == nil {
-			return id, nil
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return uuid.Nil, fmt.Errorf("resolve category rule: %w", err)
-		}
+	const ruleQuery = `
+		SELECT r.category_id
+		FROM category_rules r
+		JOIN categories c ON c.id = r.category_id
+		WHERE c.type = $1 AND $2 ILIKE '%' || r.pattern || '%'
+		ORDER BY length(r.pattern) DESC
+		LIMIT 1`
+
+	var id uuid.UUID
+	err := r.db.Pool.QueryRow(ctx, ruleQuery, typ, merchant).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolve category rule: %w", err)
+	}
+
+	return &id, nil
+}
+
+func (r repository) ResolveForIngest(ctx context.Context, typ entities.CategoryType, merchant string) (uuid.UUID, error) {
+	matched, err := r.MatchRule(ctx, typ, merchant)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if matched != nil {
+		return *matched, nil
 	}
 
 	key := "uncategorized_" + string(typ)
 
 	var id uuid.UUID
-	err := r.db.Pool.QueryRow(ctx, `SELECT id FROM categories WHERE system_key = $1`, key).Scan(&id)
+	err = r.db.Pool.QueryRow(ctx, `SELECT id FROM categories WHERE system_key = $1`, key).Scan(&id)
 	if err == nil {
 		return id, nil
 	}

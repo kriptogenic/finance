@@ -172,6 +172,44 @@ export interface paths {
         delete: operations["deleteTransaction"];
         options?: never;
         head?: never;
+        /** Partially update a transaction (currently only its category) */
+        patch: operations["patchTransaction"];
+        trace?: never;
+    };
+    "/transactions/{id}/category-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["TransactionId"];
+            };
+            cookie?: never;
+        };
+        /** Suggest categories for a transaction (local rules, then an LLM) */
+        get: operations["getCategorySuggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/category-rule-blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List merchants the user never wants to be offered a rule for */
+        get: operations["listCategoryRuleBlocks"];
+        put?: never;
+        /** Never offer a routing rule for this merchant again */
+        post: operations["createCategoryRuleBlock"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -586,6 +624,33 @@ export interface components {
             rate_to_base?: string;
             tags?: string[];
         };
+        PatchTransactionRequest: {
+            /**
+             * Format: uuid
+             * @description New category; its type must match the transaction's type.
+             */
+            category_id: string;
+        };
+        CategorySuggestion: {
+            /** Format: uuid */
+            category_id: string;
+            category_name: string;
+            source: components["schemas"]["SuggestionSource"];
+        };
+        CategorySuggestionsResponse: {
+            suggestions: components["schemas"]["CategorySuggestion"][];
+        };
+        CategoryRuleBlock: {
+            merchant: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        CategoryRuleBlockListResponse: {
+            blocks: components["schemas"]["CategoryRuleBlock"][];
+        };
+        CreateCategoryRuleBlockRequest: {
+            merchant: string;
+        };
         NetWorthReport: {
             base: components["schemas"]["Currency"];
             net_worth: components["schemas"]["Money"];
@@ -748,6 +813,11 @@ export interface components {
         CategoryType: "expense" | "income";
         /** @enum {string} */
         TransactionType: "expense" | "income" | "transfer";
+        /**
+         * @description Where a category suggestion came from.
+         * @enum {string}
+         */
+        SuggestionSource: "rule" | "ai";
         /** @enum {string} */
         BudgetPeriod: "weekly" | "monthly" | "yearly";
     };
@@ -1128,6 +1198,8 @@ export interface operations {
                 date_from?: string;
                 date_to?: string;
                 tag?: string;
+                /** @description When true, return only transactions in the Uncategorized buckets. */
+                uncategorized?: boolean;
                 /** @description Free-text match on the note */
                 q?: string;
                 limit?: number;
@@ -1245,6 +1317,102 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    patchTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["TransactionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchTransactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Transaction updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getCategorySuggestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["TransactionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ranked category suggestions, most relevant first. Empty when nothing matches and suggestions are unavailable. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategorySuggestionsResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listCategoryRuleBlocks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Blocked merchants */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryRuleBlockListResponse"];
+                };
+            };
+        };
+    };
+    createCategoryRuleBlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCategoryRuleBlockRequest"];
+            };
+        };
+        responses: {
+            /** @description Merchant blocked */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryRuleBlock"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
         };
     };
     ingestTransaction: {

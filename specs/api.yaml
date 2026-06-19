@@ -263,6 +263,10 @@ paths:
         - name: tag
           in: query
           schema: { type: string }
+        - name: uncategorized
+          in: query
+          description: When true, return only transactions in the Uncategorized buckets.
+          schema: { type: boolean }
         - name: q
           in: query
           description: Free-text match on the note
@@ -334,6 +338,26 @@ paths:
           $ref: '#/components/responses/BadRequest'
         404:
           $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: patchTransaction
+      summary: Partially update a transaction (currently only its category)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchTransactionRequest'
+      responses:
+        200:
+          description: Transaction updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
     delete:
       operationId: deleteTransaction
       summary: Delete a transaction
@@ -342,6 +366,54 @@ paths:
           description: Transaction deleted
         404:
           $ref: '#/components/responses/NotFound'
+
+  /transactions/{id}/category-suggestions:
+    parameters:
+      - $ref: '#/components/parameters/TransactionId'
+    get:
+      operationId: getCategorySuggestions
+      summary: Suggest categories for a transaction (local rules, then an LLM)
+      responses:
+        200:
+          description: >-
+            Ranked category suggestions, most relevant first. Empty when nothing
+            matches and suggestions are unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategorySuggestionsResponse'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /category-rule-blocks:
+    get:
+      operationId: listCategoryRuleBlocks
+      summary: List merchants the user never wants to be offered a rule for
+      responses:
+        200:
+          description: Blocked merchants
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryRuleBlockListResponse'
+    post:
+      operationId: createCategoryRuleBlock
+      summary: Never offer a routing rule for this merchant again
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRuleBlockRequest'
+      responses:
+        201:
+          description: Merchant blocked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryRuleBlock'
+        400:
+          $ref: '#/components/responses/BadRequest'
 
   /ingest/transactions:
     post:
@@ -1145,6 +1217,78 @@ components:
           type: array
           items:
             type: string
+
+    PatchTransactionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - category_id
+      properties:
+        category_id:
+          type: string
+          format: uuid
+          description: New category; its type must match the transaction's type.
+
+    CategorySuggestion:
+      type: object
+      additionalProperties: false
+      required:
+        - category_id
+        - category_name
+        - source
+      properties:
+        category_id:
+          type: string
+          format: uuid
+        category_name:
+          type: string
+        source:
+          $ref: './definitions.yaml#/components/schemas/SuggestionSource'
+
+    CategorySuggestionsResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - suggestions
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategorySuggestion'
+
+    CategoryRuleBlock:
+      type: object
+      additionalProperties: false
+      required:
+        - merchant
+        - created_at
+      properties:
+        merchant:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    CategoryRuleBlockListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - blocks
+      properties:
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryRuleBlock'
+
+    CreateCategoryRuleBlockRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - merchant
+      properties:
+        merchant:
+          type: string
+          minLength: 1
 
     NetWorthReport:
       type: object

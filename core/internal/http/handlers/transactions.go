@@ -129,6 +129,9 @@ func (s Server) ListTransactions(ctx context.Context, request api.ListTransactio
 		t := entities.TransactionType(*p.Type)
 		filter.Type = &t
 	}
+	if p.Uncategorized != nil {
+		filter.Uncategorized = *p.Uncategorized
+	}
 	if p.Limit != nil {
 		filter.Limit = *p.Limit
 	}
@@ -247,6 +250,147 @@ func (s Server) resolveCard(ctx context.Context, last4 string) (*uuid.UUID, api.
 	}
 
 	return &acc.ID, nil
+}
+
+func (s Server) PatchTransaction(ctx context.Context, request api.PatchTransactionRequestObject) (api.PatchTransactionResponseObject, error) {
+	if request.Body == nil {
+		return api.PatchTransaction400JSONResponse{BadRequestJSONResponse: badRequest("empty body")}, nil
+	}
+
+	tx, err := s.transactions.Get(ctx, request.Id)
+	if errors.Is(err, transactionrepository.ErrNotFound) {
+		return api.PatchTransaction404JSONResponse{NotFoundJSONResponse: notFound("transaction not found")}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if tx.Type == entities.TxTransfer {
+		return api.PatchTransaction400JSONResponse{BadRequestJSONResponse: badRequest("transfers have no category")}, nil
+	}
+
+	cat, msg := s.getCategory(ctx, request.Body.CategoryId)
+	if msg != "" {
+		return api.PatchTransaction400JSONResponse{BadRequestJSONResponse: badRequest(msg)}, nil
+	}
+	if cat.Archived {
+		return api.PatchTransaction400JSONResponse{BadRequestJSONResponse: badRequest("category is archived")}, nil
+	}
+	if !categoryMatchesTx(cat.Type, tx.Type) {
+		return api.PatchTransaction400JSONResponse{BadRequestJSONResponse: badRequest("category type does not match the transaction type")}, nil
+	}
+
+	if err = s.transactions.SetCategory(ctx, tx.ID, cat.ID); err != nil {
+		if errors.Is(err, transactionrepository.ErrNotFound) {
+			return api.PatchTransaction404JSONResponse{NotFoundJSONResponse: notFound("transaction not found")}, nil
+		}
+		s.logger.Error("set transaction category", zap.Error(err))
+
+		return nil, err
+	}
+
+	tx.CategoryID = &cat.ID
+
+	return api.PatchTransaction200JSONResponse(s.toTransaction(*tx)), nil
+}
+
+func (s Server) GetCategorySuggestions(ctx context.Context, request api.GetCategorySuggestionsRequestObject) (api.GetCategorySuggestionsResponseObject, error) {
+	tx, err := s.transactions.Get(ctx, request.Id)
+	if errors.Is(err, transactionrepository.ErrNotFound) {
+		return api.GetCategorySuggestions404JSONResponse{NotFoundJSONResponse: notFound("transaction not found")}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	catType, ok := categoryTypeFor(tx.Type)
+	if !ok {
+		// transfers carry no category — nothing to suggest
+		return api.GetCategorySuggestions200JSONResponse{Suggestions: []api.CategorySuggestion{}}, nil
+	}
+
+	merchant := ""
+	if tx.Note != nil {
+		merchant = *tx.Note
+	}
+
+	cats, err := s.categories.List(ctx, &catType, false)
+	if err != nil {
+		return nil, err
+	}
+
+	// candidate pool: real (non-system) categories of this type
+	byName := make(map[string]entities.Category, len(cats))
+	names := make([]string, 0, len(cats))
+	for _, c := range cats {
+		if c.SystemKey != nil {
+			continue
+		}
+		byName[c.Name] = c
+		names = append(names, c.Name)
+	}
+
+	var suggestions []api.CategorySuggestion
+	seen := make(map[uuid.UUID]struct{})
+	add := func(c entities.Category, source api.SuggestionSource) {
+		if _, dup := seen[c.ID]; dup {
+			return
+		}
+		seen[c.ID] = struct{}{}
+		suggestions = append(suggestions, api.CategorySuggestion{
+			CategoryId:   c.ID,
+			CategoryName: c.Name,
+			Source:       source,
+		})
+	}
+
+	// a matching local rule wins the top spot
+	if ruleID, err := s.categories.MatchRule(ctx, catType, merchant); err != nil {
+		s.logger.Error("match category rule", zap.Error(err))
+	} else if ruleID != nil {
+		for _, c := range cats {
+			if c.ID == *ruleID {
+				add(c, api.Rule)
+
+				break
+			}
+		}
+	}
+
+	// then the LLM ranks the user's existing categories
+	ranked, err := s.catSuggest.Suggest(ctx, merchant, names)
+	if err != nil {
+		s.logger.Warn("category suggestion failed", zap.Error(err))
+	}
+	for _, name := range ranked {
+		if c, ok := byName[name]; ok {
+			add(c, api.Ai)
+		}
+	}
+
+	if suggestions == nil {
+		suggestions = []api.CategorySuggestion{}
+	}
+
+	return api.GetCategorySuggestions200JSONResponse{Suggestions: suggestions}, nil
+}
+
+// categoryTypeFor maps a transaction type to the category tree it draws from.
+func categoryTypeFor(t entities.TransactionType) (entities.CategoryType, bool) {
+	switch t {
+	case entities.TxExpense:
+		return entities.CategoryExpense, true
+	case entities.TxIncome:
+		return entities.CategoryIncome, true
+	default:
+		return "", false
+	}
+}
+
+func categoryMatchesTx(ct entities.CategoryType, tt entities.TransactionType) bool {
+	want, ok := categoryTypeFor(tt)
+
+	return ok && want == ct
 }
 
 func (s Server) DeleteTransaction(ctx context.Context, request api.DeleteTransactionRequestObject) (api.DeleteTransactionResponseObject, error) {

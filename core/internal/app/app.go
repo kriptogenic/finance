@@ -14,6 +14,7 @@ import (
 
 	"finance/config"
 	"finance/generated/api"
+	"finance/internal/categorysuggest"
 	"finance/internal/http/handlers"
 	"finance/internal/http/middlewares"
 	"finance/internal/iconsuggest"
@@ -44,6 +45,7 @@ func CreateApp() fx.Option {
 			budgetrepository.NewRepository,
 			balancesnapshotrepository.NewRepository,
 			iconsuggest.New,
+			categorysuggest.New,
 			handlers.NewServer,
 			httpHandler,
 		),

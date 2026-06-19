@@ -13,6 +13,8 @@ export type SpendingReport = S['SpendingReport']
 export type CashFlowReport = S['CashFlowReport']
 export type ReconciliationReport = S['ReconciliationReport']
 export type ReconciliationRow = S['ReconciliationRow']
+export type CategorySuggestion = S['CategorySuggestion']
+export type CategoryRuleBlock = S['CategoryRuleBlock']
 
 export type CreateAccountRequest = S['CreateAccountRequest']
 export type UpdateAccountRequest = S['UpdateAccountRequest']

@@ -18,15 +18,16 @@ var ErrNotFound = errors.New("transaction not found")
 
 // Filter narrows a transaction search (REQUIREMENTS §6).
 type Filter struct {
-	AccountID  *uuid.UUID
-	CategoryID *uuid.UUID
-	Type       *entities.TransactionType
-	DateFrom   *time.Time
-	DateTo     *time.Time
-	Tag        *string
-	Query      *string
-	Limit      int
-	Offset     int
+	AccountID     *uuid.UUID
+	CategoryID    *uuid.UUID
+	Type          *entities.TransactionType
+	DateFrom      *time.Time
+	DateTo        *time.Time
+	Tag           *string
+	Query         *string
+	Uncategorized bool
+	Limit         int
+	Offset        int
 }
 
 type Repository interface {
@@ -36,6 +37,7 @@ type Repository interface {
 	// Update replaces every mutable column of tx.ID (a full edit); id and
 	// created_at are preserved.
 	Update(ctx context.Context, tx *entities.Transaction) error
+	SetCategory(ctx context.Context, id, categoryID uuid.UUID) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	// Ingest idempotently inserts by external_id; created=false means it already existed.
 	Ingest(ctx context.Context, tx *entities.Transaction) (created bool, err error)
@@ -185,6 +187,10 @@ func (r repository) List(ctx context.Context, filter Filter) ([]entities.Transac
 	if filter.Query != nil {
 		add(` AND note ILIKE '%%' || $%d || '%%'`, *filter.Query)
 	}
+	if filter.Uncategorized {
+		query += ` AND category_id IN (SELECT id FROM categories
+			WHERE system_key IN ('uncategorized_expense', 'uncategorized_income'))`
+	}
 
 	query += ` ORDER BY date DESC, created_at DESC`
 	add(` LIMIT $%d`, limitOrDefault(filter.Limit))
@@ -259,6 +265,19 @@ func (r repository) Delete(ctx context.Context, id uuid.UUID) error {
 	res, err := r.db.Pool.Exec(ctx, `DELETE FROM transactions WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete transaction: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (r repository) SetCategory(ctx context.Context, id, categoryID uuid.UUID) error {
+	res, err := r.db.Pool.Exec(ctx,
+		`UPDATE transactions SET category_id = $2 WHERE id = $1`, id, categoryID)
+	if err != nil {
+		return fmt.Errorf("set transaction category: %w", err)
 	}
 	if res.RowsAffected() == 0 {
 		return ErrNotFound

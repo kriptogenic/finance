@@ -4,6 +4,7 @@ import { accountsApi } from '../api/accounts'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
 import type { Account } from '../api/types'
+import { formatMinor } from '../lib/format'
 import AccountForm from '../components/AccountForm.vue'
 import LoanScheduleModal from '../components/LoanScheduleModal.vue'
 
@@ -17,6 +18,11 @@ const scheduleFor = ref<Account | null>(null)
 
 const assets = computed(() => accounts.value.filter((a) => a.kind === 'asset'))
 const liabilities = computed(() => accounts.value.filter((a) => a.kind === 'liability'))
+
+// For a credit card, balance is what you owe; available = limit − owed.
+function availableCredit(a: Account): number {
+  return (a.credit_limit ?? 0) - a.balance.amount
+}
 
 const typeLabel = {
   cash: 'Cash',
@@ -104,9 +110,14 @@ onMounted(async () => {
                 <p class="truncate font-semibold text-slate-800">{{ a.name }}</p>
                 <p class="text-xs text-slate-400">{{ typeLabel[a.type] || a.type }} · {{ a.currency }}</p>
               </div>
-              <p class="tabular ml-auto text-right text-lg font-semibold" :class="a.balance.isNegative() ? 'text-rose-600' : 'text-slate-900'">
-                {{ a.balance.format() }}
-              </p>
+              <div class="ml-auto text-right">
+                <p class="tabular text-lg font-semibold" :class="a.balance.isNegative() ? 'text-rose-600' : 'text-slate-900'">
+                  {{ a.balance.format() }}
+                </p>
+                <p v-if="a.type === 'credit_card' && a.credit_limit != null" class="tabular text-sm font-medium text-slate-500">
+                  {{ formatMinor(availableCredit(a), a.currency) }}
+                </p>
+              </div>
               <div class="flex gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100">
                 <button v-if="a.type === 'loan'" class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-indigo-100 hover:text-indigo-600" title="Amortization schedule" @click="scheduleFor = a">📅</button>
                 <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700" title="Edit" @click="openEdit(a)">✎</button>

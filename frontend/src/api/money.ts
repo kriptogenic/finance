@@ -8,6 +8,7 @@
 // structurally compatible with openapi-fetch's mapped response types.
 import * as dn from 'dinero.js'
 import type { Dinero, DineroCurrency } from 'dinero.js'
+import { hideMinorUnits } from '../lib/settings'
 
 const registry = dn as unknown as Record<string, DineroCurrency<number> | undefined>
 
@@ -104,8 +105,9 @@ export class Money {
     return this.amount / 10 ** exponentOf(this.currency)
   }
 
-  /** "1 000,12 UZS" */
+  /** "1 000,12 UZS", or "1 000 UZS" when the hide-minor-units pref is on. */
   format(): string {
+    if (hideMinorUnits.value) return this.formatShort()
     return styleDecimal(dn.toDecimal(toDinero(this))) + ' ' + this.currency
   }
 

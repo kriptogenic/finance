@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clearCredentials } from './api/auth'
+import { hideMinorUnits } from './lib/settings'
 
 const route = useRoute()
 const router = useRouter()
@@ -81,8 +82,17 @@ const nav = [
         </RouterLink>
       </nav>
 
+      <label class="mt-auto flex cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white">
+        <span>Hide cents</span>
+        <span class="relative inline-flex h-5 w-9 shrink-0">
+          <input v-model="hideMinorUnits" type="checkbox" class="peer sr-only" />
+          <span class="absolute inset-0 rounded-full bg-slate-600 transition peer-checked:bg-indigo-500" />
+          <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4" />
+        </span>
+      </label>
+
       <button
-        class="mt-auto flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
+        class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
         @click="logout"
       >
         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
@@ -101,15 +111,25 @@ const nav = [
           <img src="/favicon.svg" alt="" class="h-7 w-7" />
           Mullajiring
         </span>
-        <button
-          class="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-          aria-label="Sign out"
-          @click="logout"
-        >
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
-          </svg>
-        </button>
+        <div class="flex items-center gap-3">
+          <label class="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-500">
+            <span>Hide cents</span>
+            <span class="relative inline-flex h-5 w-9 shrink-0">
+              <input v-model="hideMinorUnits" type="checkbox" class="peer sr-only" />
+              <span class="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-indigo-500" />
+              <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
+            </span>
+          </label>
+          <button
+            class="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Sign out"
+            @click="logout"
+          >
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+            </svg>
+          </button>
+        </div>
       </header>
 
       <main class="mx-auto max-w-6xl px-4 py-6 pb-24 sm:px-6 md:py-8 md:pb-8 lg:px-10">

@@ -19,10 +19,16 @@ type Poster interface {
 	Post(ctx context.Context, p pairing.Posting) error
 }
 
+// BalancePoster delivers card balance snapshots for reconciliation.
+type BalancePoster interface {
+	PostBalances(ctx context.Context, balances []parser.CardBalance, reportedAt time.Time) error
+}
+
 type App struct {
 	parser   *parser.Parser
 	buffer   *pairing.Buffer
 	poster   Poster
+	balances BalancePoster
 	store    *store.Store
 	recon    *recon.Reconciler
 	interval time.Duration
@@ -33,13 +39,14 @@ type App struct {
 	watermark int
 }
 
-func New(p *parser.Parser, buf *pairing.Buffer, poster Poster, st *store.Store, rc *recon.Reconciler, interval time.Duration, log *zap.Logger) *App {
+func New(p *parser.Parser, buf *pairing.Buffer, poster Poster, balances BalancePoster, st *store.Store, rc *recon.Reconciler, interval time.Duration, log *zap.Logger) *App {
 	state := st.State()
 	buf.Restore(state.Pending)
 	return &App{
 		parser:    p,
 		buffer:    buf,
 		poster:    poster,
+		balances:  balances,
 		store:     st,
 		recon:     rc,
 		interval:  interval,
@@ -104,6 +111,16 @@ func (a *App) cycle(ctx context.Context, f telegram.Fetcher) error {
 }
 
 func (a *App) process(ctx context.Context, chatID int64, m telegram.Message) error {
+	// A balance-snapshot message reports current per-card balances; route it to
+	// reconciliation instead of the transaction pipeline.
+	if cards, ok := parser.ParseBalances(m.Text); ok {
+		if err := a.balances.PostBalances(ctx, cards, m.Date); err != nil {
+			return err
+		}
+		a.log.Info("balance snapshot ingested", zap.Int("message_id", m.ID), zap.Int("cards", len(cards)))
+		return a.commit(m.ID)
+	}
+
 	rec := a.parser.Parse(chatID, m.ID, m.Text)
 	a.recon.Check(rec)
 

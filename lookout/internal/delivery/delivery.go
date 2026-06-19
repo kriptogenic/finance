@@ -11,6 +11,7 @@ import (
 
 	"finance/lookout/generated/core"
 	"finance/lookout/internal/pairing"
+	"finance/lookout/internal/parser"
 )
 
 var ErrPermanent = errors.New("permanent ingest error")
@@ -61,9 +62,23 @@ func New(baseURL, token string, httpClient *http.Client, cfg Config, log *zap.Lo
 func (c *Client) Post(ctx context.Context, p pairing.Posting) error {
 	body := toRequest(p)
 
+	return c.retry(ctx, p.ExternalID, func() error { return c.attempt(ctx, body) })
+}
+
+// PostBalances delivers a card balance snapshot for reconciliation. The endpoint
+// upserts per card, so re-delivery of the same snapshot is harmless.
+func (c *Client) PostBalances(ctx context.Context, balances []parser.CardBalance, reportedAt time.Time) error {
+	body := toBalanceRequest(balances, reportedAt)
+
+	return c.retry(ctx, "balances", func() error { return c.attemptBalances(ctx, body) })
+}
+
+// retry runs do with exponential backoff until it succeeds, hits a permanent
+// error, exhausts attempts, or the context is cancelled.
+func (c *Client) retry(ctx context.Context, label string, do func() error) error {
 	var backoff time.Duration
 	for attempt := 0; ; attempt++ {
-		err := c.attempt(ctx, body)
+		err := do()
 		if err == nil {
 			return nil
 		}
@@ -72,12 +87,12 @@ func (c *Client) Post(ctx context.Context, p pairing.Posting) error {
 			return err
 		}
 		if attempt >= c.cfg.MaxRetries {
-			return fmt.Errorf("ingest %s: giving up after %d attempts: %w", p.ExternalID, attempt+1, err)
+			return fmt.Errorf("ingest %s: giving up after %d attempts: %w", label, attempt+1, err)
 		}
 
 		backoff = nextBackoff(backoff, c.cfg)
 		c.log.Warn("ingest delivery failed, retrying",
-			zap.String("external_id", p.ExternalID),
+			zap.String("target", label),
 			zap.Int("attempt", attempt+1),
 			zap.Duration("backoff", backoff),
 			zap.Error(err),
@@ -95,13 +110,27 @@ func (c *Client) attempt(ctx context.Context, body core.IngestTransactionRequest
 	if err != nil {
 		return fmt.Errorf("post ingest: %w", err)
 	}
-	switch resp.StatusCode() {
-	case http.StatusCreated, http.StatusOK:
+
+	return classify(resp.StatusCode(), resp.Body)
+}
+
+func (c *Client) attemptBalances(ctx context.Context, body core.BalanceSnapshotRequest) error {
+	resp, err := c.api.IngestBalancesWithResponse(ctx, body)
+	if err != nil {
+		return fmt.Errorf("post balances: %w", err)
+	}
+
+	return classify(resp.StatusCode(), resp.Body)
+}
+
+func classify(status int, body []byte) error {
+	switch status {
+	case http.StatusOK, http.StatusCreated, http.StatusNoContent:
 		return nil
 	case http.StatusBadRequest, http.StatusUnauthorized:
-		return fmt.Errorf("%w: status %d: %s", ErrPermanent, resp.StatusCode(), string(resp.Body))
+		return fmt.Errorf("%w: status %d: %s", ErrPermanent, status, string(body))
 	default:
-		return fmt.Errorf("unexpected ingest status %d: %s", resp.StatusCode(), string(resp.Body))
+		return fmt.Errorf("unexpected ingest status %d: %s", status, string(body))
 	}
 }
 

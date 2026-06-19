@@ -38,6 +38,7 @@ func (f *fakeFetcher) FetchNewer(_ context.Context, sinceID int) ([]telegram.Mes
 type fakePoster struct {
 	mu        sync.Mutex
 	posted    []pairing.Posting
+	balances  [][]parser.CardBalance
 	failPerm  bool
 	failTimes int
 }
@@ -52,9 +53,25 @@ func (p *fakePoster) Post(_ context.Context, post pairing.Posting) error {
 	return nil
 }
 
+func (p *fakePoster) PostBalances(_ context.Context, balances []parser.CardBalance, _ time.Time) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.failPerm {
+		return delivery.ErrPermanent
+	}
+	p.balances = append(p.balances, balances)
+	return nil
+}
+
 func (p *fakePoster) count() int { p.mu.Lock(); defer p.mu.Unlock(); return len(p.posted) }
 
-func newApp(t *testing.T, poster Poster) (*App, *store.Store) {
+func (p *fakePoster) balanceBatches() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.balances)
+}
+
+func newApp(t *testing.T, poster *fakePoster) (*App, *store.Store) {
 	t.Helper()
 	loc, _ := time.LoadLocation("Asia/Tashkent")
 	st, err := store.Open(filepath.Join(t.TempDir(), "state.json"))
@@ -64,6 +81,7 @@ func newApp(t *testing.T, poster Poster) (*App, *store.Store) {
 	a := New(
 		parser.New(loc),
 		pairing.New(2*time.Minute, 5*time.Minute),
+		poster,
 		poster,
 		st,
 		recon.New(zap.NewNop()),
@@ -167,7 +185,7 @@ func TestApp_RestartResumesPendingLeg(t *testing.T) {
 	}
 
 	loc, _ := time.LoadLocation("Asia/Tashkent")
-	a2 := New(parser.New(loc), pairing.New(2*time.Minute, 5*time.Minute), poster, st, recon.New(zap.NewNop()), time.Minute, zap.NewNop())
+	a2 := New(parser.New(loc), pairing.New(2*time.Minute, 5*time.Minute), poster, poster, st, recon.New(zap.NewNop()), time.Minute, zap.NewNop())
 
 	f2 := &fakeFetcher{msgs: []telegram.Message{
 		{ID: 200, Date: time.Now(), Text: xferDebit},
@@ -194,6 +212,29 @@ func TestApp_UnparsableAdvancesWithoutPosting(t *testing.T) {
 	}
 	if st.State().Watermark != 100 {
 		t.Errorf("watermark should advance past unparsed message")
+	}
+}
+
+func TestApp_BalanceSnapshotRouted(t *testing.T) {
+	poster := &fakePoster{}
+	a, st := newApp(t, poster)
+	snapshot := "🔹 HUMOCARD TBCBANK *8400\n💵 6'924.46 UZS\n\n🔹 HUMOCARD IPAKYULIBANK *4853\n💵 69.86 UZS"
+	f := &fakeFetcher{msgs: []telegram.Message{{ID: 300, Date: time.Now(), Text: snapshot}}}
+
+	if err := a.cycle(context.Background(), f); err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+	if poster.count() != 0 {
+		t.Fatalf("snapshot must not create transactions, got %d", poster.count())
+	}
+	if poster.balanceBatches() != 1 {
+		t.Fatalf("expected 1 balance batch delivered, got %d", poster.balanceBatches())
+	}
+	if got := len(poster.balances[0]); got != 2 {
+		t.Fatalf("expected 2 card balances, got %d", got)
+	}
+	if st.State().Watermark != 300 {
+		t.Errorf("watermark should advance past snapshot, got %d", st.State().Watermark)
 	}
 }
 

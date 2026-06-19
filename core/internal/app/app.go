@@ -18,6 +18,7 @@ import (
 	"finance/internal/http/middlewares"
 	"finance/internal/iconsuggest"
 	accountrepository "finance/internal/repositories/account_repository"
+	balancesnapshotrepository "finance/internal/repositories/balance_snapshot_repository"
 	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
 	categoryrulerepository "finance/internal/repositories/category_rule_repository"
@@ -41,6 +42,7 @@ func CreateApp() fx.Option {
 			transactionrepository.NewRepository,
 			reportrepository.NewRepository,
 			budgetrepository.NewRepository,
+			balancesnapshotrepository.NewRepository,
 			iconsuggest.New,
 			handlers.NewServer,
 			httpHandler,

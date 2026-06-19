@@ -23,6 +23,7 @@ import (
 	"finance/internal/entities"
 	"finance/internal/ledger"
 	accountrepository "finance/internal/repositories/account_repository"
+	balancesnapshotrepository "finance/internal/repositories/balance_snapshot_repository"
 	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
@@ -65,6 +66,7 @@ func main() {
 		categories: categoryrepository.NewRepository(db),
 		txns:       transactionrepository.NewRepository(db),
 		budgets:    budgetrepository.NewRepository(db),
+		snapshots:  balancesnapshotrepository.NewRepository(db),
 		logger:     logger,
 	}
 
@@ -79,6 +81,7 @@ type seeder struct {
 	categories categoryrepository.Repository
 	txns       transactionrepository.Repository
 	budgets    budgetrepository.Repository
+	snapshots  balancesnapshotrepository.Repository
 	logger     *zap.Logger
 }
 
@@ -94,7 +97,7 @@ func (s *seeder) run(ctx context.Context, db *database.DB, reset bool) error {
 			return nil
 		}
 		if _, err = db.Pool.Exec(ctx,
-			`TRUNCATE transactions, categories, accounts RESTART IDENTITY CASCADE`); err != nil {
+			`TRUNCATE transactions, categories, accounts, balance_snapshots RESTART IDENTITY CASCADE`); err != nil {
 			return fmt.Errorf("truncate: %w", err)
 		}
 		s.logger.Info("existing data wiped")
@@ -115,6 +118,10 @@ func (s *seeder) run(ctx context.Context, db *database.DB, reset bool) error {
 	}
 
 	if err = s.seedBudgets(ctx, cats); err != nil {
+		return err
+	}
+
+	if err = s.seedSnapshots(ctx); err != nil {
 		return err
 	}
 
@@ -140,6 +147,24 @@ func (s *seeder) seedBudgets(ctx context.Context, cat map[string]entities.Catego
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// seedSnapshots seeds reported card balances for the Humo cards so the
+// reconciliation tab has data: *8400 matches its derived balance, *4853 is off.
+func (s *seeder) seedSnapshots(ctx context.Context) error {
+	now := time.Now()
+	defs := []entities.BalanceSnapshot{
+		{CardLast4: "8400", Bank: ptr("TBCBANK"), Amount: 1_100_000_00, Currency: "UZS", Source: ptr("humo"), ReportedAt: now},
+		{CardLast4: "4853", Bank: ptr("IPAKYULIBANK"), Amount: 700_050_00, Currency: "UZS", Source: ptr("humo"), ReportedAt: now},
+	}
+	for i := range defs {
+		snap := defs[i]
+		if err := s.snapshots.Upsert(ctx, &snap); err != nil {
+			return fmt.Errorf("seed snapshot %q: %w", snap.CardLast4, err)
+		}
+	}
+
+	return nil
+}
 
 func (s *seeder) seedAccounts(ctx context.Context) (map[string]entities.Account, error) {
 	defs := []entities.Account{

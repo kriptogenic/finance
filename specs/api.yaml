@@ -373,6 +373,41 @@ paths:
         401:
           $ref: '#/components/responses/Unauthorized'
 
+  /ingest/balances:
+    post:
+      operationId: ingestBalances
+      summary: Ingest a card balance snapshot (e.g. the bot's periodic balance report)
+      description: >-
+        Upserts the latest reported balance per card (keyed by card_last4). Used
+        for reconciliation against derived account balances. Idempotent.
+      security:
+        - IngestAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BalanceSnapshotRequest'
+      responses:
+        204:
+          description: Snapshot accepted
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+  /reconciliation:
+    get:
+      operationId: getReconciliation
+      summary: Compare bank-reported card balances against derived account balances
+      responses:
+        200:
+          description: Reconciliation report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationReport'
+
   /reports/net-worth:
     get:
       operationId: getNetWorth
@@ -1166,6 +1201,101 @@ components:
           type: boolean
         net_in_base:
           $ref: './definitions.yaml#/components/schemas/Money'
+
+    BalanceSnapshotRequest:
+      type: object
+      additionalProperties: false
+      description: |
+        A snapshot of reported card balances (e.g. the bot's periodic report).
+        Each entry is upserted by card_last4; the latest snapshot wins.
+      required:
+        - reported_at
+        - balances
+      properties:
+        reported_at:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: Origin label (e.g. "humo").
+        balances:
+          type: array
+          items:
+            $ref: '#/components/schemas/BalanceSnapshotEntry'
+
+    BalanceSnapshotEntry:
+      type: object
+      additionalProperties: false
+      required:
+        - card_last4
+        - amount
+        - currency
+      properties:
+        card_last4:
+          type: string
+          minLength: 1
+          description: Card identifier used to route to an account.
+        bank:
+          type: string
+          description: Display label for the issuing bank (e.g. "TBCBANK").
+        amount:
+          type: integer
+          format: int64
+          description: Reported balance in minor units.
+        currency:
+          $ref: './definitions.yaml#/components/schemas/Currency'
+
+    ReconciliationReport:
+      type: object
+      additionalProperties: false
+      required:
+        - base
+        - rows
+      properties:
+        base:
+          $ref: './definitions.yaml#/components/schemas/Currency'
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReconciliationRow'
+
+    ReconciliationRow:
+      type: object
+      additionalProperties: false
+      required:
+        - card_last4
+        - account_id
+        - account_name
+        - reported
+        - derived
+        - in_sync
+        - currency_mismatch
+        - reported_at
+      properties:
+        card_last4:
+          type: string
+        bank:
+          type: string
+          nullable: true
+        account_id:
+          type: string
+          format: uuid
+        account_name:
+          type: string
+        reported:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        derived:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        delta:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        in_sync:
+          type: boolean
+        currency_mismatch:
+          type: boolean
+          description: Reported currency differs from the account currency.
+        reported_at:
+          type: string
+          format: date-time
 
     SpendingReport:
       type: object

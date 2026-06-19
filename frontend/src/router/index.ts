@@ -4,6 +4,7 @@ import AccountsView from '../views/AccountsView.vue'
 import TransactionsView from '../views/TransactionsView.vue'
 import CategoriesView from '../views/CategoriesView.vue'
 import BudgetsView from '../views/BudgetsView.vue'
+import ReconciliationView from '../views/ReconciliationView.vue'
 import LoginView from '../views/LoginView.vue'
 import { isAuthenticated } from '../api/auth'
 
@@ -16,6 +17,7 @@ const router = createRouter({
     { path: '/transactions', name: 'transactions', component: TransactionsView },
     { path: '/budgets', name: 'budgets', component: BudgetsView },
     { path: '/categories', name: 'categories', component: CategoriesView },
+    { path: '/reconciliation', name: 'reconciliation', component: ReconciliationView },
   ],
 })
 

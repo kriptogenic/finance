@@ -59,7 +59,7 @@ func run() error {
 
 	rc := recon.New(log.Named("recon"))
 
-	orchestrator := app.New(p, buffer, poster, st, rc, cfg.PollInterval, log.Named("app"))
+	orchestrator := app.New(p, buffer, poster, poster, st, rc, cfg.PollInterval, log.Named("app"))
 
 	source := telegram.New(telegram.Config{
 		APIID:        cfg.TelegramAPIID,

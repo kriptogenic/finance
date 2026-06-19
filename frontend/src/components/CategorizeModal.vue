@@ -5,7 +5,7 @@ import { categoryRulesApi } from '../api/categories'
 import { ruleBlocksApi } from '../api/ruleBlocks'
 import { errMessage } from '../api/client'
 import type { Account, Category, CategorySuggestion, Transaction } from '../api/types'
-import { formatDate } from '../lib/format'
+import { formatDateTime } from '../lib/format'
 import Modal from './Modal.vue'
 import CategoryIcon from './CategoryIcon.vue'
 import TransactionForm from './TransactionForm.vue'
@@ -176,7 +176,7 @@ function advance() {
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <p class="truncate font-medium text-slate-800">{{ current.note || 'No description' }}</p>
-            <p class="mt-0.5 text-xs text-slate-400">{{ accountName(current) }} · {{ formatDate(current.date) }}</p>
+            <p class="mt-0.5 text-xs text-slate-400">{{ accountName(current) }} · {{ formatDateTime(current.date) }}</p>
           </div>
           <span class="tabular shrink-0 font-semibold" :class="current.type === 'income' ? 'text-emerald-600' : 'text-slate-800'">
             {{ current.amount.format() }}

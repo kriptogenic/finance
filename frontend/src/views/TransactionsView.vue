@@ -6,7 +6,7 @@ import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
 import type { Account, Category, Transaction, TransactionType } from '../api/types'
-import { formatDate } from '../lib/format'
+import { formatDateTime } from '../lib/format'
 import TransactionForm from '../components/TransactionForm.vue'
 import TransactionDetail from '../components/TransactionDetail.vue'
 
@@ -229,7 +229,7 @@ onMounted(async () => {
           </div>
           <div class="ml-auto shrink-0 text-right">
             <p class="tabular font-semibold text-sm sm:text-base" :class="meta[t.type].amount">{{ meta[t.type].sign }}{{ t.amount.format() }}</p>
-            <p class="text-xs text-slate-400">{{ formatDate(t.date) }}</p>
+            <p class="text-xs text-slate-400">{{ formatDateTime(t.date) }}</p>
           </div>
           <div class="flex shrink-0 gap-0.5 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100 sm:gap-1">
             <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700 sm:h-8 sm:w-8" title="Edit" @click.stop="openEdit(t)">✎</button>

@@ -24,6 +24,9 @@ type Config struct {
 	Phone        string
 	AuthMode     string
 	PollInterval time.Duration
+
+	Location           *time.Location
+	BalanceSendOnStart bool
 }
 
 type Message struct {
@@ -77,8 +80,31 @@ func (s *Source) Run(ctx context.Context, run func(ctx context.Context, f Fetche
 			return fmt.Errorf("resolve source peer %q: %w", s.cfg.SourceBot, err)
 		}
 		s.log.Info("connected; source peer resolved", zap.String("source_bot", s.cfg.SourceBot))
+
+		runCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		scheduler := &balanceScheduler{
+			api:         client.API(),
+			peer:        peer,
+			loc:         s.cfg.Location,
+			sendOnStart: s.cfg.BalanceSendOnStart,
+			log:         s.log.Named("balance"),
+			now:         time.Now,
+		}
+		schedDone := make(chan struct{})
+		go func() {
+			defer close(schedDone)
+			scheduler.run(runCtx)
+		}()
+
 		f := &fetcher{api: client.API(), peer: peer, chatID: peerID(peer), log: s.log}
-		return run(ctx, f)
+		err = run(runCtx, f)
+
+		cancel()
+		<-schedDone
+
+		return err
 	})
 }
 

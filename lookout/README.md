@@ -29,6 +29,18 @@ Each stage is a separate package so a slow ingest can't stall polling (§12):
 math (int64 minor units, never float) · respect the app's invariant that
 *transfers don't change net worth*.
 
+## Daily balance reminder
+
+Alongside polling, the userbot sends `💰 Баланс` to `SOURCE_BOT` once a day at
+**08:00** (in `TIMEZONE`) to prompt the bank bot for a fresh balance report —
+which the poller then ingests. It runs on the same authenticated session as the
+poller (`internal/telegram/scheduler.go`), sleeps on a single `time.Timer` until
+the next 08:00 (no wall-clock polling), and stops on shutdown. A failed send is
+logged and the loop continues to the next day.
+
+To test without waiting for 08:00, set `BALANCE_SEND_ON_START=true` — it sends
+once immediately at startup, then resumes the daily schedule.
+
 ## Run
 
 1. `cp .env.example .env` and fill it in (Telegram `API_ID`/`API_HASH` from

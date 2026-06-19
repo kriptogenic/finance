@@ -32,6 +32,8 @@ type Config struct {
 
 	Timezone string `env:"TIMEZONE" env-default:"Asia/Tashkent"`
 
+	BalanceSendOnStart bool `env:"BALANCE_SEND_ON_START" env-default:"false"`
+
 	LogLevel string `env:"LOG_LEVEL" env-default:"info"`
 }
 

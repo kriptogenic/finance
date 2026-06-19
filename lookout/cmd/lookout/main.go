@@ -62,13 +62,15 @@ func run() error {
 	orchestrator := app.New(p, buffer, poster, poster, st, rc, cfg.PollInterval, log.Named("app"))
 
 	source := telegram.New(telegram.Config{
-		APIID:        cfg.TelegramAPIID,
-		APIHash:      cfg.TelegramAPIHash,
-		SessionFile:  cfg.SessionFile,
-		SourceBot:    cfg.SourceBot,
-		Phone:        cfg.TelegramPhone,
-		AuthMode:     cfg.AuthMode,
-		PollInterval: cfg.PollInterval,
+		APIID:              cfg.TelegramAPIID,
+		APIHash:            cfg.TelegramAPIHash,
+		SessionFile:        cfg.SessionFile,
+		SourceBot:          cfg.SourceBot,
+		Phone:              cfg.TelegramPhone,
+		AuthMode:           cfg.AuthMode,
+		PollInterval:       cfg.PollInterval,
+		Location:           cfg.Location(),
+		BalanceSendOnStart: cfg.BalanceSendOnStart,
 	}, log.Named("telegram"), nil, nil)
 
 	log.Info("lookout starting",

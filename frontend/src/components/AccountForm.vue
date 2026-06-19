@@ -47,7 +47,7 @@ interface FormState {
 const form = reactive<FormState>({
   name: props.account?.name ?? '',
   kind: props.account?.kind ?? 'asset',
-  type: props.account?.type ?? 'cash',
+  type: props.account?.type ?? 'debit_card',
   currency: props.account?.currency ?? props.base,
   opening: props.account ? toMajor(props.account.opening_balance, props.account.currency) : 0,
   credit_limit: props.account?.credit_limit != null ? toMajor(props.account.credit_limit, props.account.currency) : null,

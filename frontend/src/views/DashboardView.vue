@@ -3,7 +3,6 @@ import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
 import type { CashFlowReport, NetWorthReport, SpendingReport } from '../api/types'
-import { formatMinor } from '../lib/format'
 
 const netWorth = ref<NetWorthReport | null>(null)
 const spending = ref<SpendingReport | null>(null)
@@ -130,20 +129,6 @@ onMounted(async () => {
           <p class="tabular mt-4 text-3xl font-bold whitespace-nowrap text-slate-900">{{ netWorth.liabilities.formatShort() }}</p>
         </div>
       </div>
-
-      <!-- currency exposure (current snapshot) -->
-      <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200/70">
-        <h2 class="mb-4 text-base font-semibold text-slate-900">Currency exposure</h2>
-        <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <li v-for="e in netWorth.by_currency" :key="e.currency" class="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-            <span class="grid h-9 w-9 place-items-center rounded-xl bg-white text-xs font-bold text-slate-600 ring-1 ring-slate-200">{{ e.currency }}</span>
-            <div class="text-right">
-              <p class="tabular text-sm font-semibold" :class="e.net < 0 ? 'text-rose-600' : 'text-slate-800'">{{ formatMinor(e.net, e.currency) }}</p>
-              <p class="tabular text-xs text-slate-400">{{ e.net_in_base ? e.net_in_base.format() : 'no rate' }}</p>
-            </div>
-          </li>
-        </ul>
-      </section>
 
       <!-- period control: drives spending + cash flow -->
       <div class="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-2 shadow-sm ring-1 ring-slate-200/70">

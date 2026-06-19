@@ -7,6 +7,7 @@ import type { Account } from '../api/types'
 import { formatMinor } from '../lib/format'
 import AccountForm from '../components/AccountForm.vue'
 import LoanScheduleModal from '../components/LoanScheduleModal.vue'
+import ReconciliationPanel from '../components/ReconciliationPanel.vue'
 
 const accounts = ref<Account[]>([])
 const base = ref('UZS')
@@ -128,6 +129,8 @@ onMounted(async () => {
           </ul>
         </div>
       </section>
+
+      <ReconciliationPanel />
     </template>
 
     <AccountForm v-if="formOpen" :account="editing" :base="base" @close="formOpen = false" @saved="onSaved" />

@@ -104,7 +104,10 @@ onMounted(load)
               >
                 <CategoryIcon v-if="child.icon" :icon="child.icon" :color="child.color" class="leading-none" />
                 {{ child.name }}
-                <button class="opacity-100 transition can-hover:opacity-0 can-hover:group-hover/c:opacity-100" title="Delete" @click="remove(child)">×</button>
+                <span class="flex items-center gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover/c:opacity-100">
+                  <button title="Edit" @click="openEdit(child)">✎</button>
+                  <button title="Delete" @click="remove(child)">×</button>
+                </span>
               </span>
             </div>
           </li>

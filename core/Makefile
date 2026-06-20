@@ -23,6 +23,10 @@ migrate:
 migrate-fresh:
 	go run ./cmd/migrate fresh
 
+.PHONY: vapid-keys
+vapid-keys:
+	go run ./cmd/vapidkeys
+
 .PHONY: seed
 seed:
 	go run ./cmd/seed

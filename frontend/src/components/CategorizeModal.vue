@@ -31,6 +31,7 @@ const loadingSuggestions = ref(false)
 const error = ref('')
 const busy = ref(false)
 const fullEdit = ref(false)
+const newTxn = ref(false)
 const blocked = ref<Set<string>>(new Set())
 
 // After applying a category, offer to remember it as a rule.
@@ -145,6 +146,13 @@ function onFullEditSaved() {
   advance()
 }
 
+// A brand-new transaction created mid-flow doesn't belong to the queue; just
+// close the sub-form and let the rest of the app refresh.
+function onNewTxnSaved() {
+  newTxn.value = false
+  window.dispatchEvent(new CustomEvent('data:refresh'))
+}
+
 function advance() {
   if (index.value >= queue.value.length - 1) {
     emit('close')
@@ -163,6 +171,15 @@ function advance() {
     :base="base"
     @close="fullEdit = false"
     @saved="onFullEditSaved"
+  />
+
+  <TransactionForm
+    v-else-if="newTxn"
+    :accounts="accounts"
+    :categories="categories"
+    :base="base"
+    @close="newTxn = false"
+    @saved="onNewTxnSaved"
   />
 
   <Modal v-else title="Categorize" size="lg" @close="emit('close')">
@@ -241,8 +258,11 @@ function advance() {
           </div>
         </div>
 
-        <div class="flex justify-between gap-2 border-t border-slate-100 pt-4">
-          <button type="button" class="btn btn-soft" :disabled="busy" @click="fullEdit = true">Full edit…</button>
+        <div class="flex items-center justify-between gap-2 border-t border-slate-100 pt-4">
+          <button type="button" class="btn btn-soft" :disabled="busy" @click="fullEdit = true">Full editI </button>
+          <button type="button" class="btn btn-soft" :disabled="busy" @click="newTxn = true">
+            <i class="ti ti-plus" /> New
+          </button>
           <button type="button" class="btn btn-soft" :disabled="busy" @click="advance">Skip</button>
         </div>
       </template>

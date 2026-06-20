@@ -130,15 +130,15 @@ onMounted(async () => {
       <p class="text-sm text-slate-500">Your money at a glance</p>
     </div>
 
-    <!-- uncategorized review; loads independently of the reports below -->
-    <CategorizeCard :base="netWorth?.base ?? 'UZS'" />
+    <!-- uncategorized review; the mobile FAB covers this on small screens -->
+    <CategorizeCard :base="netWorth?.base ?? 'UZS'" class="hidden md:block" />
 
     <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
     <p v-else-if="loading" class="text-slate-500">Loading…</p>
 
     <template v-else-if="netWorth && spending && cashFlow">
       <!-- hero net worth -->
-      <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-6 text-white shadow-lg shadow-slate-900/20 sm:p-7">
+      <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-950 via-emerald-950 to-emerald-900 p-6 text-white shadow-lg shadow-emerald-950/30 sm:p-7">
         <div class="absolute -top-12 -right-10 h-44 w-44 rounded-full bg-amber-400/20 blur-xl"></div>
         <div class="absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-amber-400/10 blur-xl"></div>
         <div class="relative">
@@ -173,7 +173,7 @@ onMounted(async () => {
             v-for="p in presets"
             :key="p.key"
             class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
-            :class="activePreset === p.key ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'"
+            :class="activePreset === p.key ? 'bg-emerald-950 text-white' : 'text-slate-500 hover:bg-slate-100'"
             @click="setPreset(p.key)"
           >
             {{ p.label }}

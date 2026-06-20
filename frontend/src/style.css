@@ -4,10 +4,15 @@
    guarded element stays visible (otherwise row actions are unreachable). */
 @custom-variant can-hover (@media (hover: hover) and (pointer: fine));
 
+@theme {
+  /* primary yellow, ~5% lighter than the default amber-400 (#facc15) */
+  --color-amber-400: #fad230;
+}
+
 :root {
   color-scheme: light;
   /* brand: yellow primary, dark ink */
-  --brand: #facc15; /* amber-400 */
+  --brand: #fad230; /* amber-400 (lightened) */
   --brand-strong: #eab308; /* amber-500 */
   --ink: #0f172a; /* slate-900 */
 }

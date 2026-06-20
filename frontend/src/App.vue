@@ -6,8 +6,10 @@ import { hideMinorUnits } from './lib/settings'
 import { accountsApi } from './api/accounts'
 import { categoriesApi } from './api/categories'
 import { reportsApi } from './api/reports'
-import type { Account, Category } from './api/types'
+import { transactionsApi } from './api/transactions'
+import type { Account, Category, Transaction } from './api/types'
 import TransactionForm from './components/TransactionForm.vue'
+import CategorizeModal from './components/CategorizeModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -65,36 +67,68 @@ const moreItems = computed(() => nav.filter((n) => moreRoutes.includes(n.to)))
 
 const moreOpen = ref(false)
 
-// ── Global quick-add (FAB) ────────────────────────────────────────────────
+// ── Global action button (FAB) ────────────────────────────────────────────
+// The FAB doubles as a categorize prompt: when uncategorized transactions
+// exist it changes look and opens the categorize flow; otherwise it adds a new
+// transaction.
+const accounts = ref<Account[]>([])
+const categories = ref<Category[]>([])
+const base = ref('UZS')
+const pending = ref<Transaction[]>([])
 const quickOpen = ref(false)
-const quickLoading = ref(false)
-const quickAccounts = ref<Account[]>([])
-const quickCategories = ref<Category[]>([])
-const quickBase = ref('UZS')
+const categorizeOpen = ref(false)
+const fabBusy = ref(false)
 
-async function openQuickAdd() {
-  moreOpen.value = false
-  quickLoading.value = true
-  quickOpen.value = true
+const hasUncategorized = computed(() => pending.value.length > 0)
+
+async function loadPending() {
   try {
-    const [accs, cats, nw] = await Promise.all([
-      accountsApi.list(),
-      categoriesApi.list(),
-      reportsApi.netWorth().catch(() => null),
-    ])
-    quickAccounts.value = accs
-    quickCategories.value = cats
-    if (nw) quickBase.value = nw.base
-  } finally {
-    quickLoading.value = false
+    pending.value = await transactionsApi.list({ uncategorized: true, limit: 100 })
+  } catch {
+    pending.value = []
   }
 }
 
-// Let the visible view reload after a quick-add without coupling to it.
-function onQuickSaved() {
-  quickOpen.value = false
+async function loadMeta() {
+  const [accs, cats, nw] = await Promise.all([
+    accountsApi.list(),
+    categoriesApi.list(),
+    reportsApi.netWorth().catch(() => null),
+  ])
+  accounts.value = accs
+  categories.value = cats
+  if (nw) base.value = nw.base
+}
+
+async function onFab() {
+  if (fabBusy.value) return
+  moreOpen.value = false
+  fabBusy.value = true
+  try {
+    await Promise.all([loadMeta(), loadPending()])
+    if (hasUncategorized.value) categorizeOpen.value = true
+    else quickOpen.value = true
+  } finally {
+    fabBusy.value = false
+  }
+}
+
+// Let every visible view (and the FAB itself) reload after a change.
+function broadcastRefresh() {
   window.dispatchEvent(new CustomEvent('data:refresh'))
 }
+function onQuickSaved() {
+  quickOpen.value = false
+  broadcastRefresh()
+}
+function onCategorizeClose() {
+  categorizeOpen.value = false
+  broadcastRefresh()
+}
+
+onMounted(() => window.addEventListener('data:refresh', loadPending))
+onUnmounted(() => window.removeEventListener('data:refresh', loadPending))
+onMounted(loadPending)
 </script>
 
 <template>
@@ -102,17 +136,29 @@ function onQuickSaved() {
 
   <div v-else class="flex min-h-screen bg-slate-50 text-slate-800">
     <!-- sidebar (desktop) -->
-    <aside class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-slate-900 px-4 py-6 text-slate-300 md:flex">
+    <aside class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-emerald-950 px-4 py-6 text-slate-300 md:flex">
       <div class="mb-7 flex items-center gap-2 px-2">
         <img src="/favicon.svg" alt="" class="h-9 w-9 rounded-xl bg-amber-400 p-1" />
         <span class="text-lg font-semibold tracking-tight text-white">Mullajiring</span>
       </div>
 
-      <button class="btn btn-primary mb-6 w-full" @click="openQuickAdd">
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-        New transaction
+      <button
+        class="btn mb-6 w-full"
+        :class="hasUncategorized ? 'bg-emerald-800 text-white ring-1 ring-amber-400/40 hover:bg-emerald-700' : 'btn-primary'"
+        :disabled="fabBusy"
+        @click="onFab"
+      >
+        <template v-if="hasUncategorized">
+          <i class="ti ti-tag text-base text-amber-400" />
+          Categorize
+          <span class="ml-0.5 rounded-full bg-amber-400 px-1.5 text-xs font-semibold text-slate-900">{{ pending.length }}</span>
+        </template>
+        <template v-else>
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          New transaction
+        </template>
       </button>
 
       <nav class="flex flex-col gap-1">
@@ -192,16 +238,23 @@ function onQuickSaved() {
         {{ item.label }}
       </RouterLink>
 
-      <!-- center FAB -->
+      <!-- center FAB: doubles as the categorize prompt when items are pending -->
       <div class="flex w-16 shrink-0 justify-center">
         <button
-          class="-mt-5 grid h-14 w-14 place-items-center rounded-full bg-amber-400 text-slate-900 shadow-lg shadow-amber-400/40 ring-4 ring-slate-50 transition active:scale-95"
-          aria-label="New transaction"
-          @click="openQuickAdd"
+          class="relative -mt-5 grid h-14 w-14 place-items-center rounded-full ring-4 ring-slate-50 transition active:scale-95"
+          :class="hasUncategorized ? 'bg-emerald-950 text-amber-400 shadow-lg shadow-emerald-950/40' : 'bg-amber-400 text-slate-900 shadow-lg shadow-amber-400/40'"
+          :disabled="fabBusy"
+          :aria-label="hasUncategorized ? 'Categorize transactions' : 'New transaction'"
+          @click="onFab"
         >
-          <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke-width="2.4" stroke="currentColor">
+          <i v-if="hasUncategorized" class="ti ti-tag text-2xl" />
+          <svg v-else class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke-width="2.4" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
+          <span
+            v-if="hasUncategorized"
+            class="absolute -top-1 -right-1 grid h-5 min-w-5 place-items-center rounded-full bg-amber-400 px-1 text-xs font-bold text-slate-900 ring-2 ring-white"
+          >{{ pending.length }}</span>
         </button>
       </div>
 
@@ -278,12 +331,22 @@ function onQuickSaved() {
 
     <!-- global quick-add -->
     <TransactionForm
-      v-if="quickOpen && !quickLoading"
-      :accounts="quickAccounts"
-      :categories="quickCategories"
-      :base="quickBase"
+      v-if="quickOpen"
+      :accounts="accounts"
+      :categories="categories"
+      :base="base"
       @close="quickOpen = false"
       @saved="onQuickSaved"
+    />
+
+    <!-- global categorize flow (opened from the FAB when items are pending) -->
+    <CategorizeModal
+      v-if="categorizeOpen"
+      :transactions="pending"
+      :accounts="accounts"
+      :categories="categories"
+      :base="base"
+      @close="onCategorizeClose"
     />
   </div>
 </template>

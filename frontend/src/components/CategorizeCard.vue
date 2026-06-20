@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { transactionsApi } from '../api/transactions'
 import { accountsApi } from '../api/accounts'
 import { categoriesApi } from '../api/categories'
@@ -39,6 +39,8 @@ function onClose() {
   load()
 }
 
+onMounted(() => window.addEventListener('data:refresh', load))
+onUnmounted(() => window.removeEventListener('data:refresh', load))
 onMounted(load)
 </script>
 

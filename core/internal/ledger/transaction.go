@@ -19,7 +19,7 @@ type NewTransaction struct {
 	To         *entities.Account
 	Category   *entities.Category
 	Amount     int64
-	ToAmount   *int64  // cross-currency transfers only
+	ToAmount   *int64 // cross-currency transfers only
 	RateToBase *fx.Rate
 	Note       *string
 	Tags       []string

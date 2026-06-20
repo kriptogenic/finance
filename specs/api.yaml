@@ -936,6 +936,7 @@ components:
         - opening_balance
         - balance
         - archived
+        - include_in_net_worth
         - created_at
       properties:
         id:
@@ -957,6 +958,9 @@ components:
           $ref: './definitions.yaml#/components/schemas/Money'
         archived:
           type: boolean
+        include_in_net_worth:
+          type: boolean
+          description: When false, the account is excluded from net-worth totals and currency exposure.
         created_at:
           type: string
           format: date-time
@@ -1016,6 +1020,9 @@ components:
           type: integer
           format: int64
           default: 0
+        include_in_net_worth:
+          type: boolean
+          default: true
         interest_rate:
           type: number
         term_months:
@@ -1047,6 +1054,8 @@ components:
           type: string
           minLength: 1
         archived:
+          type: boolean
+        include_in_net_worth:
           type: boolean
         interest_rate:
           type: number

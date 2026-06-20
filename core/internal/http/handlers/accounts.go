@@ -62,6 +62,8 @@ func (s Server) CreateAccount(ctx context.Context, request api.CreateAccountRequ
 	if body.OpeningBalance != nil {
 		acc.OpeningBalance = *body.OpeningBalance
 	}
+	// default included; only an explicit false excludes it
+	acc.ExcludedFromNetWorth = body.IncludeInNetWorth != nil && !*body.IncludeInNetWorth
 
 	if !acc.ValidKindType() {
 		return api.CreateAccount400JSONResponse{BadRequestJSONResponse: badRequest("kind does not match type")}, nil
@@ -116,6 +118,9 @@ func (s Server) UpdateAccount(ctx context.Context, request api.UpdateAccountRequ
 	}
 	if body.Archived != nil {
 		acc.Archived = *body.Archived
+	}
+	if body.IncludeInNetWorth != nil {
+		acc.ExcludedFromNetWorth = !*body.IncludeInNetWorth
 	}
 	if body.InterestRate != nil {
 		acc.InterestRate = floatPtr(body.InterestRate)
@@ -245,15 +250,16 @@ func ledgerOpening(acc entities.Account) int64 {
 
 func toAccount(acc entities.Account, balance int64) api.Account {
 	a := api.Account{
-		Id:             acc.ID,
-		Name:           acc.Name,
-		Kind:           api.AccountKind(acc.Kind),
-		Type:           api.AccountType(acc.Type),
-		Currency:       acc.Currency,
-		OpeningBalance: acc.OpeningBalance,
-		Balance:        money.New(balance, acc.Currency),
-		Archived:       acc.Archived,
-		CreatedAt:      acc.CreatedAt,
+		Id:                acc.ID,
+		Name:              acc.Name,
+		Kind:              api.AccountKind(acc.Kind),
+		Type:              api.AccountType(acc.Type),
+		Currency:          acc.Currency,
+		OpeningBalance:    acc.OpeningBalance,
+		Balance:           money.New(balance, acc.Currency),
+		Archived:          acc.Archived,
+		IncludeInNetWorth: !acc.ExcludedFromNetWorth,
+		CreatedAt:         acc.CreatedAt,
 	}
 
 	if acc.InterestRate != nil {

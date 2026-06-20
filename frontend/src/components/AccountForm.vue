@@ -59,6 +59,7 @@ interface FormState {
   term_months: Num
   card_last4: string
   archived: boolean
+  include_in_net_worth: boolean
 }
 
 const form = reactive<FormState>({
@@ -72,6 +73,7 @@ const form = reactive<FormState>({
   term_months: props.account?.term_months ?? null,
   card_last4: props.account?.card_last4 ?? '',
   archived: props.account?.archived ?? false,
+  include_in_net_worth: props.account?.include_in_net_worth ?? true,
 })
 
 const availableTypes = computed(() => typesByKind[form.kind])
@@ -96,6 +98,7 @@ async function submit() {
       const body: UpdateAccountRequest = {
         name: form.name,
         archived: form.archived,
+        include_in_net_worth: form.include_in_net_worth,
         ...(isCard.value && form.card_last4 ? { card_last4: form.card_last4 } : {}),
         ...(form.type === 'credit_card' && form.credit_limit != null ? { credit_limit: toMinor(form.credit_limit, cur) } : {}),
         ...(form.type === 'deposit' || form.type === 'loan'
@@ -110,6 +113,7 @@ async function submit() {
         type: form.type,
         currency: cur,
         opening_balance: toMinor(form.opening, cur),
+        include_in_net_worth: form.include_in_net_worth,
         ...(isCard.value && form.card_last4 ? { card_last4: form.card_last4 } : {}),
         ...(form.type === 'credit_card' && form.credit_limit != null ? { credit_limit: toMinor(form.credit_limit, cur) } : {}),
         ...(form.type === 'deposit' || form.type === 'loan'
@@ -188,6 +192,11 @@ async function submit() {
           <input v-model="form.term_months" type="number" class="field" />
         </div>
       </div>
+
+      <label class="flex items-center gap-2 border-t border-slate-100 pt-3">
+        <input v-model="form.include_in_net_worth" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+        <span class="text-sm text-slate-600">Include in net worth</span>
+      </label>
 
       <p v-if="error" class="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{{ error }}</p>
 

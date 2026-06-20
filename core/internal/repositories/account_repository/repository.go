@@ -39,17 +39,22 @@ func NewRepository(db *database.DB) Repository {
 	return &repository{db: db}
 }
 
+// include_in_net_worth is scanned last and inverted into ExcludedFromNetWorth.
 const accountColumns = `id, name, kind, type, currency, opening_balance, archived, created_at,
 	interest_rate, term_months, maturity_date, capitalization,
-	credit_limit, principal, start_date, payment_day, card_last4`
+	credit_limit, principal, start_date, payment_day, card_last4, include_in_net_worth`
 
 func scanAccount(row pgx.Row) (entities.Account, error) {
-	var a entities.Account
+	var (
+		a       entities.Account
+		include bool
+	)
 	err := row.Scan(
 		&a.ID, &a.Name, &a.Kind, &a.Type, &a.Currency, &a.OpeningBalance, &a.Archived, &a.CreatedAt,
 		&a.InterestRate, &a.TermMonths, &a.MaturityDate, &a.Capitalization,
-		&a.CreditLimit, &a.Principal, &a.StartDate, &a.PaymentDay, &a.CardLast4,
+		&a.CreditLimit, &a.Principal, &a.StartDate, &a.PaymentDay, &a.CardLast4, &include,
 	)
+	a.ExcludedFromNetWorth = !include
 
 	return a, err
 }
@@ -59,14 +64,14 @@ func (r repository) Create(ctx context.Context, acc *entities.Account) error {
 		INSERT INTO accounts
 			(name, kind, type, currency, opening_balance, archived,
 			 interest_rate, term_months, maturity_date, capitalization,
-			 credit_limit, principal, start_date, payment_day, card_last4)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			 credit_limit, principal, start_date, payment_day, card_last4, include_in_net_worth)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING id, created_at`
 
 	err := r.db.Pool.QueryRow(ctx, query,
 		acc.Name, acc.Kind, acc.Type, acc.Currency, acc.OpeningBalance, acc.Archived,
 		acc.InterestRate, acc.TermMonths, acc.MaturityDate, acc.Capitalization,
-		acc.CreditLimit, acc.Principal, acc.StartDate, acc.PaymentDay, acc.CardLast4,
+		acc.CreditLimit, acc.Principal, acc.StartDate, acc.PaymentDay, acc.CardLast4, !acc.ExcludedFromNetWorth,
 	).Scan(&acc.ID, &acc.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create account: %w", err)
@@ -137,13 +142,14 @@ func (r repository) Update(ctx context.Context, acc *entities.Account) error {
 		UPDATE accounts SET
 			name = $2, archived = $3, interest_rate = $4, term_months = $5,
 			maturity_date = $6, capitalization = $7, credit_limit = $8,
-			principal = $9, start_date = $10, payment_day = $11, card_last4 = $12
+			principal = $9, start_date = $10, payment_day = $11, card_last4 = $12,
+			include_in_net_worth = $13
 		WHERE id = $1`
 
 	res, err := r.db.Pool.Exec(ctx, query,
 		acc.ID, acc.Name, acc.Archived, acc.InterestRate, acc.TermMonths,
 		acc.MaturityDate, acc.Capitalization, acc.CreditLimit,
-		acc.Principal, acc.StartDate, acc.PaymentDay, acc.CardLast4,
+		acc.Principal, acc.StartDate, acc.PaymentDay, acc.CardLast4, !acc.ExcludedFromNetWorth,
 	)
 	if err != nil {
 		return fmt.Errorf("update account: %w", err)

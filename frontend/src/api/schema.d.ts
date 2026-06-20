@@ -528,6 +528,8 @@ export interface components {
             opening_balance: number;
             balance: components["schemas"]["Money"];
             archived: boolean;
+            /** @description When false, the account is excluded from net-worth totals and currency exposure. */
+            include_in_net_worth: boolean;
             /** Format: date-time */
             created_at: string;
             /** @description Card identifier used to route external ingest to this account. */
@@ -555,6 +557,8 @@ export interface components {
              * @default 0
              */
             opening_balance: number;
+            /** @default true */
+            include_in_net_worth: boolean;
             interest_rate?: number;
             term_months?: number;
             /** Format: date */
@@ -572,6 +576,7 @@ export interface components {
         UpdateAccountRequest: {
             name?: string;
             archived?: boolean;
+            include_in_net_worth?: boolean;
             interest_rate?: number;
             term_months?: number;
             /** Format: date */

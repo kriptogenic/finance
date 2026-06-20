@@ -123,7 +123,7 @@ func reset(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func accountRepo() accountrepository.Repository { return accountrepository.NewRepository(testDB) }
+func accountRepo() accountrepository.Repository   { return accountrepository.NewRepository(testDB) }
 func categoryRepo() categoryrepository.Repository { return categoryrepository.NewRepository(testDB) }
 func transactionRepo() transactionrepository.Repository {
 	return transactionrepository.NewRepository(testDB)

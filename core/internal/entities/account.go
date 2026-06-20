@@ -38,6 +38,11 @@ type Account struct {
 	Archived       bool
 	CreatedAt      time.Time
 
+	// Stored/exposed as include_in_net_worth; inverted here so the zero value
+	// (false) means included — the default. Excluded accounts still record
+	// transactions but drop out of net-worth totals and currency exposure.
+	ExcludedFromNetWorth bool
+
 	CardLast4 *string // identifies the account for external ingest (e.g. card alerts)
 
 	// deposit subtype

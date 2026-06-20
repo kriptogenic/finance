@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"finance/internal/entities"
-	accountrepository "finance/internal/repositories/account_repository"
 	"finance/internal/ledger"
+	accountrepository "finance/internal/repositories/account_repository"
 )
 
 func TestAccount_CRUD(t *testing.T) {
@@ -54,6 +54,26 @@ func TestAccount_CRUD(t *testing.T) {
 	assert.ErrorIs(t, err, accountrepository.ErrNotFound)
 }
 
+func TestAccount_IncludeInNetWorthDefaultsAndRoundTrips(t *testing.T) {
+	reset(t)
+	ctx := context.Background()
+	repo := accountRepo()
+
+	// a bare-constructed account (zero value) defaults to included
+	acc := entities.Account{Name: "Cash", Kind: entities.KindAsset, Type: entities.TypeCash, Currency: "UZS"}
+	require.NoError(t, repo.Create(ctx, &acc))
+	got, err := repo.Get(ctx, acc.ID)
+	require.NoError(t, err)
+	assert.False(t, got.ExcludedFromNetWorth, "new account included by default")
+
+	// excluding it round-trips through Update
+	got.ExcludedFromNetWorth = true
+	require.NoError(t, repo.Update(ctx, got))
+	got, err = repo.Get(ctx, acc.ID)
+	require.NoError(t, err)
+	assert.True(t, got.ExcludedFromNetWorth)
+}
+
 func TestAccount_NotFound(t *testing.T) {
 	reset(t)
 	ctx := context.Background()
@@ -88,9 +108,9 @@ func TestAccount_BalancesDerived(t *testing.T) {
 	reset(t)
 	ctx := context.Background()
 
-	cash := mustAccount(t, assetAccount("UZS", 1000000))   // opening 1,000,000
-	card := mustAccount(t, liabilityAccount("UZS", 0))     // credit card
-	usd := mustAccount(t, assetAccount("USD", 0))          // for cross-currency
+	cash := mustAccount(t, assetAccount("UZS", 1000000)) // opening 1,000,000
+	card := mustAccount(t, liabilityAccount("UZS", 0))   // credit card
+	usd := mustAccount(t, assetAccount("USD", 0))        // for cross-currency
 	food := mustCategory(t, entities.Category{Name: "Food", Type: entities.CategoryExpense})
 	salary := mustCategory(t, entities.Category{Name: "Salary", Type: entities.CategoryIncome})
 

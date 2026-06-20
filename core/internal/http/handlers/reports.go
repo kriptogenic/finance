@@ -25,9 +25,12 @@ func (s Server) GetNetWorth(ctx context.Context, _ api.GetNetWorthRequestObject)
 		return nil, err
 	}
 
-	abs := make([]ledger.AccountBalance, len(accounts))
-	for i, a := range accounts {
-		abs[i] = ledger.AccountBalance{Account: a, Balance: balances[a.ID]}
+	abs := make([]ledger.AccountBalance, 0, len(accounts))
+	for _, a := range accounts {
+		if a.ExcludedFromNetWorth {
+			continue
+		}
+		abs = append(abs, ledger.AccountBalance{Account: a, Balance: balances[a.ID]})
 	}
 
 	nw := ledger.ComputeNetWorth(s.base, abs, rates)

@@ -9,6 +9,7 @@ import type { Account, Category, Transaction, TransactionType } from '../api/typ
 import { formatDateTime } from '../lib/format'
 import TransactionForm from '../components/TransactionForm.vue'
 import TransactionDetail from '../components/TransactionDetail.vue'
+import CategoryIcon from '../components/CategoryIcon.vue'
 
 const transactions = ref<Transaction[]>([])
 const accounts = ref<Account[]>([])
@@ -51,6 +52,22 @@ const meta = {
   income: { icon: 'arrow-down-left', ring: 'bg-emerald-50 text-emerald-600', sign: '+', amount: 'text-emerald-600' },
   transfer: { icon: 'transfer', ring: 'bg-indigo-50 text-indigo-600', sign: '', amount: 'text-slate-800' },
 }
+
+const catMap = computed<Record<string, Category>>(() => {
+  const m: Record<string, Category> = {}
+  for (const c of categories.value) m[c.id] = c
+  return m
+})
+
+// Category for a transaction, but only when it carries a renderable icon —
+// otherwise the row falls back to the type arrow (transfers have no category).
+function txCategory(t: Transaction): Category | undefined {
+  const c = t.category_id ? catMap.value[t.category_id] : undefined
+  return c && c.icon ? c : undefined
+}
+
+// Pair each transaction with its display category up front.
+const rows = computed(() => transactions.value.map((t) => ({ t, cat: txCategory(t) })))
 
 function nameOf(id: string | null | undefined): string {
   return id ? names.value[id] || '—' : '—'
@@ -224,8 +241,16 @@ onMounted(async () => {
 
     <div class="card overflow-hidden">
       <ul class="divide-y divide-slate-100">
-        <li v-for="t in transactions" :key="t.id" class="group flex cursor-pointer items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50 sm:gap-4 sm:px-5" @click="openDetail(t)">
-          <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg" :class="meta[t.type].ring"><i :class="`ti ti-${meta[t.type].icon}`" /></span>
+        <li v-for="{ t, cat } in rows" :key="t.id" class="group flex cursor-pointer items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50 sm:gap-4 sm:px-5" @click="openDetail(t)">
+          <span
+            v-if="cat"
+            class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg"
+            :class="cat.color ? '' : 'bg-slate-100'"
+            :style="cat.color ? { backgroundColor: cat.color + '22' } : undefined"
+          >
+            <CategoryIcon :icon="cat.icon" :color="cat.color" :size="20" />
+          </span>
+          <span v-else class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg" :class="meta[t.type].ring"><i :class="`ti ti-${meta[t.type].icon}`" /></span>
           <div class="min-w-0">
             <p class="truncate font-medium text-slate-800">{{ title(t) }}</p>
             <p class="truncate text-xs text-slate-400">{{ subtitle(t) }}<span v-if="t.note"> · {{ t.note }}</span></p>

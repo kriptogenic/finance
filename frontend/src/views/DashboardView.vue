@@ -4,6 +4,7 @@ import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
 import type { CashFlowReport, NetWorthReport, SpendingReport } from '../api/types'
 import CategorizeCard from '../components/CategorizeCard.vue'
+import DonutChart from '../components/DonutChart.vue'
 
 const netWorth = ref<NetWorthReport | null>(null)
 const spending = ref<SpendingReport | null>(null)
@@ -52,21 +53,13 @@ const palette = ['#6366f1', '#0ea5e9', '#ec4899', '#f59e0b', '#10b981', '#8b5cf6
 const donut = computed(() => {
   const cats = spending.value?.categories ?? []
   const total = spending.value?.total.amount ?? 0
-  let cum = 0
-  return cats.map((c, i) => {
-    const pct = total > 0 ? (c.amount.amount / total) * 100 : 0
-    const seg = {
-      id: c.category_id,
-      name: c.category_name,
-      amount: c.amount,
-      color: palette[i % palette.length],
-      pct,
-      dash: pct,
-      offset: -cum,
-    }
-    cum += pct
-    return seg
-  })
+  return cats.map((c, i) => ({
+    id: c.category_id,
+    name: c.category_name,
+    amount: c.amount,
+    color: palette[i % palette.length],
+    pct: total > 0 ? (c.amount.amount / total) * 100 : 0,
+  }))
 })
 
 const flowMax = computed(() =>
@@ -197,27 +190,10 @@ onMounted(async () => {
           <div v-if="!spending.categories.length" class="py-6 text-center text-sm text-slate-400">No spending in this period.</div>
 
           <div v-else class="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
-            <div class="relative h-40 w-40 shrink-0">
-              <svg viewBox="0 0 36 36" class="h-40 w-40 -rotate-90">
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f1f5f9" stroke-width="3.6" />
-                <circle
-                  v-for="seg in donut"
-                  :key="seg.id"
-                  cx="18"
-                  cy="18"
-                  r="15.915"
-                  fill="none"
-                  :stroke="seg.color"
-                  stroke-width="3.6"
-                  :stroke-dasharray="`${seg.dash} ${100 - seg.dash}`"
-                  :stroke-dashoffset="seg.offset"
-                />
-              </svg>
-              <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span class="text-xs text-slate-400">Total</span>
-                <span class="tabular text-sm font-bold text-slate-900">{{ spending.total.formatShort() }}</span>
-              </div>
-            </div>
+            <DonutChart :segments="donut.map((d) => ({ color: d.color, value: d.pct, key: d.id }))" :size="160">
+              <span class="text-xs text-slate-400">Total</span>
+              <span class="tabular text-sm font-bold text-slate-900">{{ spending.total.formatShort() }}</span>
+            </DonutChart>
 
             <ul class="w-full space-y-2.5">
               <li v-for="seg in donut" :key="seg.id" class="flex items-center gap-2.5 text-sm">

@@ -8,8 +8,13 @@ import Modal from './Modal.vue'
 import IconField from './IconField.vue'
 
 const props = withDefaults(
-  defineProps<{ category?: Category | null; categories?: Category[] }>(),
-  { category: null, categories: () => [] },
+  defineProps<{
+    category?: Category | null
+    categories?: Category[]
+    presetType?: CategoryType | null
+    presetParentId?: string | null
+  }>(),
+  { category: null, categories: () => [], presetType: null, presetParentId: null },
 )
 const emit = defineEmits<{ close: []; saved: [] }>()
 
@@ -19,8 +24,8 @@ const saving = ref(false)
 
 const form = reactive({
   name: props.category?.name ?? '',
-  type: (props.category?.type ?? 'expense') as CategoryType,
-  parent_id: props.category?.parent_id ?? '',
+  type: (props.category?.type ?? props.presetType ?? 'expense') as CategoryType,
+  parent_id: props.category?.parent_id ?? props.presetParentId ?? '',
   icon: props.category?.icon ?? '',
   // new categories get a random palette color; editing keeps the saved one
   color: props.category ? (props.category.color ?? '') : randomCategoryColor(),

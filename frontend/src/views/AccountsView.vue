@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { accountsApi } from '../api/accounts'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
+import { confirm } from '../lib/confirm'
 import type { Account } from '../api/types'
 import { formatMinor } from '../lib/format'
 import AccountForm from '../components/AccountForm.vue'
@@ -58,7 +59,7 @@ function onSaved() {
   load()
 }
 async function remove(a: Account) {
-  if (!confirm(`Delete account "${a.name}"?`)) return
+  if (!(await confirm({ title: 'Delete account?', message: `"${a.name}" will be deleted.` }))) return
   try {
     await accountsApi.remove(a.id)
     load()

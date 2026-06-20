@@ -10,6 +10,7 @@ import { transactionsApi } from './api/transactions'
 import type { Account, Category, Transaction } from './api/types'
 import TransactionForm from './components/TransactionForm.vue'
 import CategorizeModal from './components/CategorizeModal.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -349,4 +350,7 @@ onMounted(loadPending)
       @close="onCategorizeClose"
     />
   </div>
+
+  <!-- styled confirm dialog (teleports to body; available on every screen) -->
+  <ConfirmDialog />
 </template>

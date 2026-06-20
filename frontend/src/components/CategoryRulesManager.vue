@@ -5,6 +5,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { categoryRulesApi } from '../api/categories'
 import { errMessage } from '../api/client'
+import { confirm } from '../lib/confirm'
 import type { Category, CategoryRule } from '../api/types'
 
 const props = defineProps<{ categories: Category[] }>()
@@ -53,7 +54,7 @@ async function add() {
 }
 
 async function remove(r: CategoryRule) {
-  if (!confirm(`Delete rule "${r.pattern}"?`)) return
+  if (!(await confirm({ title: 'Delete rule?', message: `Rule "${r.pattern}" will be deleted.` }))) return
   try {
     await categoryRulesApi.remove(r.id)
     await load()

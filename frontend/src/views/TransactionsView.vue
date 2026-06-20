@@ -5,6 +5,7 @@ import { accountsApi } from '../api/accounts'
 import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
+import { confirm } from '../lib/confirm'
 import type { Account, Category, Transaction, TransactionType } from '../api/types'
 import { formatDateTime } from '../lib/format'
 import TransactionForm from '../components/TransactionForm.vue'
@@ -139,7 +140,7 @@ function onSaved() {
   loadTransactions()
 }
 async function remove(t: Transaction): Promise<boolean> {
-  if (!confirm('Delete this transaction?')) return false
+  if (!(await confirm({ title: 'Delete transaction?', message: 'This transaction will be deleted.' }))) return false
   try {
     await transactionsApi.remove(t.id)
     loadTransactions()

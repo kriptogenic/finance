@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
+import { confirm } from '../lib/confirm'
 import type { Category, CategoryType, SpendingReport } from '../api/types'
 import type { Money } from '../api/money'
 import { formatMinor } from '../lib/format'
@@ -121,7 +122,7 @@ function onSaved() {
   load()
 }
 async function remove(c: Category) {
-  if (!confirm(`Delete category "${c.name}"?`)) return
+  if (!(await confirm({ title: 'Delete category?', message: `"${c.name}" will be deleted.` }))) return
   try {
     await categoriesApi.remove(c.id)
     if (detail.value && detail.value.id === c.id) detail.value = null

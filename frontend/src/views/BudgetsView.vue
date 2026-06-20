@@ -4,6 +4,7 @@ import { budgetsApi } from '../api/budgets'
 import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
+import { confirm } from '../lib/confirm'
 import type { Budget, Category } from '../api/types'
 import { formatDate } from '../lib/format'
 import BudgetForm from '../components/BudgetForm.vue'
@@ -52,7 +53,7 @@ function onSaved() {
   load()
 }
 async function remove(b: Budget) {
-  if (!confirm(`Delete the budget for "${b.category_name}"?`)) return
+  if (!(await confirm({ title: 'Delete budget?', message: `The budget for "${b.category_name}" will be deleted.` }))) return
   try {
     await budgetsApi.remove(b.id)
     load()

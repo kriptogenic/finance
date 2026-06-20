@@ -3,6 +3,7 @@ import { reactive, ref, computed, watch, onUnmounted } from 'vue'
 import { categoriesApi } from '../api/categories'
 import { errMessage } from '../api/client'
 import type { Category, CategoryType, CreateCategoryRequest, UpdateCategoryRequest } from '../api/types'
+import { categoryColors, randomCategoryColor } from '../lib/palette'
 import Modal from './Modal.vue'
 import IconField from './IconField.vue'
 
@@ -21,7 +22,8 @@ const form = reactive({
   type: (props.category?.type ?? 'expense') as CategoryType,
   parent_id: props.category?.parent_id ?? '',
   icon: props.category?.icon ?? '',
-  color: props.category?.color ?? '',
+  // new categories get a random palette color; editing keeps the saved one
+  color: props.category ? (props.category.color ?? '') : randomCategoryColor(),
   archived: props.category?.archived ?? false,
 })
 
@@ -75,6 +77,8 @@ async function submit() {
         icon: form.icon,
         color: form.color,
       }
+      // only touch the parent when it's editable (not for parents-with-children)
+      if (showParent.value) body.parent_id = form.parent_id || null
       await categoriesApi.update(props.category.id, body)
     } else {
       const body: CreateCategoryRequest = {
@@ -132,6 +136,18 @@ async function submit() {
             Color
             <input v-model="form.color" type="color" class="h-6 w-8 rounded border border-slate-300 p-0.5" />
           </label>
+        </div>
+        <div class="mb-2 flex flex-wrap gap-1.5">
+          <button
+            v-for="c in categoryColors"
+            :key="c"
+            type="button"
+            class="h-6 w-6 rounded-full ring-2 ring-offset-1 transition hover:scale-110"
+            :class="form.color === c ? 'ring-slate-500' : 'ring-transparent'"
+            :style="{ backgroundColor: c }"
+            :title="c"
+            @click="form.color = c"
+          />
         </div>
         <IconField v-model="form.icon" :color="form.color" :suggestions="suggestions" :loading="suggestLoading" />
       </div>

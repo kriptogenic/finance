@@ -48,14 +48,14 @@ const types: { v: TransactionType; label: string }[] = [
 ]
 
 const acctIcons: Record<string, string> = {
-  cash: '💵',
-  debit_card: '💳',
-  deposit: '🏦',
-  credit_card: '💳',
-  loan: '🏠',
+  cash: 'cash',
+  debit_card: 'credit-card',
+  deposit: 'building-bank',
+  credit_card: 'credit-card',
+  loan: 'home',
 }
 function acctIcon(a: Account): string {
-  return acctIcons[a.type] ?? '💳'
+  return acctIcons[a.type] ?? 'credit-card'
 }
 
 const fromAcc = computed(() => props.accounts.find((a) => a.id === form.fromId))
@@ -181,7 +181,7 @@ async function submit() {
             :class="form.fromId === a.id ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
             @click="form.fromId = a.id"
           >
-            <span>{{ acctIcon(a) }}</span>{{ a.name }}
+            <i :class="`ti ti-${acctIcon(a)}`" />{{ a.name }}
             <span class="text-xs opacity-60">{{ a.currency }}</span>
           </button>
         </div>
@@ -199,7 +199,7 @@ async function submit() {
             :class="form.toId === a.id ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
             @click="form.toId = a.id"
           >
-            <span>{{ acctIcon(a) }}</span>{{ a.name }}
+            <i :class="`ti ti-${acctIcon(a)}`" />{{ a.name }}
             <span class="text-xs opacity-60">{{ a.currency }}</span>
           </button>
         </div>

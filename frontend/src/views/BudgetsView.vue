@@ -101,8 +101,8 @@ onMounted(async () => {
           <div class="flex items-center gap-2">
             <span class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="tone(b.percent).chip">{{ Math.round(b.percent) }}%</span>
             <div class="flex gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100">
-              <button class="text-xs text-slate-400 hover:text-slate-700" title="Edit" @click="openEdit(b)">✎</button>
-              <button class="text-xs text-slate-400 hover:text-rose-600" title="Delete" @click="remove(b)">🗑</button>
+              <button class="text-sm text-slate-400 hover:text-slate-700" title="Edit" @click="openEdit(b)"><i class="ti ti-pencil" /></button>
+              <button class="text-sm text-slate-400 hover:text-rose-600" title="Delete" @click="remove(b)"><i class="ti ti-trash" /></button>
             </div>
           </div>
         </div>

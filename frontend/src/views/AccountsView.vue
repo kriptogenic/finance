@@ -32,7 +32,7 @@ const typeLabel = {
   credit_card: 'Credit card',
   loan: 'Loan',
 }
-const typeIcon = { cash: '💵', debit_card: '💳', deposit: '🏦', credit_card: '💳', loan: '🏠' }
+const typeIcon = { cash: 'cash', debit_card: 'credit-card', deposit: 'building-bank', credit_card: 'credit-card', loan: 'home' }
 
 async function load() {
   loading.value = true
@@ -109,7 +109,7 @@ onMounted(async () => {
         <div class="card overflow-hidden">
           <ul class="divide-y divide-slate-100">
             <li v-for="a in group.items" :key="a.id" class="group flex items-center gap-4 px-4 py-4 transition hover:bg-slate-50 sm:px-5">
-              <span class="grid h-11 w-11 place-items-center rounded-2xl text-lg" :class="group.tile">{{ typeIcon[a.type] }}</span>
+              <span class="grid h-11 w-11 place-items-center rounded-2xl text-xl text-slate-600" :class="group.tile"><i :class="`ti ti-${typeIcon[a.type]}`" /></span>
               <div class="min-w-0">
                 <p class="truncate font-semibold text-slate-800">{{ a.name }}</p>
                 <p class="text-xs text-slate-400">{{ typeLabel[a.type] || a.type }} · {{ a.currency }}</p>
@@ -123,9 +123,9 @@ onMounted(async () => {
                 </p>
               </div>
               <div class="flex gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100">
-                <button v-if="a.type === 'loan'" class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-amber-100 hover:text-amber-700" title="Amortization schedule" @click="scheduleFor = a">📅</button>
-                <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700" title="Edit" @click="openEdit(a)">✎</button>
-                <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600" title="Delete" @click="remove(a)">🗑</button>
+                <button v-if="a.type === 'loan'" class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-amber-100 hover:text-amber-700" title="Amortization schedule" @click="scheduleFor = a"><i class="ti ti-calendar text-base" /></button>
+                <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700" title="Edit" @click="openEdit(a)"><i class="ti ti-pencil text-base" /></button>
+                <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600" title="Delete" @click="remove(a)"><i class="ti ti-trash text-base" /></button>
               </div>
             </li>
             <li v-if="!group.items.length" class="px-5 py-6 text-center text-sm text-slate-400">None yet</li>

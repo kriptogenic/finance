@@ -18,7 +18,7 @@ const sizeClass: Record<string, string> = { md: 'sm:max-w-md', lg: 'sm:max-w-lg'
         <div class="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden" />
         <div class="mb-5 flex items-center justify-between">
           <h3 class="text-lg font-semibold text-slate-900">{{ title }}</h3>
-          <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600" @click="$emit('close')">✕</button>
+          <button class="grid h-8 w-8 place-items-center rounded-lg text-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600" @click="$emit('close')"><i class="ti ti-x" /></button>
         </div>
         <slot />
       </div>

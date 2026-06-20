@@ -47,9 +47,9 @@ watch(hasActiveFilters, (active) => {
 })
 
 const meta = {
-  expense: { icon: '↗', ring: 'bg-rose-50 text-rose-600', sign: '−', amount: 'text-rose-600' },
-  income: { icon: '↙', ring: 'bg-emerald-50 text-emerald-600', sign: '+', amount: 'text-emerald-600' },
-  transfer: { icon: '⇄', ring: 'bg-indigo-50 text-indigo-600', sign: '', amount: 'text-slate-800' },
+  expense: { icon: 'arrow-up-right', ring: 'bg-rose-50 text-rose-600', sign: '−', amount: 'text-rose-600' },
+  income: { icon: 'arrow-down-left', ring: 'bg-emerald-50 text-emerald-600', sign: '+', amount: 'text-emerald-600' },
+  transfer: { icon: 'transfer', ring: 'bg-indigo-50 text-indigo-600', sign: '', amount: 'text-slate-800' },
 }
 
 function nameOf(id: string | null | undefined): string {
@@ -193,7 +193,7 @@ onMounted(async () => {
       <div v-show="showFilters" class="mt-3">
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div class="relative lg:col-span-2">
-            <span class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400">🔍</span>
+            <i class="ti ti-search pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400" />
             <input v-model="filters.q" class="field pl-9" placeholder="Search notes…" />
           </div>
           <select v-model="filters.type" class="field">
@@ -225,7 +225,7 @@ onMounted(async () => {
     <div class="card overflow-hidden">
       <ul class="divide-y divide-slate-100">
         <li v-for="t in transactions" :key="t.id" class="group flex cursor-pointer items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50 sm:gap-4 sm:px-5" @click="openDetail(t)">
-          <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg font-semibold" :class="meta[t.type].ring">{{ meta[t.type].icon }}</span>
+          <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg" :class="meta[t.type].ring"><i :class="`ti ti-${meta[t.type].icon}`" /></span>
           <div class="min-w-0">
             <p class="truncate font-medium text-slate-800">{{ title(t) }}</p>
             <p class="truncate text-xs text-slate-400">{{ subtitle(t) }}<span v-if="t.note"> · {{ t.note }}</span></p>
@@ -235,8 +235,8 @@ onMounted(async () => {
             <p class="text-xs text-slate-400">{{ formatDateTime(t.date) }}</p>
           </div>
           <div class="flex shrink-0 gap-0.5 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100 sm:gap-1">
-            <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700 sm:h-8 sm:w-8" title="Edit" @click.stop="openEdit(t)">✎</button>
-            <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600 sm:h-8 sm:w-8" title="Delete" @click.stop="remove(t)">🗑</button>
+            <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700 sm:h-8 sm:w-8" title="Edit" @click.stop="openEdit(t)"><i class="ti ti-pencil text-base" /></button>
+            <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600 sm:h-8 sm:w-8" title="Delete" @click.stop="remove(t)"><i class="ti ti-trash text-base" /></button>
           </div>
         </li>
         <li v-if="loading" class="px-5 py-8 text-center text-sm text-slate-400">Loading…</li>

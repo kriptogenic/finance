@@ -9,9 +9,9 @@ const props = withDefaults(
 const emit = defineEmits<{ close: []; edit: []; remove: [] }>()
 
 const meta = {
-  expense: { icon: '↗', ring: 'bg-rose-50 text-rose-600', sign: '−', amount: 'text-rose-600', label: 'Expense' },
-  income: { icon: '↙', ring: 'bg-emerald-50 text-emerald-600', sign: '+', amount: 'text-emerald-600', label: 'Income' },
-  transfer: { icon: '⇄', ring: 'bg-indigo-50 text-indigo-600', sign: '', amount: 'text-slate-800', label: 'Transfer' },
+  expense: { icon: 'arrow-up-right', ring: 'bg-rose-50 text-rose-600', sign: '−', amount: 'text-rose-600', label: 'Expense' },
+  income: { icon: 'arrow-down-left', ring: 'bg-emerald-50 text-emerald-600', sign: '+', amount: 'text-emerald-600', label: 'Income' },
+  transfer: { icon: 'transfer', ring: 'bg-indigo-50 text-indigo-600', sign: '', amount: 'text-slate-800', label: 'Transfer' },
 }
 
 function nameOf(id: string | null | undefined): string {
@@ -32,7 +32,7 @@ const showBase = !!t.base_amount && t.base_amount.currency !== t.amount.currency
     <div class="space-y-5">
       <!-- amount header -->
       <div class="flex flex-col items-center gap-2 text-center">
-        <span class="grid h-12 w-12 place-items-center rounded-full text-xl font-semibold" :class="m.ring">{{ m.icon }}</span>
+        <span class="grid h-12 w-12 place-items-center rounded-full text-2xl" :class="m.ring"><i :class="`ti ti-${m.icon}`" /></span>
         <p class="tabular text-2xl font-bold" :class="m.amount">{{ m.sign }}{{ t.amount.format() }}</p>
         <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">{{ m.label }}</span>
       </div>

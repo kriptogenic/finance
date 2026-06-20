@@ -166,7 +166,10 @@ function advance() {
   />
 
   <Modal v-else title="Categorize" size="lg" @close="emit('close')">
-    <div v-if="!current" class="py-8 text-center text-sm text-slate-500">All done 🎉</div>
+    <div v-if="!current" class="flex flex-col items-center gap-2 py-8 text-center text-sm text-slate-500">
+      <i class="ti ti-confetti text-2xl text-emerald-500" />
+      All done
+    </div>
 
     <div v-else class="space-y-5">
       <p class="text-xs font-medium text-slate-400">{{ doneCount + 1 }} of {{ total }}</p>

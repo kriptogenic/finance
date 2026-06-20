@@ -48,7 +48,7 @@ onMounted(load)
     <p v-else-if="loading" class="text-sm text-slate-400">Loading…</p>
 
     <div v-else-if="!pending.length" class="flex items-center gap-3">
-      <span class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-600">✓</span>
+      <span class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-xl text-emerald-600"><i class="ti ti-check" /></span>
       <div>
         <p class="font-semibold text-slate-900">All transactions are categorized</p>
         <p class="text-sm text-slate-500">Nothing to review — you're all caught up.</p>
@@ -57,7 +57,7 @@ onMounted(load)
 
     <div v-else class="flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600">!</span>
+        <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-xl text-amber-600"><i class="ti ti-alert-triangle" /></span>
         <div>
           <p class="font-semibold text-slate-900">
             {{ pending.length }} transaction{{ pending.length === 1 ? '' : 's' }} need a category

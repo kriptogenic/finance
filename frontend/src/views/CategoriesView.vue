@@ -91,8 +91,8 @@ onMounted(load)
               <CategoryIcon :icon="top.icon" :color="top.color" class="text-lg leading-none text-slate-500" />
               <p class="font-semibold text-slate-800">{{ top.name }}</p>
               <div class="flex gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100">
-                <button class="text-xs text-slate-400 hover:text-slate-700" title="Edit" @click="openEdit(top)">✎</button>
-                <button class="text-xs text-slate-400 hover:text-rose-600" title="Delete" @click="remove(top)">🗑</button>
+                <button class="text-sm text-slate-400 hover:text-slate-700" title="Edit" @click="openEdit(top)"><i class="ti ti-pencil" /></button>
+                <button class="text-sm text-slate-400 hover:text-rose-600" title="Delete" @click="remove(top)"><i class="ti ti-trash" /></button>
               </div>
             </div>
             <div v-if="top.children.length" class="mt-2 flex flex-wrap gap-2">
@@ -105,8 +105,8 @@ onMounted(load)
                 <CategoryIcon v-if="child.icon" :icon="child.icon" :color="child.color" class="leading-none" />
                 {{ child.name }}
                 <span class="flex items-center gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover/c:opacity-100">
-                  <button title="Edit" @click="openEdit(child)">✎</button>
-                  <button title="Delete" @click="remove(child)">×</button>
+                  <button title="Edit" @click="openEdit(child)"><i class="ti ti-pencil" /></button>
+                  <button title="Delete" @click="remove(child)"><i class="ti ti-x" /></button>
                 </span>
               </span>
             </div>

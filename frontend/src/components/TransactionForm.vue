@@ -2,6 +2,7 @@
 import { reactive, ref, computed, watch } from 'vue'
 import { transactionsApi } from '../api/transactions'
 import { errMessage } from '../api/client'
+import { confirm } from '../lib/confirm'
 import type { Account, Category, CreateTransactionRequest, Transaction, TransactionType } from '../api/types'
 import { toMinor, toMajor, toLocalInput } from '../lib/format'
 import Modal from './Modal.vue'
@@ -22,6 +23,22 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 const editing = computed(() => !!props.transaction)
 const error = ref('')
 const saving = ref(false)
+const removing = ref(false)
+
+async function del() {
+  if (!props.transaction) return
+  if (!(await confirm({ title: 'Delete transaction?', message: 'This transaction will be deleted.' }))) return
+  removing.value = true
+  error.value = ''
+  try {
+    await transactionsApi.remove(props.transaction.id)
+    emit('saved')
+  } catch (e) {
+    error.value = errMessage(e)
+  } finally {
+    removing.value = false
+  }
+}
 
 const t = props.transaction
 // Sensible default account: prefer one in the base currency to avoid an
@@ -255,9 +272,10 @@ async function submit() {
 
       <p v-if="error" class="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{{ error }}</p>
 
-      <div class="flex justify-end gap-2 pt-1">
-        <button type="button" class="btn btn-soft" @click="emit('close')">Cancel</button>
-        <button type="submit" class="btn btn-primary" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</button>
+      <div class="flex items-center gap-2 pt-1">
+        <button v-if="editing" type="button" class="btn btn-danger" :disabled="saving || removing" @click="del">Delete</button>
+        <button type="button" class="btn btn-soft ml-auto" @click="emit('close')">Cancel</button>
+        <button type="submit" class="btn btn-primary" :disabled="saving || removing">{{ saving ? 'Saving…' : 'Save' }}</button>
       </div>
     </form>
   </Modal>

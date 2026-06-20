@@ -6,6 +6,7 @@ import { errMessage } from '../api/client'
 import { confirm } from '../lib/confirm'
 import type { Account } from '../api/types'
 import { formatMinor } from '../lib/format'
+import SwipeRow from '../components/SwipeRow.vue'
 import AccountForm from '../components/AccountForm.vue'
 import LoanScheduleModal from '../components/LoanScheduleModal.vue'
 import ReconciliationPanel from '../components/ReconciliationPanel.vue'
@@ -109,25 +110,32 @@ onMounted(async () => {
 
         <div class="card overflow-hidden">
           <ul class="divide-y divide-slate-100">
-            <li v-for="a in group.items" :key="a.id" class="group flex items-center gap-4 px-4 py-4 transition hover:bg-slate-50 sm:px-5">
-              <span class="grid h-11 w-11 place-items-center rounded-2xl text-xl text-slate-600" :class="group.tile"><i :class="`ti ti-${typeIcon[a.type]}`" /></span>
-              <div class="min-w-0">
-                <p class="truncate font-semibold text-slate-800">{{ a.name }}</p>
-                <p class="text-xs text-slate-400">{{ typeLabel[a.type] || a.type }} · {{ a.currency }}</p>
-              </div>
-              <div class="ml-auto text-right">
-                <p class="tabular text-lg font-semibold" :class="a.balance.isNegative() ? 'text-rose-600' : 'text-slate-900'">
-                  {{ a.balance.format() }}
-                </p>
-                <p v-if="a.type === 'credit_card' && a.credit_limit != null" class="tabular text-sm font-medium text-slate-500">
-                  {{ formatMinor(availableCredit(a), a.currency) }}
-                </p>
-              </div>
-              <div class="flex gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100">
-                <button v-if="a.type === 'loan'" class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-amber-100 hover:text-amber-700" title="Amortization schedule" @click="scheduleFor = a"><i class="ti ti-calendar text-base" /></button>
-                <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700" title="Edit" @click="openEdit(a)"><i class="ti ti-pencil text-base" /></button>
-                <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600" title="Delete" @click="remove(a)"><i class="ti ti-trash text-base" /></button>
-              </div>
+            <li v-for="a in group.items" :key="a.id">
+              <!-- mobile: tap = edit, swipe right = edit, swipe left = delete -->
+              <SwipeRow @swipe-right="openEdit(a)" @swipe-left="remove(a)">
+                <div class="group flex cursor-pointer items-center gap-4 px-4 py-4 transition hover:bg-slate-50 sm:px-5" @click="openEdit(a)">
+                  <span class="grid h-11 w-11 place-items-center rounded-2xl text-xal text-slate-600" :class="group.tile"><i :class="`ti ti-${typeIcon[a.type]}`" /></span>
+                  <div class="min-w-0">
+                    <p class="truncate font-semibold text-slate-800">{{ a.name }}</p>
+                    <p class="text-xs text-slate-400">{{ typeLabel[a.type] || a.type }}</p>
+                  </div>
+                  <div class="ml-auto text-right">
+                    <p class="tabular text-lg font-semibold" :class="a.balance.isNegative() ? 'text-rose-600' : 'text-slate-900'">
+                      {{ a.balance.format() }}
+                    </p>
+                    <p v-if="a.type === 'credit_card' && a.credit_limit != null" class="tabular text-sm font-medium text-slate-500">
+                      {{ formatMinor(availableCredit(a), a.currency) }}
+                    </p>
+                  </div>
+                  <div class="flex shrink-0 items-center gap-1">
+                    <!-- schedule has no gesture, so it stays reachable on every size -->
+                    <button v-if="a.type === 'loan'" class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-amber-100 hover:text-amber-700" title="Amortization schedule" @click.stop="scheduleFor = a"><i class="ti ti-calendar text-base" /></button>
+                    <!-- desktop only: edit/delete (mobile uses tap + swipe) -->
+                    <button class="hidden h-8 w-8 place-items-center rounded-lg text-slate-400 can-hover:grid can-hover:opacity-0 can-hover:transition can-hover:group-hover:opacity-100 hover:bg-slate-200 hover:text-slate-700" title="Edit" @click.stop="openEdit(a)"><i class="ti ti-pencil text-base" /></button>
+                    <button class="hidden h-8 w-8 place-items-center rounded-lg text-slate-400 can-hover:grid can-hover:opacity-0 can-hover:transition can-hover:group-hover:opacity-100 hover:bg-rose-100 hover:text-rose-600" title="Delete" @click.stop="remove(a)"><i class="ti ti-trash text-base" /></button>
+                  </div>
+                </div>
+              </SwipeRow>
             </li>
             <li v-if="!group.items.length" class="px-5 py-6 text-center text-sm text-slate-400">None yet</li>
           </ul>

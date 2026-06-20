@@ -2,6 +2,7 @@
 import { reactive, ref, computed } from 'vue'
 import { accountsApi } from '../api/accounts'
 import { errMessage } from '../api/client'
+import { confirm } from '../lib/confirm'
 import type { Account, AccountKind, AccountType, CreateAccountRequest, UpdateAccountRequest } from '../api/types'
 import { toMinor, toMajor } from '../lib/format'
 import Modal from './Modal.vue'
@@ -16,6 +17,22 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 const editing = computed(() => !!props.account)
 const error = ref('')
 const saving = ref(false)
+const removing = ref(false)
+
+async function del() {
+  if (!props.account) return
+  if (!(await confirm({ title: 'Delete account?', message: `"${props.account.name}" will be deleted.` }))) return
+  removing.value = true
+  error.value = ''
+  try {
+    await accountsApi.remove(props.account.id)
+    emit('saved')
+  } catch (e) {
+    error.value = errMessage(e)
+  } finally {
+    removing.value = false
+  }
+}
 
 const typesByKind: Record<AccountKind, AccountType[]> = {
   asset: ['cash', 'debit_card', 'deposit'],
@@ -174,9 +191,10 @@ async function submit() {
 
       <p v-if="error" class="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{{ error }}</p>
 
-      <div class="flex justify-end gap-2 pt-1">
-        <button type="button" class="btn btn-soft" @click="emit('close')">Cancel</button>
-        <button type="submit" class="btn btn-primary" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</button>
+      <div class="flex items-center gap-2 pt-1">
+        <button v-if="editing" type="button" class="btn btn-danger" :disabled="saving || removing" @click="del">Delete</button>
+        <button type="button" class="btn btn-soft ml-auto" @click="emit('close')">Cancel</button>
+        <button type="submit" class="btn btn-primary" :disabled="saving || removing">{{ saving ? 'Saving…' : 'Save' }}</button>
       </div>
     </form>
   </Modal>

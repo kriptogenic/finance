@@ -2,6 +2,7 @@
 import { reactive, ref, computed, watch, onUnmounted } from 'vue'
 import { categoriesApi } from '../api/categories'
 import { errMessage } from '../api/client'
+import { confirm } from '../lib/confirm'
 import type { Category, CategoryType, CreateCategoryRequest, UpdateCategoryRequest } from '../api/types'
 import { categoryColors, randomCategoryColor } from '../lib/palette'
 import Modal from './Modal.vue'
@@ -21,6 +22,22 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 const editing = computed(() => !!props.category)
 const error = ref('')
 const saving = ref(false)
+const removing = ref(false)
+
+async function del() {
+  if (!props.category) return
+  if (!(await confirm({ title: 'Delete category?', message: `"${props.category.name}" will be deleted.` }))) return
+  removing.value = true
+  error.value = ''
+  try {
+    await categoriesApi.remove(props.category.id)
+    emit('saved')
+  } catch (e) {
+    error.value = errMessage(e)
+  } finally {
+    removing.value = false
+  }
+}
 
 const form = reactive({
   name: props.category?.name ?? '',
@@ -157,9 +174,10 @@ async function submit() {
 
       <p v-if="error" class="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{{ error }}</p>
 
-      <div class="flex justify-end gap-2 pt-1">
-        <button type="button" class="btn btn-soft" @click="emit('close')">Cancel</button>
-        <button type="submit" class="btn btn-primary" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</button>
+      <div class="flex items-center gap-2 pt-1">
+        <button v-if="editing" type="button" class="btn btn-danger" :disabled="saving || removing" @click="del">Delete</button>
+        <button type="button" class="btn btn-soft ml-auto" @click="emit('close')">Cancel</button>
+        <button type="submit" class="btn btn-primary" :disabled="saving || removing">{{ saving ? 'Saving…' : 'Save' }}</button>
       </div>
     </form>
   </Modal>

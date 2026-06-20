@@ -61,7 +61,7 @@ func main() {
 	reset := len(os.Args) > 1 && os.Args[1] == "reset"
 
 	s := &seeder{
-		base:       cfg.Finance.BaseCurrency,
+		base:       cfg.BaseCurrency,
 		accounts:   accountrepository.NewRepository(db),
 		categories: categoryrepository.NewRepository(db),
 		txns:       transactionrepository.NewRepository(db),

@@ -33,7 +33,7 @@ func main() {
 	logger := log.NewLogger(&cfg.Log)
 	defer func() { _ = logger.Sync() }()
 
-	mg, err := migrator.New(cfg.DB.MigrationsPath, cfg.DB.MigrationDSN(), logger)
+	mg, err := migrator.New(cfg.MigrationsPath, cfg.MigrationDSN(), logger)
 	if err != nil {
 		logger.Fatal("migrator init", zap.Error(err))
 	}

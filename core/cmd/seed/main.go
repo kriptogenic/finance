@@ -200,59 +200,78 @@ func (s *seeder) seedAccounts(ctx context.Context) (map[string]entities.Account,
 	return out, nil
 }
 
+// catDef is a category to seed; icon is a Tabler icon name and color a hex from
+// the frontend palette, so seeded categories render with the same look as ones
+// created in the UI.
+type catDef struct {
+	name  string
+	icon  string
+	color string
+}
+
 func (s *seeder) seedCategories(ctx context.Context) (map[string]entities.Category, error) {
 	out := make(map[string]entities.Category)
 
-	create := func(name string, typ entities.CategoryType, parent *entities.Category) (entities.Category, error) {
-		c := entities.Category{Name: name, Type: typ}
+	create := func(def catDef, typ entities.CategoryType, parent *entities.Category) (entities.Category, error) {
+		c := entities.Category{Name: def.name, Type: typ, Icon: ptr(def.icon), Color: ptr(def.color)}
 		if parent != nil {
 			c.ParentID = &parent.ID
 		}
 		if err := s.categories.Create(ctx, &c); err != nil {
-			return entities.Category{}, fmt.Errorf("seed category %q: %w", name, err)
+			return entities.Category{}, fmt.Errorf("seed category %q: %w", def.name, err)
 		}
-		out[name] = c
+		out[def.name] = c
 
 		return c, nil
 	}
 
-	food, err := create("Food", entities.CategoryExpense, nil)
+	food, err := create(catDef{"Food", "meat", "#f97316"}, entities.CategoryExpense, nil)
 	if err != nil {
 		return nil, err
 	}
-	for _, name := range []string{"Groceries", "Restaurants"} {
-		if _, err = create(name, entities.CategoryExpense, &food); err != nil {
+	for _, def := range []catDef{
+		{"Groceries", "shopping-cart", "#22c55e"},
+		{"Restaurants", "tools-kitchen-2", "#f59e0b"},
+	} {
+		if _, err = create(def, entities.CategoryExpense, &food); err != nil {
 			return nil, err
 		}
 	}
-	for _, name := range []string{"Rent", "Transport", "Utilities"} {
-		if _, err = create(name, entities.CategoryExpense, nil); err != nil {
+	for _, def := range []catDef{
+		{"Rent", "home", "#3b82f6"},
+		{"Transport", "car", "#06b6d4"},
+		{"Utilities", "bolt", "#eab308"},
+	} {
+		if _, err = create(def, entities.CategoryExpense, nil); err != nil {
 			return nil, err
 		}
 	}
-	for _, name := range []string{"Salary", "Freelance"} {
-		if _, err = create(name, entities.CategoryIncome, nil); err != nil {
+	for _, def := range []catDef{
+		{"Salary", "cash", "#10b981"},
+		{"Freelance", "briefcase", "#8b5cf6"},
+	} {
+		if _, err = create(def, entities.CategoryIncome, nil); err != nil {
 			return nil, err
 		}
 	}
 	// "Uncategorized" buckets for externally-ingested transactions; tagged with a
 	// system_key so the ingest endpoint can find them as the default category.
-	if err = s.createSystemCategory(ctx, out, "Uncategorized", entities.CategoryExpense, "uncategorized_expense"); err != nil {
+	if err = s.createSystemCategory(ctx, out, catDef{"Uncategorized", "help-circle", "#64748b"}, entities.CategoryExpense, "uncategorized_expense"); err != nil {
 		return nil, err
 	}
-	if err = s.createSystemCategory(ctx, out, "Uncategorized income", entities.CategoryIncome, "uncategorized_income"); err != nil {
+	if err = s.createSystemCategory(ctx, out, catDef{"Uncategorized income", "help-circle", "#64748b"}, entities.CategoryIncome, "uncategorized_income"); err != nil {
 		return nil, err
 	}
 
 	return out, nil
 }
 
-func (s *seeder) createSystemCategory(ctx context.Context, out map[string]entities.Category, name string, typ entities.CategoryType, key string) error {
-	c := entities.Category{Name: name, Type: typ, SystemKey: &key}
+func (s *seeder) createSystemCategory(ctx context.Context, out map[string]entities.Category, def catDef, typ entities.CategoryType, key string) error {
+	c := entities.Category{Name: def.name, Type: typ, Icon: ptr(def.icon), Color: ptr(def.color), SystemKey: &key}
 	if err := s.categories.Create(ctx, &c); err != nil {
-		return fmt.Errorf("seed system category %q: %w", name, err)
+		return fmt.Errorf("seed system category %q: %w", def.name, err)
 	}
-	out[name] = c
+	out[def.name] = c
 
 	return nil
 }

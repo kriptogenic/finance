@@ -26,6 +26,8 @@ export default defineConfig({
         // Don't precache the API; SPA navigations fall back to index.html.
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
+        // Bolt our push handler onto the generated SW (updates the app badge).
+        importScripts: ['push-sw.js'],
       },
     }),
   ],

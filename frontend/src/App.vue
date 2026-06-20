@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { clearCredentials } from './api/auth'
 import { hideMinorUnits } from './lib/settings'
 import { setAppBadge } from './lib/appBadge'
+import { pushSupported, pushEnabled, pushBusy, refreshPushState, enablePush, disablePush } from './lib/push'
+import { errMessage } from './api/client'
 import { accountsApi } from './api/accounts'
 import { categoriesApi } from './api/categories'
 import { reportsApi } from './api/reports'
@@ -135,6 +137,20 @@ function onCategorizeClose() {
 onMounted(() => window.addEventListener('data:refresh', loadPending))
 onUnmounted(() => window.removeEventListener('data:refresh', loadPending))
 onMounted(loadPending)
+
+// ── Push badge subscription ────────────────────────────────────────────────
+// Lets the app-icon badge update while the app is closed (see lib/push.ts).
+const pushError = ref('')
+async function togglePush() {
+  pushError.value = ''
+  try {
+    if (pushEnabled.value) await disablePush()
+    else await enablePush()
+  } catch (e) {
+    pushError.value = errMessage(e)
+  }
+}
+onMounted(refreshPushState)
 </script>
 
 <template>
@@ -190,6 +206,16 @@ onMounted(loadPending)
           <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4" />
         </span>
       </label>
+
+      <label v-if="pushSupported" class="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white">
+        <span>Badge alerts</span>
+        <span class="relative inline-flex h-5 w-9 shrink-0">
+          <input type="checkbox" class="peer sr-only" :checked="pushEnabled" :disabled="pushBusy" @change="togglePush" />
+          <span class="absolute inset-0 rounded-full bg-slate-600 transition peer-checked:bg-amber-400" />
+          <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4" />
+        </span>
+      </label>
+      <p v-if="pushError" class="px-3 text-xs text-rose-400">{{ pushError }}</p>
 
       <button
         class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
@@ -324,6 +350,15 @@ onMounted(loadPending)
                 <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
               </span>
             </label>
+            <label v-if="pushSupported" class="flex cursor-pointer items-center justify-between rounded-xl px-2 py-3 text-sm font-medium text-slate-600">
+              <span>Badge alerts</span>
+              <span class="relative inline-flex h-5 w-9 shrink-0">
+                <input type="checkbox" class="peer sr-only" :checked="pushEnabled" :disabled="pushBusy" @change="togglePush" />
+                <span class="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-amber-400" />
+                <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
+              </span>
+            </label>
+            <p v-if="pushError" class="px-2 text-xs text-rose-600">{{ pushError }}</p>
             <button class="flex w-full items-center gap-2 rounded-xl px-2 py-3 text-sm font-medium text-rose-600" @click="logout">
               <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />

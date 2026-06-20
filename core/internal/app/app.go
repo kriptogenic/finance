@@ -26,7 +26,9 @@ import (
 	categoryrulerepository "finance/internal/repositories/category_rule_repository"
 	pushsubscriptionrepository "finance/internal/repositories/push_subscription_repository"
 	reportrepository "finance/internal/repositories/report_repository"
+	scheduledtransactionrepository "finance/internal/repositories/scheduled_transaction_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
+	"finance/internal/scheduler"
 	"finance/pkg/database"
 	"finance/pkg/httpserver"
 	"finance/pkg/log"
@@ -47,6 +49,9 @@ func CreateApp() fx.Option {
 			budgetrepository.NewRepository,
 			balancesnapshotrepository.NewRepository,
 			pushsubscriptionrepository.NewRepository,
+			scheduledtransactionrepository.NewRepository,
+			scheduler.NewMaterializer,
+			scheduler.NewWorker,
 			iconsuggest.New,
 			categorysuggest.New,
 			pushnotify.New,
@@ -56,6 +61,7 @@ func CreateApp() fx.Option {
 		fx.Invoke(
 			dbLifecycle,
 			HTTPLifecycle,
+			scheduler.Lifecycle,
 		),
 	)
 }

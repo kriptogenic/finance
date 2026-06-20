@@ -17,27 +17,31 @@ import (
 	categoryrulerepository "finance/internal/repositories/category_rule_repository"
 	pushsubscriptionrepository "finance/internal/repositories/push_subscription_repository"
 	reportrepository "finance/internal/repositories/report_repository"
+	scheduledtransactionrepository "finance/internal/repositories/scheduled_transaction_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
+	"finance/internal/scheduler"
 )
 
 // Server implements the generated strict OpenAPI interface. Feature handlers
 // (accounts, categories, transactions, reports) hang off this type as methods
 // in their own files.
 type Server struct {
-	accounts      accountrepository.Repository
-	categories    categoryrepository.Repository
-	categoryRules categoryrulerepository.Repository
-	transactions  transactionrepository.Repository
-	reports       reportrepository.Repository
-	budgets       budgetrepository.Repository
-	snapshots     balancesnapshotrepository.Repository
-	push          pushsubscriptionrepository.Repository
-	icons         iconsuggest.Suggester
-	catSuggest    categorysuggest.Suggester
-	notifier      pushnotify.Notifier
+	accounts       accountrepository.Repository
+	categories     categoryrepository.Repository
+	categoryRules  categoryrulerepository.Repository
+	transactions   transactionrepository.Repository
+	reports        reportrepository.Repository
+	budgets        budgetrepository.Repository
+	snapshots      balancesnapshotrepository.Repository
+	push           pushsubscriptionrepository.Repository
+	schedules      scheduledtransactionrepository.Repository
+	materializer   *scheduler.Materializer
+	icons          iconsuggest.Suggester
+	catSuggest     categorysuggest.Suggester
+	notifier       pushnotify.Notifier
 	vapidPublicKey string // served to the browser so it can subscribe to push
-	base          string  // reporting currency (§3)
-	logger        *zap.Logger
+	base           string // reporting currency (§3)
+	logger         *zap.Logger
 }
 
 var _ api.StrictServerInterface = (*Server)(nil)
@@ -51,6 +55,8 @@ func NewServer(
 	budgets budgetrepository.Repository,
 	snapshots balancesnapshotrepository.Repository,
 	push pushsubscriptionrepository.Repository,
+	schedules scheduledtransactionrepository.Repository,
+	materializer *scheduler.Materializer,
 	icons iconsuggest.Suggester,
 	catSuggest categorysuggest.Suggester,
 	notifier pushnotify.Notifier,
@@ -67,6 +73,8 @@ func NewServer(
 		budgets:        budgets,
 		snapshots:      snapshots,
 		push:           push,
+		schedules:      schedules,
+		materializer:   materializer,
 		icons:          icons,
 		catSuggest:     catSuggest,
 		notifier:       notifier,

@@ -89,6 +89,17 @@ TypeScript codegen for `frontend`.
 - Live progress for the current period: spent, remaining, percent, and period
   bounds; optional **rollover** of unused amounts and a custom start period.
 
+### Scheduled (recurring) transactions
+- A saved transaction template (expense, income, or transfer) plus a recurrence
+  rule: **frequency** (daily / weekly / monthly / yearly) × **interval** (every
+  N units), anchored to a next-run date with an optional end date.
+- A background worker materializes due schedules into real transactions through
+  the same ledger engine as manual entries, so they honor every money invariant
+  (frozen `rate_to_base`, bucket shape, net-worth rules). Missed occurrences post
+  once and skip ahead rather than backfilling a burst.
+- Pause/resume, edit, delete, and a **Run now** action to materialize an
+  occurrence immediately.
+
 ### Reports
 - **Net worth**: Σ assets − Σ liabilities in the base currency, with
   per-currency exposure and a list of currencies missing a known rate (excluded

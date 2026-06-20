@@ -30,6 +30,11 @@ export type CreateBudgetRequest = S['CreateBudgetRequest']
 export type UpdateBudgetRequest = S['UpdateBudgetRequest']
 export type BudgetPeriod = S['BudgetPeriod']
 
+export type ScheduledTransaction = S['ScheduledTransaction']
+export type CreateScheduledTransactionRequest = S['CreateScheduledTransactionRequest']
+export type UpdateScheduledTransactionRequest = S['UpdateScheduledTransactionRequest']
+export type ScheduleFrequency = S['ScheduleFrequency']
+
 export type AccountKind = S['AccountKind']
 export type AccountType = S['AccountType']
 export type CategoryType = S['CategoryType']

@@ -592,6 +592,98 @@ paths:
         404:
           $ref: '#/components/responses/NotFound'
 
+  /scheduled-transactions:
+    get:
+      operationId: listScheduledTransactions
+      summary: List scheduled (recurring) transactions
+      responses:
+        200:
+          description: Scheduled transactions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledTransactionListResponse'
+    post:
+      operationId: createScheduledTransaction
+      summary: Create a scheduled (recurring) transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScheduledTransactionRequest'
+      responses:
+        201:
+          description: Schedule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledTransaction'
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /scheduled-transactions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ScheduledTransactionId'
+    get:
+      operationId: getScheduledTransaction
+      summary: Get a scheduled transaction
+      responses:
+        200:
+          description: Schedule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledTransaction'
+        404:
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateScheduledTransaction
+      summary: Update a scheduled transaction (full template + recurrence)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateScheduledTransactionRequest'
+      responses:
+        200:
+          description: Schedule updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledTransaction'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteScheduledTransaction
+      summary: Delete a scheduled transaction
+      responses:
+        204:
+          description: Schedule deleted
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /scheduled-transactions/{id}/run:
+    parameters:
+      - $ref: '#/components/parameters/ScheduledTransactionId'
+    post:
+      operationId: runScheduledTransaction
+      summary: Materialize one occurrence now and advance the schedule
+      responses:
+        201:
+          description: Transaction created from the schedule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+
   /category-rules:
     get:
       operationId: listCategoryRules
@@ -705,6 +797,13 @@ components:
         type: string
         format: uuid
     CategoryRuleId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ScheduledTransactionId:
       name: id
       in: path
       required: true
@@ -1723,3 +1822,196 @@ components:
         start_period:
           type: string
           format: date
+
+    ScheduledTransactionListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - scheduled_transactions
+      properties:
+        scheduled_transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduledTransaction'
+
+    ScheduledTransaction:
+      type: object
+      additionalProperties: false
+      description: A transaction template plus a recurrence rule and scheduling state.
+      required:
+        - id
+        - type
+        - amount
+        - tags
+        - frequency
+        - interval
+        - next_run
+        - paused
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          nullable: true
+          description: Optional label for the schedule (e.g. "Rent").
+        type:
+          $ref: './definitions.yaml#/components/schemas/TransactionType'
+        from_account_id:
+          type: string
+          format: uuid
+          nullable: true
+        to_account_id:
+          type: string
+          format: uuid
+          nullable: true
+        category_id:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        to_amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        rate_to_base:
+          type: string
+          nullable: true
+          description: Frozen FX rate applied to each materialized run; present when currency != base.
+        note:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        frequency:
+          $ref: './definitions.yaml#/components/schemas/ScheduleFrequency'
+        interval:
+          type: integer
+          minimum: 1
+          description: Recur every N units of the frequency.
+        next_run:
+          type: string
+          format: date
+          description: Date of the next occurrence to materialize.
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          description: Last date an occurrence may run; no end when omitted.
+        paused:
+          type: boolean
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    CreateScheduledTransactionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - amount
+        - frequency
+        - next_run
+      properties:
+        name:
+          type: string
+        type:
+          $ref: './definitions.yaml#/components/schemas/TransactionType'
+        from_account_id:
+          type: string
+          format: uuid
+        to_account_id:
+          type: string
+          format: uuid
+        category_id:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          description: Minor units, in the primary account's currency.
+        to_amount:
+          type: integer
+          format: int64
+          description: Required for cross-currency transfers; in the to account's currency.
+        rate_to_base:
+          type: string
+          description: Required when the primary currency differs from base. Decimal string.
+        note:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        frequency:
+          $ref: './definitions.yaml#/components/schemas/ScheduleFrequency'
+        interval:
+          type: integer
+          minimum: 1
+          default: 1
+        next_run:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        paused:
+          type: boolean
+
+    UpdateScheduledTransactionRequest:
+      type: object
+      additionalProperties: false
+      description: Full replace of the schedule template and recurrence.
+      required:
+        - type
+        - amount
+        - frequency
+        - next_run
+      properties:
+        name:
+          type: string
+        type:
+          $ref: './definitions.yaml#/components/schemas/TransactionType'
+        from_account_id:
+          type: string
+          format: uuid
+        to_account_id:
+          type: string
+          format: uuid
+        category_id:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+        to_amount:
+          type: integer
+          format: int64
+        rate_to_base:
+          type: string
+        note:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        frequency:
+          $ref: './definitions.yaml#/components/schemas/ScheduleFrequency'
+        interval:
+          type: integer
+          minimum: 1
+          default: 1
+        next_run:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        paused:
+          type: boolean

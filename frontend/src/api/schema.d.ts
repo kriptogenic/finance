@@ -356,6 +356,64 @@ export interface paths {
         patch: operations["updateBudget"];
         trace?: never;
     };
+    "/scheduled-transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List scheduled (recurring) transactions */
+        get: operations["listScheduledTransactions"];
+        put?: never;
+        /** Create a scheduled (recurring) transaction */
+        post: operations["createScheduledTransaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/scheduled-transactions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ScheduledTransactionId"];
+            };
+            cookie?: never;
+        };
+        /** Get a scheduled transaction */
+        get: operations["getScheduledTransaction"];
+        put?: never;
+        post?: never;
+        /** Delete a scheduled transaction */
+        delete: operations["deleteScheduledTransaction"];
+        options?: never;
+        head?: never;
+        /** Update a scheduled transaction (full template + recurrence) */
+        patch: operations["updateScheduledTransaction"];
+        trace?: never;
+    };
+    "/scheduled-transactions/{id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ScheduledTransactionId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Materialize one occurrence now and advance the schedule */
+        post: operations["runScheduledTransaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/category-rules": {
         parameters: {
             query?: never;
@@ -845,6 +903,105 @@ export interface components {
             /** Format: date */
             start_period?: string;
         };
+        ScheduledTransactionListResponse: {
+            scheduled_transactions: components["schemas"]["ScheduledTransaction"][];
+        };
+        /** @description A transaction template plus a recurrence rule and scheduling state. */
+        ScheduledTransaction: {
+            /** Format: uuid */
+            id: string;
+            /** @description Optional label for the schedule (e.g. "Rent"). */
+            name?: string | null;
+            type: components["schemas"]["TransactionType"];
+            /** Format: uuid */
+            from_account_id?: string | null;
+            /** Format: uuid */
+            to_account_id?: string | null;
+            /** Format: uuid */
+            category_id?: string | null;
+            amount: components["schemas"]["Money"];
+            to_amount?: components["schemas"]["Money"];
+            /** @description Frozen FX rate applied to each materialized run; present when currency != base. */
+            rate_to_base?: string | null;
+            note?: string | null;
+            tags: string[];
+            frequency: components["schemas"]["ScheduleFrequency"];
+            /** @description Recur every N units of the frequency. */
+            interval: number;
+            /**
+             * Format: date
+             * @description Date of the next occurrence to materialize.
+             */
+            next_run: string;
+            /**
+             * Format: date
+             * @description Last date an occurrence may run; no end when omitted.
+             */
+            end_date?: string | null;
+            paused: boolean;
+            /** Format: date-time */
+            last_run_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        CreateScheduledTransactionRequest: {
+            name?: string;
+            type: components["schemas"]["TransactionType"];
+            /** Format: uuid */
+            from_account_id?: string;
+            /** Format: uuid */
+            to_account_id?: string;
+            /** Format: uuid */
+            category_id?: string;
+            /**
+             * Format: int64
+             * @description Minor units, in the primary account's currency.
+             */
+            amount: number;
+            /**
+             * Format: int64
+             * @description Required for cross-currency transfers; in the to account's currency.
+             */
+            to_amount?: number;
+            /** @description Required when the primary currency differs from base. Decimal string. */
+            rate_to_base?: string;
+            note?: string;
+            tags?: string[];
+            frequency: components["schemas"]["ScheduleFrequency"];
+            /** @default 1 */
+            interval: number;
+            /** Format: date */
+            next_run: string;
+            /** Format: date */
+            end_date?: string;
+            paused?: boolean;
+        };
+        /** @description Full replace of the schedule template and recurrence. */
+        UpdateScheduledTransactionRequest: {
+            name?: string;
+            type: components["schemas"]["TransactionType"];
+            /** Format: uuid */
+            from_account_id?: string;
+            /** Format: uuid */
+            to_account_id?: string;
+            /** Format: uuid */
+            category_id?: string;
+            /** Format: int64 */
+            amount: number;
+            /** Format: int64 */
+            to_amount?: number;
+            rate_to_base?: string;
+            note?: string;
+            tags?: string[];
+            frequency: components["schemas"]["ScheduleFrequency"];
+            /** @default 1 */
+            interval: number;
+            /** Format: date */
+            next_run: string;
+            /** Format: date */
+            end_date?: string;
+            paused?: boolean;
+        };
         /** @enum {string} */
         AccountKind: "asset" | "liability";
         /** @enum {string} */
@@ -867,6 +1024,11 @@ export interface components {
         SuggestionSource: "rule" | "ai";
         /** @enum {string} */
         BudgetPeriod: "weekly" | "monthly" | "yearly";
+        /**
+         * @description How often a scheduled transaction recurs (combined with an interval).
+         * @enum {string}
+         */
+        ScheduleFrequency: "daily" | "weekly" | "monthly" | "yearly";
     };
     responses: {
         /** @description Invalid input */
@@ -900,6 +1062,7 @@ export interface components {
     parameters: {
         BudgetId: string;
         CategoryRuleId: string;
+        ScheduledTransactionId: string;
         AccountId: string;
         CategoryId: string;
         TransactionId: string;
@@ -1695,6 +1858,147 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Budget"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listScheduledTransactions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scheduled transactions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledTransactionListResponse"];
+                };
+            };
+        };
+    };
+    createScheduledTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateScheduledTransactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Schedule created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledTransaction"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    getScheduledTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ScheduledTransactionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schedule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledTransaction"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteScheduledTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ScheduledTransactionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schedule deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateScheduledTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ScheduledTransactionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateScheduledTransactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Schedule updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledTransaction"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    runScheduledTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ScheduledTransactionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Transaction created from the schedule */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
                 };
             };
             400: components["responses"]["BadRequest"];

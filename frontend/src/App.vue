@@ -52,6 +52,11 @@ const nav = [
     icon: 'M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5',
   },
   {
+    to: '/scheduled',
+    label: 'Scheduled',
+    icon: 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+  },
+  {
     to: '/budgets',
     label: 'Budgets',
     icon: 'M3 13.13C3 12.5 3.5 12 4.13 12h2.25c.62 0 1.12.5 1.12 1.13v6.75c0 .62-.5 1.12-1.13 1.12H4.13c-.63 0-1.13-.5-1.13-1.13v-6.75Zm6.75-4.5c0-.63.5-1.13 1.13-1.13h2.25c.62 0 1.12.5 1.12 1.13v11.25c0 .62-.5 1.12-1.13 1.12h-2.25c-.62 0-1.12-.5-1.12-1.13V8.63ZM16.5 4.13c0-.63.5-1.13 1.13-1.13h2.25c.62 0 1.12.5 1.12 1.13v15.75c0 .62-.5 1.12-1.13 1.12h-2.25c-.62 0-1.12-.5-1.12-1.13V4.13Z',
@@ -66,7 +71,7 @@ const nav = [
 // Mobile bottom bar shows 4 tabs + a "More" sheet; these two live behind "More".
 const mobilePrimary = computed(() => nav.filter((n) => n.to === '/' || n.to === '/accounts'))
 const mobileSecondary = computed(() => nav.filter((n) => n.to === '/transactions'))
-const moreRoutes = ['/budgets', '/categories']
+const moreRoutes = ['/scheduled', '/budgets', '/categories']
 const moreActive = computed(() => moreRoutes.includes(route.path))
 const moreItems = computed(() => nav.filter((n) => moreRoutes.includes(n.to)))
 

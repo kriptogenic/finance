@@ -5,9 +5,9 @@ primitives. Prioritized toward filling visible gaps.
 
 ## High-leverage (build directly on existing primitives)
 
-- **Recurring / scheduled transactions** — salary, rent, subscriptions. You
-  already have transactions + categories; add a schedule table and a worker that
-  materializes due ones. Natural fit with the loan `payment_day` concept.
+- ~~**Recurring / scheduled transactions**~~ — ✅ implemented. Schedule template
+  + frequency×interval recurrence, materialized by a background worker through
+  the ledger engine; pause/resume and "Run now".
 - **Budget alerts via push** — Web Push is already wired for the uncategorized
   badge. Reuse it to notify when a budget crosses 80% / 100%. Very small addition
   for real value.

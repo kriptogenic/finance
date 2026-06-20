@@ -41,7 +41,13 @@ type Repository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	// Ingest idempotently inserts by external_id; created=false means it already existed.
 	Ingest(ctx context.Context, tx *entities.Transaction) (created bool, err error)
+	// CountUncategorized returns how many transactions sit in the Uncategorized buckets.
+	CountUncategorized(ctx context.Context) (int, error)
 }
+
+// uncategorizedBuckets selects the ids of the built-in Uncategorized categories.
+const uncategorizedBuckets = `SELECT id FROM categories
+	WHERE system_key IN ('uncategorized_expense', 'uncategorized_income')`
 
 type repository struct {
 	db *database.DB
@@ -156,6 +162,17 @@ func (r repository) Ingest(ctx context.Context, tx *entities.Transaction) (creat
 	return false, nil
 }
 
+func (r repository) CountUncategorized(ctx context.Context) (int, error) {
+	var n int
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT count(*) FROM transactions WHERE category_id IN (`+uncategorizedBuckets+`)`).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count uncategorized: %w", err)
+	}
+
+	return n, nil
+}
+
 func (r repository) List(ctx context.Context, filter Filter) ([]entities.Transaction, error) {
 	query := `SELECT ` + txColumns + ` FROM transactions WHERE 1 = 1`
 	args := []any{}
@@ -188,8 +205,7 @@ func (r repository) List(ctx context.Context, filter Filter) ([]entities.Transac
 		add(` AND note ILIKE '%%' || $%d || '%%'`, *filter.Query)
 	}
 	if filter.Uncategorized {
-		query += ` AND category_id IN (SELECT id FROM categories
-			WHERE system_key IN ('uncategorized_expense', 'uncategorized_income'))`
+		query += ` AND category_id IN (` + uncategorizedBuckets + `)`
 	}
 
 	query += ` ORDER BY date DESC, created_at DESC`

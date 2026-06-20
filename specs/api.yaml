@@ -654,6 +654,47 @@ paths:
         404:
           $ref: '#/components/responses/NotFound'
 
+  /push/vapid-public-key:
+    get:
+      operationId: getPushPublicKey
+      summary: VAPID public key the browser uses to subscribe to push (empty when push is disabled)
+      responses:
+        200:
+          description: Public key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushPublicKeyResponse'
+
+  /push/subscriptions:
+    post:
+      operationId: subscribePush
+      summary: Register a Web Push subscription for the current device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushSubscriptionRequest'
+      responses:
+        204:
+          description: Subscription stored
+        400:
+          $ref: '#/components/responses/BadRequest'
+    delete:
+      operationId: unsubscribePush
+      summary: Remove a Web Push subscription by endpoint
+      parameters:
+        - name: endpoint
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        204:
+          description: Subscription removed
+        400:
+          $ref: '#/components/responses/BadRequest'
+
 components:
   parameters:
     BudgetId:
@@ -740,6 +781,38 @@ components:
         error:
           type: string
           example: bad request
+
+    PushPublicKeyResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - key
+      properties:
+        key:
+          type: string
+          description: VAPID public key (base64url). Empty when push is disabled server-side.
+
+    PushSubscriptionRequest:
+      type: object
+      additionalProperties: false
+      description: Mirrors the browser PushSubscription.toJSON() shape.
+      required:
+        - endpoint
+        - keys
+      properties:
+        endpoint:
+          type: string
+        keys:
+          type: object
+          additionalProperties: false
+          required:
+            - p256dh
+            - auth
+          properties:
+            p256dh:
+              type: string
+            auth:
+              type: string
 
     AccountListResponse:
       type: object

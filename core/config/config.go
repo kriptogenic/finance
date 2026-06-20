@@ -20,6 +20,7 @@ type (
 		Ingest
 		Auth
 		Anthropic
+		Push
 	}
 
 	App struct {
@@ -63,6 +64,13 @@ type (
 		APIKey string `env:"ANTHROPIC_API_KEY" env-default:""`
 		Model  string `env:"ANTHROPIC_MODEL"   env-default:"claude-haiku-4-5"`
 	}
+
+	// Push holds Web Push VAPID credentials. Empty keys disable push entirely.
+	Push struct {
+		VAPIDPublic  string `env:"VAPID_PUBLIC_KEY"  env-default:""`
+		VAPIDPrivate string `env:"VAPID_PRIVATE_KEY" env-default:""`
+		Subscriber   string `env:"VAPID_SUBSCRIBER"  env-default:""` // mailto: or https contact for push services
+	}
 )
 
 func NewConfig() (*Config, error) {
@@ -85,6 +93,7 @@ func RegisterConfigs() fx.Option {
 		func(cfg *Config) *Ingest { return &cfg.Ingest },
 		func(cfg *Config) *Auth { return &cfg.Auth },
 		func(cfg *Config) *Anthropic { return &cfg.Anthropic },
+		func(cfg *Config) *Push { return &cfg.Push },
 	)
 }
 

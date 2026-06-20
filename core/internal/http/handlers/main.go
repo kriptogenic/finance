@@ -9,11 +9,13 @@ import (
 	"finance/generated/api"
 	"finance/internal/categorysuggest"
 	"finance/internal/iconsuggest"
+	"finance/internal/pushnotify"
 	accountrepository "finance/internal/repositories/account_repository"
 	balancesnapshotrepository "finance/internal/repositories/balance_snapshot_repository"
 	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
 	categoryrulerepository "finance/internal/repositories/category_rule_repository"
+	pushsubscriptionrepository "finance/internal/repositories/push_subscription_repository"
 	reportrepository "finance/internal/repositories/report_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
 )
@@ -29,9 +31,12 @@ type Server struct {
 	reports       reportrepository.Repository
 	budgets       budgetrepository.Repository
 	snapshots     balancesnapshotrepository.Repository
+	push          pushsubscriptionrepository.Repository
 	icons         iconsuggest.Suggester
 	catSuggest    categorysuggest.Suggester
-	base          string // reporting currency (§3)
+	notifier      pushnotify.Notifier
+	vapidPublicKey string // served to the browser so it can subscribe to push
+	base          string  // reporting currency (§3)
 	logger        *zap.Logger
 }
 
@@ -45,23 +50,29 @@ func NewServer(
 	reports reportrepository.Repository,
 	budgets budgetrepository.Repository,
 	snapshots balancesnapshotrepository.Repository,
+	push pushsubscriptionrepository.Repository,
 	icons iconsuggest.Suggester,
 	catSuggest categorysuggest.Suggester,
+	notifier pushnotify.Notifier,
 	finance *config.Finance,
+	pushCfg *config.Push,
 	logger *zap.Logger,
 ) *Server {
 	return &Server{
-		accounts:      accounts,
-		categories:    categories,
-		categoryRules: categoryRules,
-		transactions:  transactions,
-		reports:       reports,
-		budgets:       budgets,
-		snapshots:     snapshots,
-		icons:         icons,
-		catSuggest:    catSuggest,
-		base:          finance.BaseCurrency,
-		logger:        logger,
+		accounts:       accounts,
+		categories:     categories,
+		categoryRules:  categoryRules,
+		transactions:   transactions,
+		reports:        reports,
+		budgets:        budgets,
+		snapshots:      snapshots,
+		push:           push,
+		icons:          icons,
+		catSuggest:     catSuggest,
+		notifier:       notifier,
+		vapidPublicKey: pushCfg.VAPIDPublic,
+		base:           finance.BaseCurrency,
+		logger:         logger,
 	}
 }
 

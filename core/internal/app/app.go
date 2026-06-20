@@ -18,11 +18,13 @@ import (
 	"finance/internal/http/handlers"
 	"finance/internal/http/middlewares"
 	"finance/internal/iconsuggest"
+	"finance/internal/pushnotify"
 	accountrepository "finance/internal/repositories/account_repository"
 	balancesnapshotrepository "finance/internal/repositories/balance_snapshot_repository"
 	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
 	categoryrulerepository "finance/internal/repositories/category_rule_repository"
+	pushsubscriptionrepository "finance/internal/repositories/push_subscription_repository"
 	reportrepository "finance/internal/repositories/report_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
 	"finance/pkg/database"
@@ -44,8 +46,10 @@ func CreateApp() fx.Option {
 			reportrepository.NewRepository,
 			budgetrepository.NewRepository,
 			balancesnapshotrepository.NewRepository,
+			pushsubscriptionrepository.NewRepository,
 			iconsuggest.New,
 			categorysuggest.New,
+			pushnotify.New,
 			handlers.NewServer,
 			httpHandler,
 		),

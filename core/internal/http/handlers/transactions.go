@@ -231,6 +231,12 @@ func (s Server) IngestTransaction(ctx context.Context, request api.IngestTransac
 	}
 
 	if created {
+		// A newly-ingested expense/income may have landed in the Uncategorized
+		// bucket — refresh the PWA badge across devices (no-op if push is off).
+		if create.CategoryId != nil {
+			s.notifier.OnIngestedCategory(*create.CategoryId)
+		}
+
 		return api.IngestTransaction201JSONResponse(s.toTransaction(tx)), nil
 	}
 

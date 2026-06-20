@@ -23,7 +23,7 @@ onMounted(async () => {
 <template>
   <section>
     <div class="mb-3 flex items-center gap-2">
-      <span class="h-2.5 w-2.5 rounded-full bg-indigo-400" />
+      <span class="h-2.5 w-2.5 rounded-full bg-amber-400" />
       <h2 class="text-sm font-semibold tracking-wide text-slate-500 uppercase">Reconciliation</h2>
     </div>
 

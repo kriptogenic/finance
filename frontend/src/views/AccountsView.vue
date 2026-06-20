@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { accountsApi } from '../api/accounts'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
@@ -67,6 +67,9 @@ async function remove(a: Account) {
   }
 }
 
+onMounted(() => window.addEventListener('data:refresh', load))
+onUnmounted(() => window.removeEventListener('data:refresh', load))
+
 onMounted(async () => {
   try {
     base.value = (await reportsApi.netWorth()).base
@@ -93,8 +96,8 @@ onMounted(async () => {
     <template v-else>
       <section
         v-for="group in [
-          { title: 'Assets', items: assets, dot: 'bg-emerald-400' },
-          { title: 'Liabilities', items: liabilities, dot: 'bg-rose-400' },
+          { title: 'Assets', items: assets, dot: 'bg-emerald-400', tile: 'bg-emerald-50' },
+          { title: 'Liabilities', items: liabilities, dot: 'bg-rose-400', tile: 'bg-rose-50' },
         ]"
         :key="group.title"
       >
@@ -103,10 +106,10 @@ onMounted(async () => {
           <h2 class="text-sm font-semibold tracking-wide text-slate-500 uppercase">{{ group.title }}</h2>
         </div>
 
-        <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+        <div class="card overflow-hidden">
           <ul class="divide-y divide-slate-100">
-            <li v-for="a in group.items" :key="a.id" class="group flex items-center gap-4 px-5 py-4 transition hover:bg-slate-50">
-              <span class="grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-lg">{{ typeIcon[a.type] }}</span>
+            <li v-for="a in group.items" :key="a.id" class="group flex items-center gap-4 px-4 py-4 transition hover:bg-slate-50 sm:px-5">
+              <span class="grid h-11 w-11 place-items-center rounded-2xl text-lg" :class="group.tile">{{ typeIcon[a.type] }}</span>
               <div class="min-w-0">
                 <p class="truncate font-semibold text-slate-800">{{ a.name }}</p>
                 <p class="text-xs text-slate-400">{{ typeLabel[a.type] || a.type }} · {{ a.currency }}</p>
@@ -120,7 +123,7 @@ onMounted(async () => {
                 </p>
               </div>
               <div class="flex gap-1 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100">
-                <button v-if="a.type === 'loan'" class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-indigo-100 hover:text-indigo-600" title="Amortization schedule" @click="scheduleFor = a">📅</button>
+                <button v-if="a.type === 'loan'" class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-amber-100 hover:text-amber-700" title="Amortization schedule" @click="scheduleFor = a">📅</button>
                 <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700" title="Edit" @click="openEdit(a)">✎</button>
                 <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600" title="Delete" @click="remove(a)">🗑</button>
               </div>

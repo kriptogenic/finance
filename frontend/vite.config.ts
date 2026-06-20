@@ -15,7 +15,7 @@ export default defineConfig({
         name: 'Mullajiring',
         short_name: 'Mullajiring',
         description: 'Private multi-currency personal finance tracker.',
-        theme_color: '#4f46e5',
+        theme_color: '#facc15',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',

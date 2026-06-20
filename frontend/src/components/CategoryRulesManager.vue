@@ -66,9 +66,9 @@ onMounted(load)
 </script>
 
 <template>
-  <section class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/70">
+  <section class="card p-6">
     <div class="mb-1 flex items-center gap-2">
-      <span class="h-2.5 w-2.5 rounded-full bg-indigo-400" />
+      <span class="h-2.5 w-2.5 rounded-full bg-amber-400" />
       <h2 class="text-sm font-semibold tracking-wide text-slate-500 uppercase">Ingest routing rules</h2>
     </div>
     <p class="mb-4 text-sm text-slate-500">
@@ -93,7 +93,7 @@ onMounted(load)
       <li v-for="r in rules" :key="r.id" class="group flex items-center gap-3 py-2">
         <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{{ r.pattern }}</code>
         <span class="text-slate-300">→</span>
-        <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-600">{{ r.category_name }}</span>
+        <span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">{{ r.category_name }}</span>
         <button
           class="ml-auto text-xs text-slate-400 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100 hover:text-rose-600"
           title="Delete"

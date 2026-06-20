@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { budgetsApi } from '../api/budgets'
 import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
@@ -23,7 +23,7 @@ const periodLabel: Record<string, string> = { weekly: 'This week', monthly: 'Thi
 function tone(pct: number) {
   if (pct >= 100) return { bar: 'bg-rose-500', text: 'text-rose-600', chip: 'bg-rose-50 text-rose-600' }
   if (pct >= 80) return { bar: 'bg-amber-500', text: 'text-amber-600', chip: 'bg-amber-50 text-amber-600' }
-  return { bar: 'bg-indigo-500', text: 'text-slate-700', chip: 'bg-slate-100 text-slate-500' }
+  return { bar: 'bg-emerald-500', text: 'text-slate-700', chip: 'bg-slate-100 text-slate-500' }
 }
 
 async function load() {
@@ -61,6 +61,9 @@ async function remove(b: Budget) {
   }
 }
 
+onMounted(() => window.addEventListener('data:refresh', load))
+onUnmounted(() => window.removeEventListener('data:refresh', load))
+
 onMounted(async () => {
   try {
     base.value = (await reportsApi.netWorth()).base
@@ -84,12 +87,12 @@ onMounted(async () => {
     <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
     <p v-else-if="loading" class="text-slate-500">Loading…</p>
 
-    <div v-else-if="!budgets.length" class="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm ring-1 ring-slate-200/70">
+    <div v-else-if="!budgets.length" class="card p-10 text-center text-sm text-slate-400">
       No budgets yet. Create one to track spending against a limit.
     </div>
 
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div v-for="b in budgets" :key="b.id" class="group rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
+      <div v-for="b in budgets" :key="b.id" class="card group p-5">
         <div class="flex items-start justify-between">
           <div>
             <p class="font-semibold text-slate-800">{{ b.category_name }}</p>

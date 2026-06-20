@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { transactionsApi, type TransactionFilter } from '../api/transactions'
 import { accountsApi } from '../api/accounts'
 import { categoriesApi } from '../api/categories'
@@ -152,6 +152,9 @@ watch(
   { deep: true },
 )
 
+onMounted(() => window.addEventListener('data:refresh', loadTransactions))
+onUnmounted(() => window.removeEventListener('data:refresh', loadTransactions))
+
 onMounted(async () => {
   try {
     base.value = (await reportsApi.netWorth()).base
@@ -174,7 +177,7 @@ onMounted(async () => {
     </div>
 
     <!-- filter bar -->
-    <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+    <div class="card p-4">
       <button
         type="button"
         class="flex w-full items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-slate-700"
@@ -184,7 +187,7 @@ onMounted(async () => {
           <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
         </svg>
         Search
-        <span v-if="activeFilterCount" class="ml-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">{{ activeFilterCount }} active</span>
+        <span v-if="activeFilterCount" class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">{{ activeFilterCount }} active</span>
       </button>
 
       <div v-show="showFilters" class="mt-3">
@@ -219,7 +222,7 @@ onMounted(async () => {
 
     <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
 
-    <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+    <div class="card overflow-hidden">
       <ul class="divide-y divide-slate-100">
         <li v-for="t in transactions" :key="t.id" class="group flex cursor-pointer items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50 sm:gap-4 sm:px-5" @click="openDetail(t)">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg font-semibold" :class="meta[t.type].ring">{{ meta[t.type].icon }}</span>

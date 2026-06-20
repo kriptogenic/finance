@@ -160,7 +160,7 @@ async function submit() {
             :key="c.id"
             type="button"
             class="flex flex-col items-center gap-1 rounded-xl border p-2 text-center transition"
-            :class="form.categoryId === c.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'"
+            :class="form.categoryId === c.id ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'"
             @click="form.categoryId = c.id"
           >
             <CategoryIcon :icon="c.icon" :color="c.color" :size="22" />
@@ -178,7 +178,7 @@ async function submit() {
             :key="a.id"
             type="button"
             class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition"
-            :class="form.fromId === a.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
+            :class="form.fromId === a.id ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
             @click="form.fromId = a.id"
           >
             <span>{{ acctIcon(a) }}</span>{{ a.name }}
@@ -196,7 +196,7 @@ async function submit() {
             :key="a.id"
             type="button"
             class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition"
-            :class="form.toId === a.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
+            :class="form.toId === a.id ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
             @click="form.toId = a.id"
           >
             <span>{{ acctIcon(a) }}</span>{{ a.name }}

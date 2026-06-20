@@ -187,7 +187,7 @@ function advance() {
       <p v-if="error" class="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{{ error }}</p>
 
       <!-- rule suggestion (after a category is chosen) -->
-      <div v-if="rulePrompt" class="space-y-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+      <div v-if="rulePrompt" class="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
         <p class="text-sm text-slate-700">
           Always categorize <span class="font-semibold">“{{ rulePrompt.note }}”</span> this way?
         </p>
@@ -209,7 +209,7 @@ function advance() {
               v-for="s in suggestions"
               :key="s.category_id"
               type="button"
-              class="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50 disabled:opacity-50"
+              class="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 transition hover:bg-amber-50 disabled:opacity-50"
               :disabled="busy"
               @click="applyCategory(s.category_id)"
             >

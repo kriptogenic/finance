@@ -33,13 +33,13 @@ async function submit() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+  <div class="flex min-h-screen items-center justify-center bg-slate-900 px-4">
     <form
-      class="w-full max-w-sm space-y-5 rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200/70"
+      class="w-full max-w-sm space-y-5 rounded-3xl bg-white p-8 shadow-2xl"
       @submit.prevent="submit"
     >
       <div class="flex items-center gap-2">
-        <img src="/favicon.svg" alt="" class="h-9 w-9" />
+        <img src="/favicon.svg" alt="" class="h-9 w-9 rounded-xl bg-amber-400 p-1" />
         <span class="text-lg font-semibold tracking-tight text-slate-900">Mullajiring</span>
       </div>
 

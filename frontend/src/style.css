@@ -6,6 +6,10 @@
 
 :root {
   color-scheme: light;
+  /* brand: yellow primary, dark ink */
+  --brand: #facc15; /* amber-400 */
+  --brand-strong: #eab308; /* amber-500 */
+  --ink: #0f172a; /* slate-900 */
 }
 
 html {
@@ -15,6 +19,7 @@ html {
 
 body {
   margin: 0;
+  background: #f8fafc; /* slate-50 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -24,17 +29,49 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* mobile sheet slide-up */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @layer components {
+  /* surfaces */
+  .card {
+    @apply rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+
+  /* forms */
   .lbl {
     @apply mb-1 block text-xs font-medium text-slate-500;
   }
   .field {
-    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20;
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30;
   }
+
+  /* buttons */
   .btn {
-    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
+    @apply bg-amber-400 text-slate-900 shadow-sm shadow-amber-400/30 hover:bg-amber-300 active:bg-amber-400;
+  }
+  .btn-dark {
     @apply bg-slate-900 text-white hover:bg-slate-800;
   }
   .btn-soft {

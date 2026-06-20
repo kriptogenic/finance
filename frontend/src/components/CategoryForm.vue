@@ -77,8 +77,6 @@ async function submit() {
         icon: form.icon,
         color: form.color,
       }
-      // only touch the parent when it's editable (not for parents-with-children)
-      if (showParent.value) body.parent_id = form.parent_id || null
       await categoriesApi.update(props.category.id, body)
     } else {
       const body: CreateCategoryRequest = {

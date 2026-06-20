@@ -77,7 +77,7 @@ onMounted(load)
           { title: 'Income', items: income, accent: 'bg-emerald-400', chip: 'bg-emerald-50 text-emerald-600' },
         ]"
         :key="group.title"
-        class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/70"
+        class="card p-6"
       >
         <div class="mb-4 flex items-center gap-2">
           <span class="h-2.5 w-2.5 rounded-full" :class="group.accent" />

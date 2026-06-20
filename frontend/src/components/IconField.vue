@@ -18,6 +18,11 @@ const emit = defineEmits<{ 'update:modelValue': [string] }>()
 const browseOpen = ref(false)
 const query = ref('')
 
+// The model occasionally invents names that aren't real Tabler icons; drop
+// those so we never render a broken glyph.
+const iconSet = new Set(ALL_ICON_NAMES)
+const validSuggestions = computed(() => (props.suggestions ?? []).filter((n) => iconSet.has(n)))
+
 const PAGE = 120
 const visibleCount = ref(PAGE)
 
@@ -64,9 +69,9 @@ function pick(name: string) {
         <span>Suggested</span>
         <span v-if="loading" class="h-3 w-3 animate-spin rounded-full border-[1.5px] border-slate-300 border-t-slate-500" />
       </div>
-      <div v-if="suggestions && suggestions.length" class="flex flex-wrap gap-1">
+      <div v-if="validSuggestions.length" class="flex flex-wrap gap-1">
         <button
-          v-for="name in suggestions"
+          v-for="name in validSuggestions"
           :key="name"
           type="button"
           :title="name"

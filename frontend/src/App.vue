@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clearCredentials } from './api/auth'
 import { hideMinorUnits } from './lib/settings'
+import { setAppBadge } from './lib/appBadge'
 import { accountsApi } from './api/accounts'
 import { categoriesApi } from './api/categories'
 import { reportsApi } from './api/reports'
@@ -20,6 +21,7 @@ const showChrome = computed(() => route.name !== 'login')
 
 function logout() {
   clearCredentials()
+  setAppBadge(0)
   moreOpen.value = false
   router.push({ name: 'login' })
 }
@@ -81,6 +83,9 @@ const categorizeOpen = ref(false)
 const fabBusy = ref(false)
 
 const hasUncategorized = computed(() => pending.value.length > 0)
+
+// Mirror the uncategorized count onto the PWA app-icon badge.
+watch(() => pending.value.length, setAppBadge)
 
 async function loadPending() {
   try {

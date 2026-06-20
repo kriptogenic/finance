@@ -10,6 +10,7 @@ import { formatDateTime } from '../lib/format'
 import TransactionForm from '../components/TransactionForm.vue'
 import TransactionDetail from '../components/TransactionDetail.vue'
 import CategoryIcon from '../components/CategoryIcon.vue'
+import SwipeRow from '../components/SwipeRow.vue'
 
 const transactions = ref<Transaction[]>([])
 const accounts = ref<Account[]>([])
@@ -241,28 +242,34 @@ onMounted(async () => {
 
     <div class="card overflow-hidden">
       <ul class="divide-y divide-slate-100">
-        <li v-for="{ t, cat } in rows" :key="t.id" class="group flex cursor-pointer items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50 sm:gap-4 sm:px-5" @click="openDetail(t)">
-          <span
-            v-if="cat"
-            class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg"
-            :class="cat.color ? '' : 'bg-slate-100'"
-            :style="cat.color ? { backgroundColor: cat.color + '22' } : undefined"
-          >
-            <CategoryIcon :icon="cat.icon" :color="cat.color" :size="20" />
-          </span>
-          <span v-else class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg" :class="meta[t.type].ring"><i :class="`ti ti-${meta[t.type].icon}`" /></span>
-          <div class="min-w-0">
-            <p class="truncate font-medium text-slate-800">{{ title(t) }}</p>
-            <p class="truncate text-xs text-slate-400">{{ subtitle(t) }}<span v-if="t.note"> · {{ t.note }}</span></p>
-          </div>
-          <div class="ml-auto shrink-0 text-right">
-            <p class="tabular font-semibold text-sm sm:text-base" :class="meta[t.type].amount">{{ meta[t.type].sign }}{{ t.amount.format() }}</p>
-            <p class="text-xs text-slate-400">{{ formatDateTime(t.date) }}</p>
-          </div>
-          <div class="flex shrink-0 gap-0.5 opacity-100 transition can-hover:opacity-0 can-hover:group-hover:opacity-100 sm:gap-1">
-            <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700 sm:h-8 sm:w-8" title="Edit" @click.stop="openEdit(t)"><i class="ti ti-pencil text-base" /></button>
-            <button class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600 sm:h-8 sm:w-8" title="Delete" @click.stop="remove(t)"><i class="ti ti-trash text-base" /></button>
-          </div>
+        <li v-for="{ t, cat } in rows" :key="t.id">
+          <!-- mobile: swipe right = edit, swipe left = delete -->
+          <SwipeRow @swipe-right="openEdit(t)" @swipe-left="remove(t)">
+            <div class="group flex cursor-pointer items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50 sm:gap-4 sm:px-5" @click="openDetail(t)">
+              <span
+                v-if="cat"
+                class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg"
+                :class="cat.color ? '' : 'bg-slate-100'"
+                :style="cat.color ? { backgroundColor: cat.color + '22' } : undefined"
+              >
+                <CategoryIcon :icon="cat.icon" :color="cat.color" :size="20" />
+              </span>
+              <span v-else class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg" :class="meta[t.type].ring"><i :class="`ti ti-${meta[t.type].icon}`" /></span>
+              <div class="min-w-0">
+                <p class="truncate font-medium text-slate-800">{{ title(t) }}</p>
+                <p class="truncate text-xs text-slate-400">{{ subtitle(t) }}<span v-if="t.note"> · {{ t.note }}</span></p>
+              </div>
+              <div class="ml-auto shrink-0 text-right">
+                <p class="tabular font-semibold text-sm sm:text-base" :class="meta[t.type].amount">{{ meta[t.type].sign }}{{ t.amount.format() }}</p>
+                <p class="text-xs text-slate-400">{{ formatDateTime(t.date) }}</p>
+              </div>
+              <!-- desktop only: hover reveals buttons; mobile uses swipe -->
+              <div class="hidden shrink-0 can-hover:flex can-hover:gap-1 can-hover:opacity-0 can-hover:transition can-hover:group-hover:opacity-100">
+                <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-700" title="Edit" @click.stop="openEdit(t)"><i class="ti ti-pencil text-base" /></button>
+                <button class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-rose-100 hover:text-rose-600" title="Delete" @click.stop="remove(t)"><i class="ti ti-trash text-base" /></button>
+              </div>
+            </div>
+          </SwipeRow>
         </li>
         <li v-if="loading" class="px-5 py-8 text-center text-sm text-slate-400">Loading…</li>
         <li v-else-if="!transactions.length" class="px-5 py-8 text-center text-sm text-slate-400">

@@ -12,6 +12,7 @@ import (
 	"finance/generated/api"
 	"finance/internal/entities"
 	"finance/internal/ledger"
+	"finance/internal/pushnotify"
 	accountrepository "finance/internal/repositories/account_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
@@ -234,7 +235,15 @@ func (s Server) IngestTransaction(ctx context.Context, request api.IngestTransac
 		// A newly-ingested expense/income may have landed in the Uncategorized
 		// bucket — refresh the PWA badge across devices (no-op if push is off).
 		if create.CategoryId != nil {
-			s.notifier.OnIngestedCategory(*create.CategoryId)
+			merchant := ""
+			if tx.Note != nil {
+				merchant = *tx.Note
+			}
+			s.notifier.OnIngestedCategory(pushnotify.Ingested{
+				CategoryID: *create.CategoryId,
+				Merchant:   merchant,
+				Amount:     money.New(tx.Amount, tx.Currency).Display(),
+			})
 		}
 
 		return api.IngestTransaction201JSONResponse(s.toTransaction(tx)), nil

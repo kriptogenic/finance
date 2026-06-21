@@ -23,18 +23,28 @@ import (
 // broadcastTimeout bounds the whole fan-out, which runs detached from the request.
 const broadcastTimeout = 20 * time.Second
 
+// Ingested describes the transaction an ingest just created, enough to render a
+// notification on the device.
+type Ingested struct {
+	CategoryID uuid.UUID
+	Merchant   string // raw merchant text (may be empty)
+	Amount     string // display-formatted amount, e.g. "25,000.00 UZS"
+}
+
 // Notifier reacts to ingest events by refreshing the badge on every device.
 type Notifier interface {
-	// OnIngestedCategory fires after an ingest created a transaction in catID.
-	// When that category is an Uncategorized bucket it pushes the new count.
-	// It returns immediately; delivery happens in the background.
-	OnIngestedCategory(catID uuid.UUID)
+	// OnIngestedCategory fires after an ingest created a transaction. When its
+	// category is an Uncategorized bucket it pushes the new count plus the
+	// merchant and amount. It returns immediately; delivery is in the background.
+	OnIngestedCategory(in Ingested)
 }
 
 // payload is the JSON the service worker receives on a push event.
 type payload struct {
-	Type  string `json:"type"`
-	Count int    `json:"count"`
+	Type     string `json:"type"`
+	Count    int    `json:"count"`
+	Merchant string `json:"merchant,omitempty"`
+	Amount   string `json:"amount,omitempty"`
 }
 
 type notifier struct {
@@ -68,20 +78,20 @@ func New(
 	}
 }
 
-func (n *notifier) OnIngestedCategory(catID uuid.UUID) {
+func (n *notifier) OnIngestedCategory(in Ingested) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), broadcastTimeout)
 		defer cancel()
 
-		if err := n.run(ctx, catID); err != nil {
+		if err := n.run(ctx, in); err != nil {
 			n.logger.Error("push badge broadcast", zap.Error(err))
 		}
 	}()
 }
 
-func (n *notifier) run(ctx context.Context, catID uuid.UUID) error {
+func (n *notifier) run(ctx context.Context, in Ingested) error {
 	// A rule-matched category doesn't change the uncategorized badge — skip.
-	cat, err := n.cats.Get(ctx, catID)
+	cat, err := n.cats.Get(ctx, in.CategoryID)
 	if err != nil {
 		return err
 	}
@@ -102,7 +112,12 @@ func (n *notifier) run(ctx context.Context, catID uuid.UUID) error {
 		return nil
 	}
 
-	body, err := json.Marshal(payload{Type: "uncategorized", Count: count})
+	body, err := json.Marshal(payload{
+		Type:     "uncategorized",
+		Count:    count,
+		Merchant: in.Merchant,
+		Amount:   in.Amount,
+	})
 	if err != nil {
 		return err
 	}
@@ -136,4 +151,4 @@ func isUncategorized(cat *entities.Category) bool {
 
 type disabled struct{}
 
-func (disabled) OnIngestedCategory(uuid.UUID) {}
+func (disabled) OnIngestedCategory(Ingested) {}

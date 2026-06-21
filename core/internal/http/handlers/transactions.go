@@ -11,8 +11,8 @@ import (
 
 	"finance/generated/api"
 	"finance/internal/entities"
+	"finance/internal/ingest"
 	"finance/internal/ledger"
-	"finance/internal/pushnotify"
 	accountrepository "finance/internal/repositories/account_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
@@ -171,100 +171,41 @@ func (s Server) IngestTransaction(ctx context.Context, request api.IngestTransac
 	}
 	body := request.Body
 
-	create := api.CreateTransactionRequest{
-		Date:       body.Date,
-		Type:       body.Type,
-		Amount:     body.Amount,
-		ToAmount:   body.ToAmount,
-		RateToBase: body.RateToBase,
-		Note:       body.Merchant, // raw merchant text is stored as the note
-		Tags:       body.Tags,
+	var tags []string
+	if body.Tags != nil {
+		tags = *body.Tags
 	}
 
-	// the app owns routing: resolve cards -> accounts
-	if body.FromCardLast4 != nil {
-		id, resp := s.resolveCard(ctx, *body.FromCardLast4)
-		if resp != nil {
-			return resp, nil
-		}
-		create.FromAccountId = id
+	res, err := s.ingest.Ingest(ctx, ingest.Command{
+		ExternalID:      body.ExternalId,
+		Date:            body.Date,
+		Type:            entities.TransactionType(body.Type),
+		Amount:          body.Amount,
+		ToAmount:        body.ToAmount,
+		RateToBase:      body.RateToBase,
+		Merchant:        body.Merchant,
+		Tags:            tags,
+		FromCardLast4:   body.FromCardLast4,
+		ToCardLast4:     body.ToCardLast4,
+		TransferGroupID: body.TransferGroupId,
+	})
+
+	var ve ingest.ValidationError
+	if errors.As(err, &ve) {
+		return api.IngestTransaction400JSONResponse{BadRequestJSONResponse: badRequest(ve.Error())}, nil
 	}
-	if body.ToCardLast4 != nil {
-		id, resp := s.resolveCard(ctx, *body.ToCardLast4)
-		if resp != nil {
-			return resp, nil
-		}
-		create.ToAccountId = id
-	}
-
-	// ... and the merchant -> a category (rule, else the Uncategorized bucket)
-	if body.Type != api.TransactionTypeTransfer {
-		catType := entities.CategoryExpense
-		if body.Type == api.TransactionTypeIncome {
-			catType = entities.CategoryIncome
-		}
-		merchant := ""
-		if body.Merchant != nil {
-			merchant = *body.Merchant
-		}
-		catID, err := s.categories.ResolveForIngest(ctx, catType, merchant)
-		if err != nil {
-			s.logger.Error("resolve ingest category", zap.Error(err))
-
-			return api.IngestTransaction400JSONResponse{BadRequestJSONResponse: badRequest("could not resolve a category (seed the Uncategorized buckets)")}, nil
-		}
-		create.CategoryId = &catID
-	}
-
-	tx, msg := s.buildTransaction(ctx, &create)
-	if msg != "" {
-		return api.IngestTransaction400JSONResponse{BadRequestJSONResponse: badRequest(msg)}, nil
-	}
-
-	tx.ExternalID = &body.ExternalId
-	tx.TransferGroupID = body.TransferGroupId
-
-	created, err := s.transactions.Ingest(ctx, &tx)
 	if err != nil {
 		s.logger.Error("ingest transaction", zap.Error(err))
 
 		return nil, err
 	}
 
-	if created {
-		// A newly-ingested expense/income may have landed in the Uncategorized
-		// bucket — refresh the PWA badge across devices (no-op if push is off).
-		if create.CategoryId != nil {
-			merchant := ""
-			if tx.Note != nil {
-				merchant = *tx.Note
-			}
-			s.notifier.OnIngestedCategory(pushnotify.Ingested{
-				CategoryID: *create.CategoryId,
-				Merchant:   merchant,
-				Amount:     money.New(tx.Amount, tx.Currency).Display(),
-			})
-		}
-
-		return api.IngestTransaction201JSONResponse(s.toTransaction(tx)), nil
+	out := s.toTransaction(res.Transaction)
+	if res.Created {
+		return api.IngestTransaction201JSONResponse(out), nil
 	}
 
-	return api.IngestTransaction200JSONResponse(s.toTransaction(tx)), nil
-}
-
-// resolveCard maps a card last4 to its account id, or returns a 400 response.
-func (s Server) resolveCard(ctx context.Context, last4 string) (*uuid.UUID, api.IngestTransactionResponseObject) {
-	acc, err := s.accounts.ByCardLast4(ctx, last4)
-	if errors.Is(err, accountrepository.ErrNotFound) {
-		return nil, api.IngestTransaction400JSONResponse{BadRequestJSONResponse: badRequest("unknown card: " + last4)}
-	}
-	if err != nil {
-		s.logger.Error("resolve card", zap.Error(err))
-
-		return nil, api.IngestTransaction400JSONResponse{BadRequestJSONResponse: badRequest("card resolution failed")}
-	}
-
-	return &acc.ID, nil
+	return api.IngestTransaction200JSONResponse(out), nil
 }
 
 func (s Server) PatchTransaction(ctx context.Context, request api.PatchTransactionRequestObject) (api.PatchTransactionResponseObject, error) {

@@ -18,6 +18,7 @@ import (
 	"finance/internal/http/handlers"
 	"finance/internal/http/middlewares"
 	"finance/internal/iconsuggest"
+	"finance/internal/ingest"
 	"finance/internal/pushnotify"
 	accountrepository "finance/internal/repositories/account_repository"
 	balancesnapshotrepository "finance/internal/repositories/balance_snapshot_repository"
@@ -55,6 +56,7 @@ func CreateApp() fx.Option {
 			iconsuggest.New,
 			categorysuggest.New,
 			pushnotify.New,
+			ingest.NewService,
 			handlers.NewServer,
 			httpHandler,
 		),

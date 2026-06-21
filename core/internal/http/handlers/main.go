@@ -9,7 +9,7 @@ import (
 	"finance/generated/api"
 	"finance/internal/categorysuggest"
 	"finance/internal/iconsuggest"
-	"finance/internal/pushnotify"
+	"finance/internal/ingest"
 	accountrepository "finance/internal/repositories/account_repository"
 	balancesnapshotrepository "finance/internal/repositories/balance_snapshot_repository"
 	budgetrepository "finance/internal/repositories/budget_repository"
@@ -38,7 +38,7 @@ type Server struct {
 	materializer   *scheduler.Materializer
 	icons          iconsuggest.Suggester
 	catSuggest     categorysuggest.Suggester
-	notifier       pushnotify.Notifier
+	ingest         *ingest.Service
 	vapidPublicKey string // served to the browser so it can subscribe to push
 	base           string // reporting currency (§3)
 	logger         *zap.Logger
@@ -59,7 +59,7 @@ func NewServer(
 	materializer *scheduler.Materializer,
 	icons iconsuggest.Suggester,
 	catSuggest categorysuggest.Suggester,
-	notifier pushnotify.Notifier,
+	ingestSvc *ingest.Service,
 	finance *config.Finance,
 	pushCfg *config.Push,
 	logger *zap.Logger,
@@ -77,7 +77,7 @@ func NewServer(
 		materializer:   materializer,
 		icons:          icons,
 		catSuggest:     catSuggest,
-		notifier:       notifier,
+		ingest:         ingestSvc,
 		vapidPublicKey: pushCfg.VAPIDPublic,
 		base:           finance.BaseCurrency,
 		logger:         logger,

@@ -27,7 +27,7 @@ func (r repository) Upsert(ctx context.Context, snap *entities.BalanceSnapshot) 
 		INSERT INTO balance_snapshots (card_last4, bank, amount, currency, source, reported_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, now())
 		ON CONFLICT (card_last4) DO UPDATE SET
-			bank = EXCLUDED.bank,
+			bank = COALESCE(EXCLUDED.bank, balance_snapshots.bank),
 			amount = EXCLUDED.amount,
 			currency = EXCLUDED.currency,
 			source = EXCLUDED.source,

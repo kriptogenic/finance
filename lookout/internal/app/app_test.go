@@ -238,6 +238,26 @@ func TestApp_BalanceSnapshotRouted(t *testing.T) {
 	}
 }
 
+func TestApp_TransactionReportsBalance(t *testing.T) {
+	poster := &fakePoster{}
+	a, _ := newApp(t, poster)
+	clock := time.Date(2026, 6, 14, 10, 3, 0, 0, time.UTC)
+	a.now = func() time.Time { return clock }
+
+	f := &fakeFetcher{msgs: []telegram.Message{{ID: 100, Date: clock, Text: debit4853}}}
+	if err := a.cycle(context.Background(), f); err != nil {
+		t.Fatalf("cycle: %v", err)
+	}
+
+	if poster.balanceBatches() != 1 {
+		t.Fatalf("transaction should report its card balance, got %d batches", poster.balanceBatches())
+	}
+	bal := poster.balances[0]
+	if len(bal) != 1 || bal[0].CardLast4 != "4853" || bal[0].Amount != 69794526 || bal[0].Currency != "UZS" {
+		t.Fatalf("bad reported balance: %+v", bal)
+	}
+}
+
 func TestApp_PermanentErrorHoldsWatermark(t *testing.T) {
 	poster := &fakePoster{failPerm: true}
 	a, st := newApp(t, poster)

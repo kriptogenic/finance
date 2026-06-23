@@ -51,6 +51,9 @@ func (r Record) ExternalID() string {
 
 const dateLayout = "15:04 02.01.2006"
 
+// txCurrency is the currency every transaction notification is denominated in.
+const txCurrency = "UZS"
+
 const vs = `\x{fe0f}?`
 
 const ws = `[\t\f\r\p{Zs}]*`
@@ -59,11 +62,11 @@ const nl = ws + `\n` + ws
 
 var re = regexp.MustCompile(
 	`([➖➕])` + vs + ws +
-		`([0-9.,]+)` + ws + `UZS` +
+		`([0-9.,]+)` + ws + txCurrency +
 		nl + emoji("📍") + ws + `(.*?)` +
 		nl + emoji("💳") + ws + `([A-Za-z]+)` + ws + `\*` + ws + `([0-9]+)` +
 		nl + emoji("🕓") + ws + `([0-9:.]+` + ws + `[0-9.]+)` +
-		nl + emoji("💰") + ws + `([0-9.,]+)` + ws + `UZS`)
+		nl + emoji("💰") + ws + `([0-9.,]+)` + ws + txCurrency)
 
 func emoji(e string) string { return regexp.QuoteMeta(e) + vs }
 

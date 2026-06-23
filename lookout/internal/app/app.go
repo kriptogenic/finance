@@ -133,6 +133,14 @@ func (a *App) process(ctx context.Context, chatID int64, m telegram.Message) err
 		return a.commit(m.ID)
 	}
 
+	// The transaction message also reports the card's post-transaction balance;
+	// feed it to reconciliation so gaps surface even without a snapshot message.
+	if bal, ok := rec.Balance(); ok {
+		if err := a.balances.PostBalances(ctx, []parser.CardBalance{bal}, rec.Time); err != nil {
+			return err
+		}
+	}
+
 	posting := a.buffer.Add(rec, a.now())
 	if posting != nil {
 

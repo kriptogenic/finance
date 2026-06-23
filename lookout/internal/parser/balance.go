@@ -13,6 +13,20 @@ type CardBalance struct {
 	Currency  string
 }
 
+// Balance returns the post-transaction card balance carried by this record, for
+// reconciliation. ok is false when the record did not parse. Bank is left empty:
+// transaction notifications carry the card network, not the issuing bank.
+func (r Record) Balance() (CardBalance, bool) {
+	if !r.Parsed {
+		return CardBalance{}, false
+	}
+	return CardBalance{
+		CardLast4: r.CardLast4,
+		Amount:    r.BalanceAfter,
+		Currency:  txCurrency,
+	}, true
+}
+
 // A balance snapshot lists one block per card:
 //
 //	🔹 HUMOCARD TBCBANK *8400

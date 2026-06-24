@@ -604,6 +604,8 @@ export interface components {
             icon?: string | null;
             color?: string | null;
             archived: boolean;
+            /** @description When true, the category is hidden from the categorize picker. */
+            hidden_in_picker: boolean;
             /** Format: date-time */
             created_at: string;
         };
@@ -614,12 +616,14 @@ export interface components {
             parent_id?: string;
             icon?: string;
             color?: string;
+            hidden_in_picker?: boolean;
         };
         UpdateCategoryRequest: {
             name?: string;
             icon?: string;
             color?: string;
             archived?: boolean;
+            hidden_in_picker?: boolean;
         };
         CategoryRule: {
             /** Format: uuid */

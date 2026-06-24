@@ -1099,6 +1099,7 @@ components:
         - name
         - type
         - archived
+        - hidden_in_picker
         - created_at
       properties:
         id:
@@ -1120,6 +1121,9 @@ components:
           nullable: true
         archived:
           type: boolean
+        hidden_in_picker:
+          type: boolean
+          description: When true, the category is hidden from the categorize picker.
         created_at:
           type: string
           format: date-time
@@ -1143,6 +1147,8 @@ components:
           type: string
         color:
           type: string
+        hidden_in_picker:
+          type: boolean
 
     UpdateCategoryRequest:
       type: object
@@ -1156,6 +1162,8 @@ components:
         color:
           type: string
         archived:
+          type: boolean
+        hidden_in_picker:
           type: boolean
 
     CategoryRule:

@@ -45,7 +45,9 @@ function norm(s: string | null | undefined): string {
 }
 
 const categoryOptions = computed(() =>
-  props.categories.filter((c) => current.value && c.type === categoryType(current.value) && !c.archived),
+  props.categories.filter(
+    (c) => current.value && c.type === categoryType(current.value) && !c.archived && !c.hidden_in_picker,
+  ),
 )
 
 function categoryType(tx: Transaction): string {

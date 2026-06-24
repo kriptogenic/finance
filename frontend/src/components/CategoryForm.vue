@@ -47,6 +47,7 @@ const form = reactive({
   // new categories get a random palette color; editing keeps the saved one
   color: props.category ? (props.category.color ?? '') : randomCategoryColor(),
   archived: props.category?.archived ?? false,
+  hidden_in_picker: props.category?.hidden_in_picker ?? false,
 })
 
 const parentOptions = computed(() =>
@@ -95,6 +96,7 @@ async function submit() {
       const body: UpdateCategoryRequest = {
         name: form.name,
         archived: form.archived,
+        hidden_in_picker: form.hidden_in_picker,
         // send empty strings too, so clearing the icon/color persists
         icon: form.icon,
         color: form.color,
@@ -107,6 +109,7 @@ async function submit() {
         ...(form.parent_id ? { parent_id: form.parent_id } : {}),
         ...(form.icon ? { icon: form.icon } : {}),
         ...(form.color ? { color: form.color } : {}),
+        ...(form.hidden_in_picker ? { hidden_in_picker: true } : {}),
       }
       await categoriesApi.create(body)
     }
@@ -144,9 +147,14 @@ async function submit() {
         </div>
       </template>
 
-      <div v-else class="flex items-center gap-2">
+      <div v-if="editing" class="flex items-center gap-2">
         <input id="cat-archived" v-model="form.archived" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
         <label for="cat-archived" class="text-sm text-slate-600">Archived</label>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input id="cat-hidden" v-model="form.hidden_in_picker" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+        <label for="cat-hidden" class="text-sm text-slate-600">Hide when categorizing</label>
       </div>
 
       <div>

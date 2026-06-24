@@ -47,6 +47,9 @@ func (s Server) CreateCategory(ctx context.Context, request api.CreateCategoryRe
 		Icon:     body.Icon,
 		Color:    body.Color,
 	}
+	if body.HiddenInPicker != nil {
+		cat.HiddenInPicker = *body.HiddenInPicker
+	}
 
 	if cat.ParentID != nil {
 		if resp := s.validateParent(ctx, *cat.ParentID, cat.Type); resp != nil {
@@ -126,6 +129,9 @@ func (s Server) UpdateCategory(ctx context.Context, request api.UpdateCategoryRe
 	if body.Archived != nil {
 		cat.Archived = *body.Archived
 	}
+	if body.HiddenInPicker != nil {
+		cat.HiddenInPicker = *body.HiddenInPicker
+	}
 
 	if err = s.categories.Update(ctx, cat); err != nil {
 		s.logger.Error("update category", zap.Error(err))
@@ -169,11 +175,12 @@ func (s Server) SuggestIcons(ctx context.Context, request api.SuggestIconsReques
 
 func toCategory(c entities.Category) api.Category {
 	out := api.Category{
-		Id:        c.ID,
-		Name:      c.Name,
-		Type:      api.CategoryType(c.Type),
-		Archived:  c.Archived,
-		CreatedAt: c.CreatedAt,
+		Id:             c.ID,
+		Name:           c.Name,
+		Type:           api.CategoryType(c.Type),
+		Archived:       c.Archived,
+		HiddenInPicker: c.HiddenInPicker,
+		CreatedAt:      c.CreatedAt,
 	}
 
 	if c.ParentID != nil {

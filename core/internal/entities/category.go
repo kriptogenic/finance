@@ -19,13 +19,18 @@ const (
 // tree is two levels (category → subcategory); a subcategory shares its
 // parent's type.
 type Category struct {
-	ID        uuid.UUID
-	Name      string
-	ParentID  *uuid.UUID
-	Type      CategoryType
-	Icon      *string
-	Color     *string
-	Archived  bool
+	ID       uuid.UUID
+	Name     string
+	ParentID *uuid.UUID
+	Type     CategoryType
+	Icon     *string
+	Color    *string
+	Archived bool
+
+	// HiddenInPicker hides the category from the categorize picker; it stays
+	// usable by ingest rules and on existing transactions.
+	HiddenInPicker bool
+
 	CreatedAt time.Time
 
 	SystemKey *string // marks built-in buckets (e.g. "uncategorized_expense") for ingest

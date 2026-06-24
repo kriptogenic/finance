@@ -35,22 +35,22 @@ func NewRepository(db *database.DB) Repository {
 	return &repository{db: db}
 }
 
-const categoryColumns = `id, name, parent_id, type, icon, color, archived, created_at, system_key`
+const categoryColumns = `id, name, parent_id, type, icon, color, archived, hidden_in_picker, created_at, system_key`
 
 func scanCategory(row pgx.Row) (entities.Category, error) {
 	var c entities.Category
-	err := row.Scan(&c.ID, &c.Name, &c.ParentID, &c.Type, &c.Icon, &c.Color, &c.Archived, &c.CreatedAt, &c.SystemKey)
+	err := row.Scan(&c.ID, &c.Name, &c.ParentID, &c.Type, &c.Icon, &c.Color, &c.Archived, &c.HiddenInPicker, &c.CreatedAt, &c.SystemKey)
 
 	return c, err
 }
 
 func (r repository) Create(ctx context.Context, cat *entities.Category) error {
 	const query = `
-		INSERT INTO categories (name, parent_id, type, icon, color, system_key)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO categories (name, parent_id, type, icon, color, hidden_in_picker, system_key)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, created_at`
 
-	err := r.db.Pool.QueryRow(ctx, query, cat.Name, cat.ParentID, cat.Type, cat.Icon, cat.Color, cat.SystemKey).
+	err := r.db.Pool.QueryRow(ctx, query, cat.Name, cat.ParentID, cat.Type, cat.Icon, cat.Color, cat.HiddenInPicker, cat.SystemKey).
 		Scan(&cat.ID, &cat.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create category: %w", err)
@@ -111,10 +111,10 @@ func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Category, 
 
 func (r repository) Update(ctx context.Context, cat *entities.Category) error {
 	const query = `
-		UPDATE categories SET name = $2, icon = $3, color = $4, archived = $5
+		UPDATE categories SET name = $2, icon = $3, color = $4, archived = $5, hidden_in_picker = $6
 		WHERE id = $1`
 
-	res, err := r.db.Pool.Exec(ctx, query, cat.ID, cat.Name, cat.Icon, cat.Color, cat.Archived)
+	res, err := r.db.Pool.Exec(ctx, query, cat.ID, cat.Name, cat.Icon, cat.Color, cat.Archived, cat.HiddenInPicker)
 	if err != nil {
 		return fmt.Errorf("update category: %w", err)
 	}

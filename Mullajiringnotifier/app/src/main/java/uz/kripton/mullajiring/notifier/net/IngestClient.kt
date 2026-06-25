@@ -18,25 +18,30 @@ class IngestClient(
     private val http: OkHttpClient = defaultHttp(),
 ) {
 
-    fun deliver(request: IngestTransactionRequest): DeliveryOutcome {
+    fun deliver(request: IngestTransactionRequest): DeliveryOutcome =
+        post("/ingest/transactions", json.encodeToString(IngestTransactionRequest.serializer(), request))
+
+    /** Report a card balance snapshot for server-side reconciliation. */
+    fun deliverBalance(request: BalanceSnapshotRequest): DeliveryOutcome =
+        post("/ingest/balances", json.encodeToString(BalanceSnapshotRequest.serializer(), request))
+
+    private fun post(path: String, payload: String): DeliveryOutcome {
         val base = baseUrlProvider()
         val token = tokenProvider()
         if (base.isEmpty() || token.isEmpty()) {
             return DeliveryOutcome.Retryable("not configured")
         }
 
-        val body = json.encodeToString(IngestTransactionRequest.serializer(), request)
-            .toRequestBody(JSON)
         val httpRequest = Request.Builder()
-            .url("$base/ingest/transactions")
+            .url("$base$path")
             .header("Authorization", "Bearer $token")
-            .post(body)
+            .post(payload.toRequestBody(JSON))
             .build()
 
         return try {
             http.newCall(httpRequest).execute().use { resp ->
                 when {
-                    resp.isSuccessful -> DeliveryOutcome.Success // 200 (deduped) and 201 both ok
+                    resp.isSuccessful -> DeliveryOutcome.Success // 2xx (incl. 200 deduped, 204) all ok
                     resp.code == 401 -> DeliveryOutcome.Retryable("401 unauthorized")
                     resp.code in 400..499 ->
                         DeliveryOutcome.PermanentFailure(resp.code, resp.body?.string().orEmpty())

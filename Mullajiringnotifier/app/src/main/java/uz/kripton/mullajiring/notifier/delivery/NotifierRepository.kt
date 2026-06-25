@@ -9,6 +9,8 @@ import uz.kripton.mullajiring.notifier.data.OutboxEntity
 import uz.kripton.mullajiring.notifier.data.OutboxStatus
 import uz.kripton.mullajiring.notifier.data.ParseFailureDao
 import uz.kripton.mullajiring.notifier.data.ParseFailureEntity
+import uz.kripton.mullajiring.notifier.net.BalanceSnapshotEntry
+import uz.kripton.mullajiring.notifier.net.BalanceSnapshotRequest
 import uz.kripton.mullajiring.notifier.net.DeliveryOutcome
 import uz.kripton.mullajiring.notifier.net.IngestClient
 import uz.kripton.mullajiring.notifier.net.IngestTransactionRequest
@@ -95,6 +97,7 @@ class NotifierRepository(
             when (val outcome = ingest.deliver(item.toRequest())) {
                 is DeliveryOutcome.Success -> {
                     outbox.update(item.externalId, OutboxStatus.DELIVERED, item.attempts, 0, null)
+                    postBalance(item)
                     reconcile(item)?.let { events += it }
                 }
 
@@ -119,6 +122,28 @@ class NotifierRepository(
         }
         val earliest = outbox.earliestNextAttempt()
         return DrainResult(events, hasPending = earliest != null, nextAttemptAt = earliest)
+    }
+
+    /**
+     * Report the card's balance (carried in the same SMS) to the server for
+     * reconciliation. Best-effort: the endpoint upserts latest-wins, so a missed
+     * post self-heals on the next transaction for that card.
+     */
+    private fun postBalance(item: OutboxEntity) {
+        ingest.deliverBalance(
+            BalanceSnapshotRequest(
+                reportedAt = item.occurredAtUtc,
+                source = config.senderName,
+                balances = listOf(
+                    BalanceSnapshotEntry(
+                        cardLast4 = item.cardLast4,
+                        bank = config.senderName,
+                        amount = item.balanceMinor,
+                        currency = item.balanceCurrency,
+                    ),
+                ),
+            ),
+        )
     }
 
     /**

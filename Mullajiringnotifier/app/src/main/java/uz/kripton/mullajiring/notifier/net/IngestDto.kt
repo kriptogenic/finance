@@ -21,6 +21,25 @@ data class IngestTransactionRequest(
     val tags: List<String>? = null,
 )
 
+/**
+ * Mirror of the finance app's BalanceSnapshotRequest (specs/api.yaml).
+ * Upserts the latest reported balance per card for server-side reconciliation.
+ */
+@Serializable
+data class BalanceSnapshotRequest(
+    @SerialName("reported_at") val reportedAt: String,
+    val source: String? = null,
+    val balances: List<BalanceSnapshotEntry>,
+)
+
+@Serializable
+data class BalanceSnapshotEntry(
+    @SerialName("card_last4") val cardLast4: String,
+    val bank: String? = null,
+    val amount: Long,
+    val currency: String,
+)
+
 /** Result of one delivery attempt. */
 sealed interface DeliveryOutcome {
     /** 2xx — created (201) or already ingested (200). Treat both as done. */

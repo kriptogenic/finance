@@ -96,6 +96,21 @@ function buildFilter(): TransactionFilter {
   return f
 }
 
+const exporting = ref(false)
+async function exportXlsx() {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const { limit, ...filter } = buildFilter()
+    void limit
+    await transactionsApi.exportXlsx(filter)
+  } catch (e) {
+    alert(errMessage(e))
+  } finally {
+    exporting.value = false
+  }
+}
+
 function clearFilters() {
   filters.q = ''
   filters.type = ''
@@ -195,7 +210,13 @@ onMounted(async () => {
         <h1 class="text-2xl font-bold tracking-tight text-slate-900">Transactions</h1>
         <p class="text-sm text-slate-500">{{ transactions.length }} result{{ transactions.length === 1 ? '' : 's' }}</p>
       </div>
-      <button class="btn btn-primary shrink-0" @click="openNew">+ New<span class="hidden sm:inline"> transaction</span></button>
+      <div class="flex shrink-0 items-center gap-2">
+        <button class="btn btn-soft" :disabled="exporting" title="Export to Excel" @click="exportXlsx">
+          <i class="ti ti-file-spreadsheet" />
+          <span class="hidden sm:inline"> {{ exporting ? 'Exporting…' : 'Export' }}</span>
+        </button>
+        <button class="btn btn-primary" @click="openNew">+ New<span class="hidden sm:inline"> transaction</span></button>
+      </div>
     </div>
 
     <!-- filter bar -->

@@ -1,4 +1,5 @@
 import { api, call } from './client'
+import { apiBaseUrl, authHeader } from './auth'
 import type {
   CategorySuggestion,
   CreateTransactionRequest,
@@ -45,4 +46,29 @@ export const transactionsApi = {
 
   setSplit: (id: string, body: SetSplitRequest): Promise<TransactionSplit> =>
     call(api.PUT('/transactions/{id}/split', { params: { path: { id } }, body })),
+
+  // Downloads matching expenses/income as an .xlsx file (raw fetch: the response
+  // is a binary blob, not JSON). Transfers are excluded server-side.
+  exportXlsx: async (filter: TransactionFilter = {}): Promise<void> => {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(filter)) {
+      if (value !== undefined && value !== '' && key !== 'limit' && key !== 'offset' && key !== 'uncategorized') {
+        params.set(key, String(value))
+      }
+    }
+    const header = authHeader()
+    const res = await fetch(`${apiBaseUrl}/transactions/export?${params}`, {
+      headers: header ? { Authorization: header } : {},
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+    const blob = await res.blob()
+    const name = res.headers.get('Content-Disposition')?.match(/filename="?([^"]+)"?/)?.[1] || 'transactions.xlsx'
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }

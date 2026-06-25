@@ -315,6 +315,47 @@ paths:
         400:
           $ref: '#/components/responses/BadRequest'
 
+  /transactions/export:
+    get:
+      operationId: exportTransactions
+      summary: Export expenses and income (matching the given filters) as an .xlsx file
+      parameters:
+        - name: account_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: category_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: type
+          in: query
+          description: Restrict to a single type; transfers are always excluded.
+          schema:
+            $ref: './definitions.yaml#/components/schemas/TransactionType'
+        - name: date_from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: date_to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: tag
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          description: Free-text match on the note
+          schema: { type: string }
+      responses:
+        200:
+          description: Spreadsheet with datetime, amount, category name and note columns
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
   /transactions/{id}:
     parameters:
       - $ref: '#/components/parameters/TransactionId'

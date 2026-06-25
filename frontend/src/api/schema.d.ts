@@ -171,6 +171,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/transactions/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export expenses and income (matching the given filters) as an .xlsx file */
+        get: operations["exportTransactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/transactions/{id}": {
         parameters: {
             query?: never;
@@ -1561,6 +1578,37 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+        };
+    };
+    exportTransactions: {
+        parameters: {
+            query?: {
+                account_id?: string;
+                category_id?: string;
+                /** @description Restrict to a single type; transfers are always excluded. */
+                type?: components["schemas"]["TransactionType"];
+                date_from?: string;
+                date_to?: string;
+                tag?: string;
+                /** @description Free-text match on the note */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Spreadsheet with datetime, amount, category name and note columns */
+            200: {
+                headers: {
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
         };
     };
     getTransaction: {

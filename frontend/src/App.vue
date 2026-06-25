@@ -10,6 +10,7 @@ import { accountsApi } from './api/accounts'
 import { categoriesApi } from './api/categories'
 import { reportsApi } from './api/reports'
 import { transactionsApi } from './api/transactions'
+import { reconciliationApi } from './api/reconciliation'
 import type { Account, Category, Transaction } from './api/types'
 import TransactionForm from './components/TransactionForm.vue'
 import CategorizeModal from './components/CategorizeModal.vue'
@@ -102,6 +103,22 @@ async function loadPending() {
   }
 }
 
+// Flags the Transactions tab when any account's reported balance is off.
+const reconIssue = ref(false)
+async function loadRecon() {
+  try {
+    const report = await reconciliationApi.list()
+    reconIssue.value = report.rows.some((r) => !r.in_sync || r.currency_mismatch)
+  } catch {
+    reconIssue.value = false
+  }
+}
+
+function refreshIndicators() {
+  loadPending()
+  loadRecon()
+}
+
 async function loadMeta() {
   const [accs, cats, nw] = await Promise.all([
     accountsApi.list(),
@@ -139,9 +156,9 @@ function onCategorizeClose() {
   broadcastRefresh()
 }
 
-onMounted(() => window.addEventListener('data:refresh', loadPending))
-onUnmounted(() => window.removeEventListener('data:refresh', loadPending))
-onMounted(loadPending)
+onMounted(() => window.addEventListener('data:refresh', refreshIndicators))
+onUnmounted(() => window.removeEventListener('data:refresh', refreshIndicators))
+onMounted(refreshIndicators)
 
 // ── Push badge subscription ────────────────────────────────────────────────
 // Lets the app-icon badge update while the app is closed (see lib/push.ts).
@@ -200,6 +217,11 @@ onMounted(refreshPushState)
             <path stroke-linecap="round" stroke-linejoin="round" :d="item.icon" />
           </svg>
           {{ item.label }}
+          <span
+            v-if="item.to === '/accounts' && reconIssue"
+            class="ml-auto grid h-5 w-5 place-items-center rounded-full bg-rose-500 text-xs font-bold text-white"
+            title="An account is out of sync"
+          >!</span>
         </RouterLink>
       </nav>
 
@@ -269,9 +291,15 @@ onMounted(refreshPushState)
         class="flex flex-1 flex-col items-center gap-1 px-1 py-2.5 text-[10px] leading-tight font-medium text-slate-400 transition"
         exact-active-class="!text-slate-900"
       >
-        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" :d="item.icon" />
-        </svg>
+        <span class="relative">
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" :d="item.icon" />
+          </svg>
+          <span
+            v-if="item.to === '/accounts' && reconIssue"
+            class="absolute -top-1 -right-1.5 grid h-3.5 w-3.5 place-items-center rounded-full bg-rose-500 text-[9px] font-bold text-white ring-2 ring-white"
+          >!</span>
+        </span>
         {{ item.label }}
       </RouterLink>
 

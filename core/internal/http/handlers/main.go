@@ -18,6 +18,7 @@ import (
 	pushsubscriptionrepository "finance/internal/repositories/push_subscription_repository"
 	reportrepository "finance/internal/repositories/report_repository"
 	scheduledtransactionrepository "finance/internal/repositories/scheduled_transaction_repository"
+	splitrepository "finance/internal/repositories/split_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
 	"finance/internal/scheduler"
 )
@@ -30,6 +31,7 @@ type Server struct {
 	categories     categoryrepository.Repository
 	categoryRules  categoryrulerepository.Repository
 	transactions   transactionrepository.Repository
+	splits         splitrepository.Repository
 	reports        reportrepository.Repository
 	budgets        budgetrepository.Repository
 	snapshots      balancesnapshotrepository.Repository
@@ -51,6 +53,7 @@ func NewServer(
 	categories categoryrepository.Repository,
 	categoryRules categoryrulerepository.Repository,
 	transactions transactionrepository.Repository,
+	splits splitrepository.Repository,
 	reports reportrepository.Repository,
 	budgets budgetrepository.Repository,
 	snapshots balancesnapshotrepository.Repository,
@@ -69,6 +72,7 @@ func NewServer(
 		categories:     categories,
 		categoryRules:  categoryRules,
 		transactions:   transactions,
+		splits:         splits,
 		reports:        reports,
 		budgets:        budgets,
 		snapshots:      snapshots,

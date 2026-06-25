@@ -385,6 +385,45 @@ paths:
         404:
           $ref: '#/components/responses/NotFound'
 
+  /transactions/{id}/split:
+    parameters:
+      - $ref: '#/components/parameters/TransactionId'
+    get:
+      operationId: getTransactionSplit
+      summary: Get the split breakdown of an expense (your share + per-person owed)
+      responses:
+        200:
+          description: Split breakdown (empty participants when not split)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionSplit'
+        404:
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: setTransactionSplit
+      summary: >-
+        Split an expense across people. Your share stays the expense; each
+        participant's share becomes a transfer into a new receivable account.
+        An empty participant list un-splits the expense.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetSplitRequest'
+      responses:
+        200:
+          description: Updated split breakdown
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionSplit'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+
   /category-rule-blocks:
     get:
       operationId: listCategoryRuleBlocks
@@ -1321,6 +1360,77 @@ components:
         transfer_group_id:
           type: string
           nullable: true
+        split_group_id:
+          type: string
+          nullable: true
+          description: Ties a split expense to its per-person receivable transfer legs.
+
+    SplitParticipantInput:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - amount
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: The person who owes you this share.
+        amount:
+          type: integer
+          format: int64
+          description: This person's share, in the paying account's currency (minor units).
+
+    SetSplitRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - my_share
+        - participants
+      properties:
+        my_share:
+          type: integer
+          format: int64
+          description: Your own share; becomes the expense amount. Plus the sum of participants it must equal the original bill.
+        participants:
+          type: array
+          description: One entry per friend. Empty un-splits the expense.
+          items:
+            $ref: '#/components/schemas/SplitParticipantInput'
+
+    SplitParticipant:
+      type: object
+      required:
+        - account_id
+        - name
+        - amount
+        - owed
+      properties:
+        account_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        owed:
+          $ref: './definitions.yaml#/components/schemas/Money'
+
+    TransactionSplit:
+      type: object
+      required:
+        - my_share
+        - participants
+      properties:
+        split_group_id:
+          type: string
+          nullable: true
+        my_share:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/SplitParticipant'
 
     CreateTransactionRequest:
       type: object

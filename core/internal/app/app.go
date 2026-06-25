@@ -28,6 +28,7 @@ import (
 	pushsubscriptionrepository "finance/internal/repositories/push_subscription_repository"
 	reportrepository "finance/internal/repositories/report_repository"
 	scheduledtransactionrepository "finance/internal/repositories/scheduled_transaction_repository"
+	splitrepository "finance/internal/repositories/split_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
 	"finance/internal/scheduler"
 	"finance/pkg/database"
@@ -46,6 +47,7 @@ func CreateApp() fx.Option {
 			categoryrepository.NewRepository,
 			categoryrulerepository.NewRepository,
 			transactionrepository.NewRepository,
+			splitrepository.NewRepository,
 			reportrepository.NewRepository,
 			budgetrepository.NewRepository,
 			balancesnapshotrepository.NewRepository,

@@ -1,26 +1,40 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { accountsApi } from '../api/accounts'
+import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
 import { confirm } from '../lib/confirm'
-import type { Account } from '../api/types'
-import { formatMinor } from '../lib/format'
+import type { Account, Category } from '../api/types'
+import { formatMinor, toMajor } from '../lib/format'
 import SwipeRow from '../components/SwipeRow.vue'
 import AccountForm from '../components/AccountForm.vue'
+import TransactionForm from '../components/TransactionForm.vue'
 import LoanScheduleModal from '../components/LoanScheduleModal.vue'
 import ReconciliationPanel from '../components/ReconciliationPanel.vue'
 
 const accounts = ref<Account[]>([])
+const categories = ref<Category[]>([])
 const base = ref('UZS')
 const loading = ref(true)
 const error = ref('')
 const formOpen = ref(false)
 const editing = ref<Account | null>(null)
 const scheduleFor = ref<Account | null>(null)
+const charging = ref<Account | null>(null)
 
-const assets = computed(() => accounts.value.filter((a) => a.kind === 'asset'))
+// receivables (people who owe you) live in their own group, separate from
+// your real assets.
+const assets = computed(() => accounts.value.filter((a) => a.kind === 'asset' && a.type !== 'receivable'))
 const liabilities = computed(() => accounts.value.filter((a) => a.kind === 'liability'))
+const people = computed(() => accounts.value.filter((a) => a.type === 'receivable'))
+
+// prefill the transaction form to collect a friend's full outstanding balance
+const chargePrefill = computed(() =>
+  charging.value
+    ? { type: 'transfer' as const, fromId: charging.value.id, amount: toMajor(charging.value.balance.amount, charging.value.currency) }
+    : null,
+)
 
 // For a credit card, balance is what you owe; available = limit − owed.
 function availableCredit(a: Account): number {
@@ -33,8 +47,9 @@ const typeLabel = {
   deposit: 'Deposit',
   credit_card: 'Credit card',
   loan: 'Loan',
+  receivable: 'Person',
 }
-const typeIcon = { cash: 'cash', debit_card: 'credit-card', deposit: 'building-bank', credit_card: 'credit-card', loan: 'home' }
+const typeIcon = { cash: 'cash', debit_card: 'credit-card', deposit: 'building-bank', credit_card: 'credit-card', loan: 'home', receivable: 'users' }
 
 async function load() {
   loading.value = true
@@ -45,6 +60,11 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+function onCharged() {
+  charging.value = null
+  load()
 }
 
 function openNew() {
@@ -77,6 +97,11 @@ onMounted(async () => {
     base.value = (await reportsApi.netWorth()).base
   } catch {
     /* keep default */
+  }
+  try {
+    categories.value = await categoriesApi.list()
+  } catch {
+    /* full-charge is a transfer; categories are optional */
   }
   load()
 })
@@ -142,10 +167,41 @@ onMounted(async () => {
         </div>
       </section>
 
+      <!-- people who owe you (temporary split accounts) -->
+      <section v-if="people.length">
+        <div class="mb-3 flex items-center gap-2">
+          <span class="h-2.5 w-2.5 rounded-full bg-sky-400" />
+          <h2 class="text-sm font-semibold tracking-wide text-slate-500 uppercase">Owed to you</h2>
+        </div>
+
+        <div class="card overflow-hidden">
+          <ul class="divide-y divide-slate-100">
+            <li v-for="a in people" :key="a.id" class="flex items-center gap-4 px-4 py-4 sm:px-5">
+              <span class="grid h-11 w-11 place-items-center rounded-2xl bg-sky-50 text-slate-600"><i class="ti ti-users" /></span>
+              <div class="min-w-0">
+                <p class="truncate font-semibold text-slate-800">{{ a.name }}</p>
+                <p class="text-xs text-slate-400">owes you</p>
+              </div>
+              <p class="ml-auto tabular text-lg font-semibold text-slate-900">{{ a.balance.format() }}</p>
+              <button class="btn btn-soft shrink-0" title="Record full repayment" @click="charging = a">Full charge</button>
+            </li>
+          </ul>
+        </div>
+      </section>
+
       <ReconciliationPanel />
     </template>
 
     <AccountForm v-if="formOpen" :account="editing" :base="base" @close="formOpen = false" @saved="onSaved" />
+    <TransactionForm
+      v-if="charging"
+      :accounts="accounts"
+      :categories="categories"
+      :base="base"
+      :prefill="chargePrefill"
+      @close="charging = null"
+      @saved="onCharged"
+    />
     <LoanScheduleModal v-if="scheduleFor" :account="scheduleFor" @close="scheduleFor = null" />
   </div>
 </template>

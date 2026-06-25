@@ -44,6 +44,7 @@ const typeLabel: Record<AccountType, string> = {
   deposit: 'Deposit',
   credit_card: 'Credit card',
   loan: 'Loan',
+  receivable: 'Person',
 }
 
 type Num = number | string | null

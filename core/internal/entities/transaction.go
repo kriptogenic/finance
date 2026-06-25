@@ -46,6 +46,9 @@ type Transaction struct {
 	// external ingest metadata (e.g. Telegram userbot); nil for UI transactions
 	ExternalID      *string // stable idempotency key from the source
 	TransferGroupID *string // ties paired transfer legs together
+
+	// ties a split expense to its per-person receivable transfer legs
+	SplitGroupID *uuid.UUID
 }
 
 // CreditAmount is the value credited to the receiving account, in that

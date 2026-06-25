@@ -35,6 +35,7 @@ func (s Server) CreateTransaction(ctx context.Context, request api.CreateTransac
 
 		return nil, err
 	}
+	s.settleReceivables(ctx)
 
 	return api.CreateTransaction201JSONResponse(s.toTransaction(tx)), nil
 }
@@ -69,6 +70,7 @@ func (s Server) UpdateTransaction(ctx context.Context, request api.UpdateTransac
 
 		return nil, err
 	}
+	s.settleReceivables(ctx)
 
 	return api.UpdateTransaction200JSONResponse(s.toTransaction(tx)), nil
 }
@@ -357,6 +359,7 @@ func (s Server) DeleteTransaction(ctx context.Context, request api.DeleteTransac
 	if err != nil {
 		return nil, err
 	}
+	s.settleReceivables(ctx)
 
 	return api.DeleteTransaction204Response{}, nil
 }
@@ -454,6 +457,17 @@ func (s Server) toTransaction(tx entities.Transaction) api.Transaction {
 	if tx.TransferGroupID != nil {
 		out.TransferGroupId = nullable.NewNullableWithValue(*tx.TransferGroupID)
 	}
+	if tx.SplitGroupID != nil {
+		out.SplitGroupId = nullable.NewNullableWithValue(tx.SplitGroupID.String())
+	}
 
 	return out
+}
+
+// settleReceivables archives any person account a repayment has zeroed out.
+// Non-fatal: a failure here must not fail the originating transaction write.
+func (s Server) settleReceivables(ctx context.Context) {
+	if err := s.accounts.SettleReceivables(ctx); err != nil {
+		s.logger.Warn("settle receivables", zap.Error(err))
+	}
 }

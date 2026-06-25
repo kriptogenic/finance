@@ -1,5 +1,12 @@
 import { api, call } from './client'
-import type { CategorySuggestion, CreateTransactionRequest, Transaction, TransactionType } from './types'
+import type {
+  CategorySuggestion,
+  CreateTransactionRequest,
+  SetSplitRequest,
+  Transaction,
+  TransactionSplit,
+  TransactionType,
+} from './types'
 
 export interface TransactionFilter {
   account_id?: string
@@ -32,4 +39,10 @@ export const transactionsApi = {
     call(api.GET('/transactions/{id}/category-suggestions', { params: { path: { id } } })).then((d) => d.suggestions),
 
   remove: (id: string): Promise<unknown> => call(api.DELETE('/transactions/{id}', { params: { path: { id } } })),
+
+  getSplit: (id: string): Promise<TransactionSplit> =>
+    call(api.GET('/transactions/{id}/split', { params: { path: { id } } })),
+
+  setSplit: (id: string, body: SetSplitRequest): Promise<TransactionSplit> =>
+    call(api.PUT('/transactions/{id}/split', { params: { path: { id } }, body })),
 }

@@ -195,6 +195,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/transactions/{id}/split": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["TransactionId"];
+            };
+            cookie?: never;
+        };
+        /** Get the split breakdown of an expense (your share + per-person owed) */
+        get: operations["getTransactionSplit"];
+        /** Split an expense across people. Your share stays the expense; each participant's share becomes a transfer into a new receivable account. An empty participant list un-splits the expense. */
+        put: operations["setTransactionSplit"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/category-rule-blocks": {
         parameters: {
             query?: never;
@@ -684,6 +704,38 @@ export interface components {
             /** @description Stable idempotency key for externally-ingested transactions. */
             external_id?: string | null;
             transfer_group_id?: string | null;
+            /** @description Ties a split expense to its per-person receivable transfer legs. */
+            split_group_id?: string | null;
+        };
+        SplitParticipantInput: {
+            /** @description The person who owes you this share. */
+            name: string;
+            /**
+             * Format: int64
+             * @description This person's share, in the paying account's currency (minor units).
+             */
+            amount: number;
+        };
+        SetSplitRequest: {
+            /**
+             * Format: int64
+             * @description Your own share; becomes the expense amount. Plus the sum of participants it must equal the original bill.
+             */
+            my_share: number;
+            /** @description One entry per friend. Empty un-splits the expense. */
+            participants: components["schemas"]["SplitParticipantInput"][];
+        };
+        SplitParticipant: {
+            /** Format: uuid */
+            account_id: string;
+            name: string;
+            amount: components["schemas"]["Money"];
+            owed: components["schemas"]["Money"];
+        };
+        TransactionSplit: {
+            split_group_id?: string | null;
+            my_share: components["schemas"]["Money"];
+            participants: components["schemas"]["SplitParticipant"][];
         };
         CreateTransactionRequest: {
             /**
@@ -1014,7 +1066,7 @@ export interface components {
         /** @enum {string} */
         AccountKind: "asset" | "liability";
         /** @enum {string} */
-        AccountType: "cash" | "debit_card" | "deposit" | "credit_card" | "loan";
+        AccountType: "cash" | "debit_card" | "deposit" | "credit_card" | "loan" | "receivable";
         /**
          * @description ISO 4217 currency code.
          * @example UZS
@@ -1586,6 +1638,57 @@ export interface operations {
                     "application/json": components["schemas"]["CategorySuggestionsResponse"];
                 };
             };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getTransactionSplit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["TransactionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Split breakdown (empty participants when not split) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionSplit"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setTransactionSplit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["TransactionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSplitRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated split breakdown */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionSplit"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
         };
     };

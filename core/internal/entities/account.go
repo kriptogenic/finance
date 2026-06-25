@@ -24,6 +24,9 @@ const (
 	TypeDeposit    AccountType = "deposit"
 	TypeCreditCard AccountType = "credit_card"
 	TypeLoan       AccountType = "loan"
+	// TypeReceivable is a per-person account holding what a friend owes you
+	// after a split. Auto-archived once its balance returns to zero.
+	TypeReceivable AccountType = "receivable"
 )
 
 // Account is a money bucket you own (asset) or owe (liability). It holds exactly
@@ -68,7 +71,7 @@ func (a Account) IsLiability() bool { return a.Kind == KindLiability }
 // check it up front to return 400 rather than a 500 from a constraint error.
 func (a Account) ValidKindType() bool {
 	switch a.Type {
-	case TypeCash, TypeDebitCard, TypeDeposit:
+	case TypeCash, TypeDebitCard, TypeDeposit, TypeReceivable:
 		return a.Kind == KindAsset
 	case TypeCreditCard, TypeLoan:
 		return a.Kind == KindLiability

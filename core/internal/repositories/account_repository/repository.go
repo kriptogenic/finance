@@ -29,6 +29,9 @@ type Repository interface {
 	// Balances returns the derived balance (account currency, minor units) for
 	// every account, keyed by id.
 	Balances(ctx context.Context) (map[uuid.UUID]int64, error)
+	// SettleReceivables archives every receivable (person) account whose derived
+	// balance is back to zero — i.e. the friend has fully repaid you.
+	SettleReceivables(ctx context.Context) error
 }
 
 type repository struct {
@@ -179,6 +182,34 @@ func (r repository) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 	if res.RowsAffected() == 0 {
 		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (r repository) SettleReceivables(ctx context.Context) error {
+	// archive receivables whose derived balance (opening + inflow − outflow) is
+	// zero again; reuses the same inflow/outflow aggregation as Balances.
+	const query = `
+		UPDATE accounts SET archived = true
+		WHERE type = 'receivable' AND archived = false AND id IN (
+			SELECT a.id FROM accounts a
+			LEFT JOIN (
+				SELECT to_account_id AS aid,
+				       SUM(CASE WHEN type = 'transfer' AND to_amount IS NOT NULL
+				                THEN to_amount ELSE amount END) AS s
+				FROM transactions WHERE to_account_id IS NOT NULL GROUP BY to_account_id
+			) inq ON inq.aid = a.id
+			LEFT JOIN (
+				SELECT from_account_id AS aid, SUM(amount) AS s
+				FROM transactions WHERE from_account_id IS NOT NULL GROUP BY from_account_id
+			) outq ON outq.aid = a.id
+			WHERE a.type = 'receivable'
+			  AND a.opening_balance + COALESCE(inq.s, 0) - COALESCE(outq.s, 0) = 0
+		)`
+
+	if _, err := r.db.Pool.Exec(ctx, query); err != nil {
+		return fmt.Errorf("settle receivables: %w", err)
 	}
 
 	return nil

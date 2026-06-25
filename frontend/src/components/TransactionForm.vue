@@ -4,10 +4,20 @@ import { transactionsApi } from '../api/transactions'
 import { errMessage } from '../api/client'
 import { confirm } from '../lib/confirm'
 import type { Account, Category, CreateTransactionRequest, Transaction, TransactionType } from '../api/types'
-import { toMinor, toMajor, toLocalInput } from '../lib/format'
+import { toMinor, toMajor, toLocalInput, formatMinor } from '../lib/format'
 import Modal from './Modal.vue'
 import CategoryIcon from './CategoryIcon.vue'
 import MoneyInput from './MoneyInput.vue'
+
+// 'split' is a UI-only type: it is saved as an expense plus a split breakdown.
+type FormType = TransactionType | 'split'
+
+interface Prefill {
+  type?: FormType
+  fromId?: string
+  toId?: string
+  amount?: number | string
+}
 
 const props = withDefaults(
   defineProps<{
@@ -15,8 +25,9 @@ const props = withDefaults(
     accounts?: Account[]
     categories?: Category[]
     base?: string
+    prefill?: Prefill | null
   }>(),
-  { transaction: null, accounts: () => [], categories: () => [], base: 'UZS' },
+  { transaction: null, accounts: () => [], categories: () => [], base: 'UZS', prefill: null },
 )
 const emit = defineEmits<{ close: []; saved: [] }>()
 
@@ -45,24 +56,31 @@ const t = props.transaction
 // immediate rate prompt on a brand-new entry.
 const defaultAccount = props.accounts.find((a) => a.currency === props.base) ?? props.accounts[0]
 
+// New entries default to Transfer; an existing split expense opens on Split.
+const initialType: FormType = t ? (t.split_group_id ? 'split' : t.type) : (props.prefill?.type ?? 'transfer')
+
 const form = reactive({
-  type: (t?.type ?? 'expense') as TransactionType,
+  type: initialType,
   date: toLocalInput(t?.date),
-  fromId: t?.from_account_id ?? defaultAccount?.id ?? '',
-  toId: t?.to_account_id ?? defaultAccount?.id ?? '',
+  fromId: t?.from_account_id ?? props.prefill?.fromId ?? defaultAccount?.id ?? '',
+  toId: t?.to_account_id ?? props.prefill?.toId ?? defaultAccount?.id ?? '',
   categoryId: t?.category_id ?? '',
-  amount: t ? toMajor(t.amount.amount, t.amount.currency) : ('' as number | string),
+  amount: t ? toMajor(t.amount.amount, t.amount.currency) : (props.prefill?.amount ?? ('' as number | string)),
   toAmount: t?.to_amount ? toMajor(t.to_amount.amount, t.to_amount.currency) : ('' as number | string),
   rate: t?.rate_to_base ?? '',
   note: t?.note ?? '',
   tags: (t?.tags ?? []).join(', '),
 })
 
-const types: { v: TransactionType; label: string }[] = [
+const types: { v: FormType; label: string }[] = [
   { v: 'expense', label: 'Expense' },
   { v: 'income', label: 'Income' },
   { v: 'transfer', label: 'Transfer' },
+  { v: 'split', label: 'Split' },
 ]
+
+// the underlying ledger type a split maps to
+const baseType = computed<TransactionType>(() => (form.type === 'split' ? 'expense' : form.type))
 
 const acctIcons: Record<string, string> = {
   cash: 'cash',
@@ -70,6 +88,7 @@ const acctIcons: Record<string, string> = {
   deposit: 'building-bank',
   credit_card: 'credit-card',
   loan: 'home',
+  receivable: 'users',
 }
 function acctIcon(a: Account): string {
   return acctIcons[a.type] ?? 'credit-card'
@@ -77,15 +96,13 @@ function acctIcon(a: Account): string {
 
 const fromAcc = computed(() => props.accounts.find((a) => a.id === form.fromId))
 const toAcc = computed(() => props.accounts.find((a) => a.id === form.toId))
-const primaryCurrency = computed(() =>
-  form.type === 'income' ? toAcc.value?.currency : fromAcc.value?.currency,
-)
+const primaryCurrency = computed(() => (form.type === 'income' ? toAcc.value?.currency : fromAcc.value?.currency))
 const amountCurrency = computed(() => primaryCurrency.value ?? props.base)
 const isCross = computed(
   () => form.type === 'transfer' && !!fromAcc.value && !!toAcc.value && fromAcc.value.currency !== toAcc.value.currency,
 )
 const needsRate = computed(() => !!primaryCurrency.value && primaryCurrency.value !== props.base)
-const categoryOptions = computed(() => props.categories.filter((c) => c.type === form.type && !c.archived))
+const categoryOptions = computed(() => props.categories.filter((c) => c.type === baseType.value && !c.archived))
 
 // Rare fields live behind a disclosure; auto-open it (and keep it open when
 // editing) whenever a required advanced field — FX rate or cross-currency
@@ -99,8 +116,131 @@ const detailsHint = computed(() => {
   return ''
 })
 
+// ---- split breakdown (type === 'split') ----
+const splitReady = ref(false)
+const myShare = ref<number | string>('')
+const friends = reactive<{ name: string; amount: number | string }[]>([])
+
+function minor(v: number | string): number {
+  return v === '' || v == null ? 0 : toMinor(v, amountCurrency.value)
+}
+const billMinor = computed(() => minor(form.amount))
+const assignedMinor = computed(() => minor(myShare.value) + friends.reduce((s, f) => s + minor(f.amount), 0))
+const remainingMinor = computed(() => billMinor.value - assignedMinor.value)
+const peopleCount = computed(() => 1 + friends.length)
+const splitValid = computed(
+  () =>
+    minor(myShare.value) > 0 &&
+    remainingMinor.value === 0 &&
+    friends.every((f) => minor(f.amount) > 0 && f.name.trim() !== ''),
+)
+
+// Load the existing breakdown (edit) or seed a fresh one (your share = the bill).
+async function ensureSplit() {
+  if (splitReady.value) return
+  if (props.transaction?.split_group_id) {
+    try {
+      const res = await transactionsApi.getSplit(props.transaction.id)
+      friends.splice(
+        0,
+        friends.length,
+        ...res.participants.map((p) => ({ name: p.name, amount: toMajor(p.amount.amount, p.amount.currency) })),
+      )
+      const sum = res.participants.reduce((s, p) => s + p.amount.amount, 0)
+      form.amount = toMajor(res.my_share.amount + sum, res.my_share.currency)
+      myShare.value = toMajor(res.my_share.amount, res.my_share.currency)
+    } catch (e) {
+      error.value = errMessage(e)
+    }
+  } else {
+    friends.splice(0, friends.length)
+    myShare.value = form.amount
+  }
+  splitReady.value = true
+}
+
+// Divide the bill across `n` people (you + friends); the remainder lands on
+// your share so the parts always re-sum to the total.
+function setCount(n: number) {
+  const count = Math.max(1, Math.floor(n || 1))
+  const friendsCount = count - 1
+  const total = billMinor.value
+  const per = Math.floor(total / count)
+  const next = Array.from({ length: friendsCount }, (_, i) => ({
+    name: friends[i]?.name || `Friend ${i + 1}`,
+    amount: toMajor(per, amountCurrency.value),
+  }))
+  friends.splice(0, friends.length, ...next)
+  myShare.value = toMajor(total - per * friendsCount, amountCurrency.value)
+}
+
+function addFriend() {
+  friends.push({ name: `Friend ${friends.length + 1}`, amount: '' })
+}
+function removeFriend(i: number) {
+  friends.splice(i, 1)
+}
+function giveRemainderToMe() {
+  myShare.value = toMajor(minor(myShare.value) + remainingMinor.value, amountCurrency.value)
+}
+
+watch(
+  () => form.type,
+  (ty) => {
+    if (ty === 'split') ensureSplit()
+  },
+  { immediate: true },
+)
+
+function commonExtras(payload: CreateTransactionRequest) {
+  if (needsRate.value && form.rate !== '') payload.rate_to_base = String(form.rate)
+  if (form.note) payload.note = form.note
+  const tags = form.tags.split(',').map((s) => s.trim()).filter(Boolean)
+  if (tags.length) payload.tags = tags
+}
+
+async function submitSplit() {
+  if (!form.categoryId) {
+    error.value = 'Please choose a category.'
+    return
+  }
+  if (minor(myShare.value) <= 0) {
+    error.value = 'Your share must be positive.'
+    return
+  }
+  if (remainingMinor.value !== 0) {
+    error.value = 'Assign the full bill across everyone.'
+    return
+  }
+  saving.value = true
+  try {
+    const expense: CreateTransactionRequest = {
+      type: 'expense',
+      date: new Date(form.date).toISOString(),
+      amount: billMinor.value,
+      from_account_id: form.fromId,
+      category_id: form.categoryId,
+    }
+    commonExtras(expense)
+
+    let id = props.transaction?.id
+    if (id) await transactionsApi.update(id, expense)
+    else id = (await transactionsApi.create(expense)).id
+
+    const participants = friends.map((f) => ({ name: f.name.trim() || 'Friend', amount: minor(f.amount) }))
+    await transactionsApi.setSplit(id, { my_share: minor(myShare.value), participants })
+    emit('saved')
+  } catch (e) {
+    error.value = errMessage(e)
+  } finally {
+    saving.value = false
+  }
+}
+
 async function submit() {
   error.value = ''
+  if (form.type === 'split') return submitSplit()
+
   if (form.type !== 'transfer' && !form.categoryId) {
     error.value = 'Please choose a category.'
     return
@@ -116,10 +256,15 @@ async function submit() {
     if (form.type !== 'expense') payload.to_account_id = form.toId
     if (form.type !== 'transfer') payload.category_id = form.categoryId
     if (isCross.value) payload.to_amount = toMinor(form.toAmount, toAcc.value?.currency ?? props.base)
-    if (needsRate.value && form.rate !== '') payload.rate_to_base = String(form.rate)
-    if (form.note) payload.note = form.note
-    const tags = form.tags.split(',').map((s) => s.trim()).filter(Boolean)
-    if (tags.length) payload.tags = tags
+    commonExtras(payload)
+
+    // dropping a split: clear its legs while the row is still an expense
+    if (props.transaction?.split_group_id) {
+      await transactionsApi.setSplit(props.transaction.id, {
+        my_share: Math.max(1, toMinor(form.amount, amountCurrency.value)),
+        participants: [],
+      })
+    }
 
     if (props.transaction) await transactionsApi.update(props.transaction.id, payload)
     else await transactionsApi.create(payload)
@@ -136,7 +281,7 @@ async function submit() {
   <Modal :title="editing ? 'Edit transaction' : 'New transaction'" @close="emit('close')">
     <form class="space-y-4" @submit.prevent="submit">
       <!-- type -->
-      <div class="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+      <div class="grid grid-cols-4 gap-1 rounded-xl bg-slate-100 p-1">
         <button
           v-for="opt in types"
           :key="opt.v"
@@ -151,7 +296,7 @@ async function submit() {
 
       <!-- amount -->
       <div>
-        <label class="lbl">Amount</label>
+        <label class="lbl">{{ form.type === 'split' ? 'Total bill' : 'Amount' }}</label>
         <div class="relative">
           <MoneyInput
             v-model="form.amount"
@@ -167,10 +312,10 @@ async function submit() {
         </div>
       </div>
 
-      <!-- category (expense / income) -->
+      <!-- category (expense / income / split) -->
       <div v-if="form.type !== 'transfer'">
         <label class="lbl">Category</label>
-        <p v-if="!categoryOptions.length" class="text-sm text-slate-400">No {{ form.type }} categories yet.</p>
+        <p v-if="!categoryOptions.length" class="text-sm text-slate-400">No {{ baseType }} categories yet.</p>
         <div v-else class="grid grid-cols-4 gap-2 sm:grid-cols-5">
           <button
             v-for="c in categoryOptions"
@@ -186,9 +331,9 @@ async function submit() {
         </div>
       </div>
 
-      <!-- from account (expense / transfer) -->
+      <!-- from account (expense / transfer / split) -->
       <div v-if="form.type !== 'income'">
-        <label class="lbl">From account</label>
+        <label class="lbl">{{ form.type === 'split' ? 'Paid from' : 'From account' }}</label>
         <div class="flex flex-wrap gap-2">
           <button
             v-for="a in accounts"
@@ -204,8 +349,63 @@ async function submit() {
         </div>
       </div>
 
+      <!-- split breakdown -->
+      <div v-if="form.type === 'split'" class="space-y-3 rounded-xl bg-slate-50 p-3">
+        <p class="text-xs text-slate-500">
+          Your share stays the expense; each friend's share becomes money they owe you, tracked in a person account
+          that disappears once they pay you back.
+        </p>
+
+        <div>
+          <label class="lbl">People (including you)</label>
+          <input
+            type="number"
+            min="1"
+            :value="peopleCount"
+            class="field w-24"
+            @input="setCount(+($event.target as HTMLInputElement).value)"
+          />
+          <span v-if="billMinor % peopleCount !== 0" class="ml-2 text-xs text-amber-600">
+            doesn't divide evenly — remainder on your share
+          </span>
+        </div>
+
+        <div>
+          <label class="lbl">Your share</label>
+          <MoneyInput v-model="myShare" :currency="amountCurrency" class="field" placeholder="0,00" />
+        </div>
+
+        <div v-if="friends.length" class="space-y-2">
+          <label class="lbl">Friends</label>
+          <div v-for="(f, i) in friends" :key="i" class="flex items-center gap-2">
+            <input v-model="f.name" class="field flex-1" placeholder="Name" />
+            <MoneyInput v-model="f.amount" :currency="amountCurrency" class="field w-32" placeholder="0,00" />
+            <button type="button" class="text-slate-400 hover:text-rose-500" @click="removeFriend(i)">
+              <i class="ti ti-trash" />
+            </button>
+          </div>
+        </div>
+
+        <button type="button" class="text-sm font-medium text-amber-600 hover:text-amber-700" @click="addFriend">
+          + Add person
+        </button>
+
+        <div
+          class="flex items-center justify-between rounded-lg px-3 py-2 text-sm"
+          :class="remainingMinor === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'"
+        >
+          <span>{{ remainingMinor === 0 ? 'Fully assigned' : 'Left to assign' }}</span>
+          <span class="tabular font-semibold">
+            {{ formatMinor(remainingMinor, amountCurrency) }}
+            <button v-if="remainingMinor !== 0" type="button" class="ml-2 underline" @click="giveRemainderToMe">
+              give to me
+            </button>
+          </span>
+        </div>
+      </div>
+
       <!-- to account (income / transfer) -->
-      <div v-if="form.type !== 'expense'">
+      <div v-if="form.type === 'income' || form.type === 'transfer'">
         <label class="lbl">To account</label>
         <div class="flex flex-wrap gap-2">
           <button
@@ -275,7 +475,9 @@ async function submit() {
       <div class="flex items-center gap-2 pt-1">
         <button v-if="editing" type="button" class="btn btn-danger" :disabled="saving || removing" @click="del">Delete</button>
         <button type="button" class="btn btn-soft ml-auto" @click="emit('close')">Cancel</button>
-        <button type="submit" class="btn btn-primary" :disabled="saving || removing">{{ saving ? 'Saving…' : 'Save' }}</button>
+        <button type="submit" class="btn btn-primary" :disabled="saving || removing || (form.type === 'split' && !splitValid)">
+          {{ saving ? 'Saving…' : 'Save' }}
+        </button>
       </div>
     </form>
   </Modal>

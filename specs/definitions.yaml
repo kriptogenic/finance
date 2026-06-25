@@ -28,7 +28,7 @@ components:
       enum: [asset, liability]
     AccountType:
       type: string
-      enum: [cash, debit_card, deposit, credit_card, loan]
+      enum: [cash, debit_card, deposit, credit_card, loan, receivable]
     CategoryType:
       type: string
       enum: [expense, income]

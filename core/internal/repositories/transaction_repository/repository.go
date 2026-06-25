@@ -33,6 +33,8 @@ type Filter struct {
 type Repository interface {
 	Create(ctx context.Context, tx *entities.Transaction) error
 	List(ctx context.Context, filter Filter) ([]entities.Transaction, error)
+	// ListBySplitGroup returns every leg of a split, ordered with the expense first.
+	ListBySplitGroup(ctx context.Context, group uuid.UUID) ([]entities.Transaction, error)
 	Get(ctx context.Context, id uuid.UUID) (*entities.Transaction, error)
 	// Update replaces every mutable column of tx.ID (a full edit); id and
 	// created_at are preserved.
@@ -61,7 +63,7 @@ func NewRepository(db *database.DB) Repository {
 // on pgx numeric decoding.
 const txColumns = `id, date, type, from_account_id, to_account_id, category_id,
 	amount, currency, to_amount, to_currency, rate_to_base::text, base_amount,
-	note, tags, created_at, external_id, transfer_group_id`
+	note, tags, created_at, external_id, transfer_group_id, split_group_id`
 
 func scanTransaction(row pgx.Row) (entities.Transaction, error) {
 	var (
@@ -71,7 +73,7 @@ func scanTransaction(row pgx.Row) (entities.Transaction, error) {
 	err := row.Scan(
 		&t.ID, &t.Date, &t.Type, &t.FromAccountID, &t.ToAccountID, &t.CategoryID,
 		&t.Amount, &t.Currency, &t.ToAmount, &t.ToCurrency, &rateText, &t.BaseAmount,
-		&t.Note, &t.Tags, &t.CreatedAt, &t.ExternalID, &t.TransferGroupID,
+		&t.Note, &t.Tags, &t.CreatedAt, &t.ExternalID, &t.TransferGroupID, &t.SplitGroupID,
 	)
 	if err != nil {
 		return entities.Transaction{}, err
@@ -99,14 +101,14 @@ func (r repository) Create(ctx context.Context, tx *entities.Transaction) error 
 		INSERT INTO transactions
 			(date, type, from_account_id, to_account_id, category_id, amount, currency,
 			 to_amount, to_currency, rate_to_base, base_amount, note, tags,
-			 external_id, transfer_group_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric, $11, $12, $13, $14, $15)
+			 external_id, transfer_group_id, split_group_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric, $11, $12, $13, $14, $15, $16)
 		RETURNING id, created_at`
 
 	err := r.db.Pool.QueryRow(ctx, query,
 		tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID, tx.Amount, tx.Currency,
 		tx.ToAmount, tx.ToCurrency, rateText, tx.BaseAmount, tx.Note, tx.Tags,
-		tx.ExternalID, tx.TransferGroupID,
+		tx.ExternalID, tx.TransferGroupID, tx.SplitGroupID,
 	).Scan(&tx.ID, &tx.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create transaction: %w", err)
@@ -133,15 +135,15 @@ func (r repository) Ingest(ctx context.Context, tx *entities.Transaction) (creat
 		INSERT INTO transactions
 			(date, type, from_account_id, to_account_id, category_id, amount, currency,
 			 to_amount, to_currency, rate_to_base, base_amount, note, tags,
-			 external_id, transfer_group_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric, $11, $12, $13, $14, $15)
+			 external_id, transfer_group_id, split_group_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric, $11, $12, $13, $14, $15, $16)
 		ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING
 		RETURNING id, created_at`
 
 	err = r.db.Pool.QueryRow(ctx, query,
 		tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID, tx.Amount, tx.Currency,
 		tx.ToAmount, tx.ToCurrency, rateText, tx.BaseAmount, tx.Note, tx.Tags,
-		tx.ExternalID, tx.TransferGroupID,
+		tx.ExternalID, tx.TransferGroupID, tx.SplitGroupID,
 	).Scan(&tx.ID, &tx.CreatedAt)
 
 	if err == nil {
@@ -229,6 +231,34 @@ func (r repository) List(ctx context.Context, filter Filter) ([]entities.Transac
 	}
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("list transactions: %w", err)
+	}
+
+	return txns, nil
+}
+
+func (r repository) ListBySplitGroup(ctx context.Context, group uuid.UUID) ([]entities.Transaction, error) {
+	// expense (the main leg) first, then the per-person transfer legs
+	query := `SELECT ` + txColumns + ` FROM transactions
+		WHERE split_group_id = $1
+		ORDER BY (type = 'expense') DESC, created_at`
+
+	rows, err := r.db.Pool.Query(ctx, query, group)
+	if err != nil {
+		return nil, fmt.Errorf("list split group: %w", err)
+	}
+	defer rows.Close()
+
+	var txns []entities.Transaction
+	for rows.Next() {
+		t, scanErr := scanTransaction(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("list split group: %w", scanErr)
+		}
+
+		txns = append(txns, t)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("list split group: %w", err)
 	}
 
 	return txns, nil

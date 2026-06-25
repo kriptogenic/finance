@@ -115,7 +115,20 @@ func (s Server) buildTransaction(ctx context.Context, body *api.CreateTransactio
 		return entities.Transaction{}, err.Error()
 	}
 
+	if msg := s.requireNote(tx); msg != "" {
+		return entities.Transaction{}, msg
+	}
+
 	return tx, ""
+}
+
+// requireNote enforces the large-amount note policy (configurable threshold).
+func (s Server) requireNote(tx entities.Transaction) string {
+	if s.noteThreshold > 0 && tx.Amount > s.noteThreshold && (tx.Note == nil || *tx.Note == "") {
+		return "a note is required for amounts over " + money.New(s.noteThreshold, tx.Currency).Display()
+	}
+
+	return ""
 }
 
 func (s Server) ListTransactions(ctx context.Context, request api.ListTransactionsRequestObject) (api.ListTransactionsResponseObject, error) {

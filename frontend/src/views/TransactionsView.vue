@@ -3,7 +3,7 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { transactionsApi, type TransactionFilter } from '../api/transactions'
 import { accountsApi } from '../api/accounts'
 import { categoriesApi } from '../api/categories'
-import { reportsApi } from '../api/reports'
+import { configApi } from '../api/config'
 import { errMessage } from '../api/client'
 import { confirm } from '../lib/confirm'
 import type { Account, Category, Transaction, TransactionType } from '../api/types'
@@ -17,6 +17,7 @@ const transactions = ref<Transaction[]>([])
 const accounts = ref<Account[]>([])
 const categories = ref<Category[]>([])
 const base = ref('UZS')
+const noteThreshold = ref(Number.POSITIVE_INFINITY)
 const names = ref<Record<string, string>>({})
 const loading = ref(true)
 const error = ref('')
@@ -176,9 +177,11 @@ onUnmounted(() => window.removeEventListener('data:refresh', loadTransactions))
 
 onMounted(async () => {
   try {
-    base.value = (await reportsApi.netWorth()).base
+    const cfg = await configApi.get()
+    base.value = cfg.base_currency
+    noteThreshold.value = cfg.note_required_above
   } catch {
-    /* keep default */
+    /* keep defaults */
   }
   await loadMeta()
   await loadTransactions()
@@ -295,6 +298,7 @@ onMounted(async () => {
       :accounts="accounts"
       :categories="categories"
       :base="base"
+      :note-threshold="noteThreshold"
       @close="formOpen = false"
       @saved="onSaved"
     />

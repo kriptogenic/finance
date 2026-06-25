@@ -43,6 +43,7 @@ type Server struct {
 	ingest         *ingest.Service
 	vapidPublicKey string // served to the browser so it can subscribe to push
 	base           string // reporting currency (§3)
+	noteThreshold  int64  // a note is required above this many minor units
 	logger         *zap.Logger
 }
 
@@ -84,12 +85,20 @@ func NewServer(
 		ingest:         ingestSvc,
 		vapidPublicKey: pushCfg.VAPIDPublic,
 		base:           finance.BaseCurrency,
+		noteThreshold:  finance.NoteRequiredAbove,
 		logger:         logger,
 	}
 }
 
 func (s Server) Health(_ context.Context, _ api.HealthRequestObject) (api.HealthResponseObject, error) {
 	return api.Health200JSONResponse{Status: "ok"}, nil
+}
+
+func (s Server) GetConfig(_ context.Context, _ api.GetConfigRequestObject) (api.GetConfigResponseObject, error) {
+	return api.GetConfig200JSONResponse{
+		BaseCurrency:      s.base,
+		NoteRequiredAbove: s.noteThreshold,
+	}, nil
 }
 
 func badRequest(msg string) api.BadRequestJSONResponse {

@@ -49,6 +49,9 @@ type (
 
 	Finance struct {
 		BaseCurrency string `env:"BASE_CURRENCY" env-default:"UZS"`
+		// NoteRequiredAbove forces a note on a transaction whose amount exceeds
+		// this many minor units. Default 50000000 = 500,000.00 in a 2-dp currency.
+		NoteRequiredAbove int64 `env:"NOTE_REQUIRED_ABOVE" env-default:"50000000"`
 	}
 
 	Ingest struct {

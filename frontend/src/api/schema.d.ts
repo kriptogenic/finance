@@ -22,6 +22,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Client-facing app configuration (base currency, validation thresholds) */
+        get: operations["getConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounts": {
         parameters: {
             query?: never;
@@ -514,6 +531,14 @@ export interface components {
         HealthResponse: {
             /** @example ok */
             status: string;
+        };
+        AppConfig: {
+            base_currency: components["schemas"]["Currency"];
+            /**
+             * Format: int64
+             * @description A note is required when a transaction amount exceeds this many minor units.
+             */
+            note_required_above: number;
         };
         ErrorResponse: {
             /** @example bad request */
@@ -1063,15 +1088,15 @@ export interface components {
             end_date?: string;
             paused?: boolean;
         };
-        /** @enum {string} */
-        AccountKind: "asset" | "liability";
-        /** @enum {string} */
-        AccountType: "cash" | "debit_card" | "deposit" | "credit_card" | "loan" | "receivable";
         /**
          * @description ISO 4217 currency code.
          * @example UZS
          */
         Currency: string;
+        /** @enum {string} */
+        AccountKind: "asset" | "liability";
+        /** @enum {string} */
+        AccountType: "cash" | "debit_card" | "deposit" | "credit_card" | "loan" | "receivable";
         /** @description Monetary value as integer minor units plus an ISO-4217 currency code. */
         Money: Money;
         /** @enum {string} */
@@ -1150,6 +1175,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    getConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description App configuration */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppConfig"];
                 };
             };
         };

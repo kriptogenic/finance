@@ -26,8 +26,16 @@ const props = withDefaults(
     categories?: Category[]
     base?: string
     prefill?: Prefill | null
+    noteThreshold?: number
   }>(),
-  { transaction: null, accounts: () => [], categories: () => [], base: 'UZS', prefill: null },
+  {
+    transaction: null,
+    accounts: () => [],
+    categories: () => [],
+    base: 'UZS',
+    prefill: null,
+    noteThreshold: Number.POSITIVE_INFINITY,
+  },
 )
 const emit = defineEmits<{ close: []; saved: [] }>()
 
@@ -107,11 +115,17 @@ const categoryOptions = computed(() => props.categories.filter((c) => c.type ===
 // Rare fields live behind a disclosure; auto-open it (and keep it open when
 // editing) whenever a required advanced field — FX rate or cross-currency
 // received amount — actually applies, so it can never be hidden yet mandatory.
+// large amounts must carry a note (threshold comes from server config)
+const submitAmountMinor = computed(() => (form.amount === '' ? 0 : toMinor(form.amount, amountCurrency.value)))
+const noteRequired = computed(() => submitAmountMinor.value > props.noteThreshold)
+const noteMissing = computed(() => noteRequired.value && form.note.trim() === '')
+
 const showDetails = ref(!!props.transaction)
-watch([isCross, needsRate], ([cross, rate]) => {
-  if (cross || rate) showDetails.value = true
+watch([isCross, needsRate, noteRequired], ([cross, rate, note]) => {
+  if (cross || rate || note) showDetails.value = true
 })
 const detailsHint = computed(() => {
+  if (noteMissing.value) return 'note required'
   if (isCross.value || needsRate.value) return 'exchange rate required'
   return ''
 })
@@ -212,6 +226,10 @@ async function submitSplit() {
     error.value = 'Assign the full bill across everyone.'
     return
   }
+  if (noteMissing.value) {
+    error.value = `A note is required for amounts over ${formatMinor(props.noteThreshold, amountCurrency.value)}.`
+    return
+  }
   saving.value = true
   try {
     const expense: CreateTransactionRequest = {
@@ -243,6 +261,10 @@ async function submit() {
 
   if (form.type !== 'transfer' && !form.categoryId) {
     error.value = 'Please choose a category.'
+    return
+  }
+  if (noteMissing.value) {
+    error.value = `A note is required for amounts over ${formatMinor(props.noteThreshold, amountCurrency.value)}.`
     return
   }
   saving.value = true
@@ -460,8 +482,8 @@ async function submit() {
           </div>
 
           <div>
-            <label class="lbl">Note</label>
-            <input v-model="form.note" class="field" />
+            <label class="lbl">Note <span v-if="noteRequired" class="text-rose-500">* required for large amounts</span></label>
+            <input v-model="form.note" class="field" :class="noteMissing ? 'ring-1 ring-rose-300' : ''" :required="noteRequired" />
           </div>
           <div>
             <label class="lbl">Tags (comma-separated)</label>

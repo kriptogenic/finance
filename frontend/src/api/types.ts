@@ -3,6 +3,7 @@ import type { components } from './schema'
 type S = components['schemas']
 
 export type Money = S['Money']
+export type AppConfig = S['AppConfig']
 export type Account = S['Account']
 export type Category = S['Category']
 export type Transaction = S['Transaction']

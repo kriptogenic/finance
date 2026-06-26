@@ -15,6 +15,7 @@ import type { Account, Category, Transaction } from './api/types'
 import TransactionForm from './components/TransactionForm.vue'
 import CategorizeModal from './components/CategorizeModal.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
+import ReceiptScanner from './components/ReceiptScanner.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -88,6 +89,7 @@ const base = ref('UZS')
 const pending = ref<Transaction[]>([])
 const quickOpen = ref(false)
 const categorizeOpen = ref(false)
+const scannerOpen = ref(false)
 const fabBusy = ref(false)
 
 const hasUncategorized = computed(() => pending.value.length > 0)
@@ -143,6 +145,44 @@ async function onFab() {
   }
 }
 
+// Long-pressing the action button opens the receipt scanner (camera) instead of
+// the normal add/categorize flow. A short tap falls through to onFab.
+const longPressMs = 500
+let pressTimer: ReturnType<typeof setTimeout> | undefined
+const longPressed = ref(false)
+
+function openScanner() {
+  moreOpen.value = false
+  quickOpen.value = false
+  categorizeOpen.value = false
+  scannerOpen.value = true
+}
+
+function fabPressStart() {
+  longPressed.value = false
+  pressTimer = setTimeout(() => {
+    longPressed.value = true
+    openScanner()
+  }, longPressMs)
+}
+
+function fabPressEnd() {
+  if (pressTimer) clearTimeout(pressTimer)
+}
+
+function onFabClick() {
+  if (longPressed.value) {
+    longPressed.value = false // swallow the click that follows a long press
+    return
+  }
+  onFab()
+}
+
+function onScannerClose() {
+  scannerOpen.value = false
+  broadcastRefresh()
+}
+
 // Let every visible view (and the FAB itself) reload after a change.
 function broadcastRefresh() {
   window.dispatchEvent(new CustomEvent('data:refresh'))
@@ -187,10 +227,15 @@ onMounted(refreshPushState)
       </div>
 
       <button
-        class="btn mb-6 w-full"
+        class="btn mb-6 w-full select-none"
         :class="hasUncategorized ? 'bg-emerald-800 text-white ring-1 ring-amber-400/40 hover:bg-emerald-700' : 'btn-primary'"
         :disabled="fabBusy"
-        @click="onFab"
+        title="Tap to add · long-press to scan a receipt"
+        @click="onFabClick"
+        @pointerdown="fabPressStart"
+        @pointerup="fabPressEnd"
+        @pointerleave="fabPressEnd"
+        @contextmenu.prevent
       >
         <template v-if="hasUncategorized">
           <i class="ti ti-tag text-base text-amber-400" />
@@ -306,11 +351,15 @@ onMounted(refreshPushState)
       <!-- center FAB: doubles as the categorize prompt when items are pending -->
       <div class="flex w-16 shrink-0 justify-center">
         <button
-          class="relative -mt-5 grid h-14 w-14 place-items-center rounded-full ring-4 ring-slate-50 transition active:scale-95"
+          class="relative -mt-5 grid h-14 w-14 touch-none place-items-center rounded-full ring-4 ring-slate-50 transition select-none active:scale-95"
           :class="hasUncategorized ? 'bg-emerald-950 text-amber-400 shadow-lg shadow-emerald-950/40' : 'bg-amber-400 text-slate-900 shadow-lg shadow-amber-400/40'"
           :disabled="fabBusy"
           :aria-label="hasUncategorized ? 'Categorize transactions' : 'New transaction'"
-          @click="onFab"
+          @click="onFabClick"
+          @pointerdown="fabPressStart"
+          @pointerup="fabPressEnd"
+          @pointerleave="fabPressEnd"
+          @contextmenu.prevent
         >
           <i v-if="hasUncategorized" class="ti ti-tag text-2xl" />
           <svg v-else class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke-width="2.4" stroke="currentColor">
@@ -422,6 +471,9 @@ onMounted(refreshPushState)
       :base="base"
       @close="onCategorizeClose"
     />
+
+    <!-- QR receipt scanner (opened by long-pressing the action button) -->
+    <ReceiptScanner v-if="scannerOpen" @close="onScannerClose" @saved="broadcastRefresh" />
   </div>
 
   <!-- styled confirm dialog (teleports to body; available on every screen) -->

@@ -39,6 +39,11 @@ export type CreateScheduledTransactionRequest = S['CreateScheduledTransactionReq
 export type UpdateScheduledTransactionRequest = S['UpdateScheduledTransactionRequest']
 export type ScheduleFrequency = S['ScheduleFrequency']
 
+export type Receipt = S['Receipt']
+export type ReceiptItem = S['ReceiptItem']
+export type ReceiptCreated = S['ReceiptCreated']
+export type ReceiptStatus = S['ReceiptStatus']
+
 export type AccountKind = S['AccountKind']
 export type AccountType = S['AccountType']
 export type CategoryType = S['CategoryType']

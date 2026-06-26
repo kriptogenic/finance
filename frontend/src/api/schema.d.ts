@@ -541,6 +541,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List receipt headers (no items), newest first */
+        get: operations["listReceipts"];
+        put?: never;
+        /** Upload a fiscal QR url + receipt photo; scrape and parse asynchronously */
+        post: operations["createReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/receipts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ReceiptId"];
+            };
+            cookie?: never;
+        };
+        /** Get a receipt with its parsed items */
+        get: operations["getReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1105,6 +1142,62 @@ export interface components {
             end_date?: string;
             paused?: boolean;
         };
+        ReceiptCreated: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["ReceiptStatus"];
+        };
+        ReceiptListResponse: {
+            receipts: components["schemas"]["Receipt"][];
+        };
+        Receipt: {
+            /** Format: uuid */
+            id: string;
+            qr_url: string;
+            status: components["schemas"]["ReceiptStatus"];
+            /** @description Failure reason when status is failed. */
+            error?: string | null;
+            terminal_id?: string | null;
+            receipt_seq?: number | null;
+            fiscal_sign?: string | null;
+            receipt_type?: string | null;
+            merchant_name?: string | null;
+            merchant_tin?: string | null;
+            merchant_address?: string | null;
+            device_name?: string | null;
+            serial_number?: string | null;
+            card_type?: string | null;
+            merchant_lat?: string | null;
+            merchant_lng?: string | null;
+            paid_cash?: components["schemas"]["Money"];
+            paid_card?: components["schemas"]["Money"];
+            total_amount?: components["schemas"]["Money"];
+            total_vat?: components["schemas"]["Money"];
+            /** @description Object key of the receipt photo in storage. */
+            photo_key?: string | null;
+            /** Format: date-time */
+            received_at?: string | null;
+            /** Format: date-time */
+            scraped_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            items: components["schemas"]["ReceiptItem"][];
+        };
+        ReceiptItem: {
+            name: string;
+            quantity: string;
+            price: components["schemas"]["Money"];
+            vat_amount: components["schemas"]["Money"];
+            vat_rate: number;
+            discount?: components["schemas"]["Money"];
+            other?: components["schemas"]["Money"];
+            barcode?: string | null;
+            ikpu_code?: string | null;
+            ikpu_name?: string | null;
+            unit?: string | null;
+            marking_code?: string | null;
+            consignor_tin?: string | null;
+        };
         /**
          * @description ISO 4217 currency code.
          * @example UZS
@@ -1132,6 +1225,11 @@ export interface components {
          * @enum {string}
          */
         ScheduleFrequency: "daily" | "weekly" | "monthly" | "yearly";
+        /**
+         * @description Lifecycle of an async receipt scrape+parse.
+         * @enum {string}
+         */
+        ReceiptStatus: "pending" | "html_received" | "success" | "failed";
     };
     responses: {
         /** @description Invalid input */
@@ -1169,6 +1267,7 @@ export interface components {
         AccountId: string;
         CategoryId: string;
         TransactionId: string;
+        ReceiptId: string;
     };
     requestBodies: never;
     headers: never;
@@ -2366,6 +2465,85 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+        };
+    };
+    listReceipts: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Receipts list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptListResponse"];
+                };
+            };
+        };
+    };
+    createReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** @description Full ofd.soliq.uz check URL from the receipt QR code. */
+                    qr_url: string;
+                    /**
+                     * Format: binary
+                     * @description JPEG image of the paper receipt.
+                     */
+                    photo: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Receipt accepted; processing in the background */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptCreated"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    getReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ReceiptId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Receipt */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
 }

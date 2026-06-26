@@ -11,7 +11,7 @@
 |---|-----------|---------|----------|
 | C1 | core | Ingest endpoints are unauthenticated when `INGEST_TOKEN` is unset (auth fails open) | **High** — ✅ Fixed |
 | C2 | core | No brute-force protection / rate limiting on Basic auth | Medium — ✅ Fixed |
-| C3 | core | Database connection defaults to `sslmode=disable` (incl. prod docs) | Medium |
+| C3 | core | Database connection defaults to `sslmode=disable` (incl. prod docs) | Medium — ⏸️ Accepted (local DB) |
 | C4 | core | SSRF via stored push-subscription endpoint | Low |
 | C5 | core | Excel formula injection in transaction export | Low/Info |
 | L1 | lookout | Ingest token optional + delivered over plaintext HTTP to core | Medium |
@@ -60,6 +60,8 @@ The whole API is gated by a single global Basic credential with no rate limiting
 DB credentials and all financial data traverse the network in cleartext. Even on an internal Dokploy network this is weak defense-in-depth; a compromised neighbor or misrouted traffic exposes everything.
 
 **Recommendation:** Default to and document `require` (ideally `verify-full`) for managed Postgres.
+
+**⏸️ Accepted (2026-06-26):** Postgres runs on the same host as core (loopback / Docker-internal network), so DB traffic never leaves the machine and `sslmode=disable` is acceptable. Revisit if the database is ever moved to a separate host or managed provider — at that point switch to `require`/`verify-full`.
 
 ### C4 — SSRF via push subscription endpoint (Low)
 `core/internal/http/handlers/push.go:16-37`, `core/pkg/webpush/webpush.go:63`

@@ -12,7 +12,7 @@
 | C1 | core | Ingest endpoints are unauthenticated when `INGEST_TOKEN` is unset (auth fails open) | **High** — ✅ Fixed |
 | C2 | core | No brute-force protection / rate limiting on Basic auth | Medium — ✅ Fixed |
 | C3 | core | Database connection defaults to `sslmode=disable` (incl. prod docs) | Medium — ⏸️ Accepted (local DB) |
-| C4 | core | SSRF via stored push-subscription endpoint | Low |
+| C4 | core | SSRF via stored push-subscription endpoint | Low — ✅ Fixed |
 | C5 | core | Excel formula injection in transaction export | Low/Info |
 | L1 | lookout | Ingest token optional + delivered over plaintext HTTP to core | Medium |
 | L2 | lookout | Telegram session stored as plaintext JSON on disk | Low |
@@ -69,6 +69,8 @@ DB credentials and all financial data traverse the network in cleartext. Even on
 `SubscribePush` stores a client-supplied `endpoint` URL verbatim; the server later issues outbound POSTs to it (`Sender.Send`). An authenticated caller can make core send requests to arbitrary hosts/ports. Impact is limited because it is single-user and authenticated, and the payload is encrypted, but it is a server-side request to an attacker-chosen URL.
 
 **Recommendation:** Validate the endpoint against the known push-service hosts (FCM/Mozilla/Apple) or at least restrict scheme to `https` and block private/loopback ranges.
+
+**✅ Fixed (2026-06-26):** `SubscribePush` now runs `validatePushEndpoint` (`core/internal/http/handlers/push.go`) before storing. It requires an `https` URL whose host is a **recognized browser push service** — an allowlist of `fcm.googleapis.com`, `android.googleapis.com`, `push.services.mozilla.com`, `push.apple.com`, and `notify.windows.com` (exact host or subdomain). Everything else — IP literals, internal hostnames, and look-alike domains (`fcm.googleapis.com.evil.example`, `evilfcm.googleapis.com`) — is rejected. Because the host must be one of these trusted providers, the server can never be coerced into fetching internal infrastructure, and no DNS lookup is needed in the request path. Covered by `push_test.go`. Trade-off: a browser using a push host outside the list would be refused subscription; extend `allowedPushHosts` if a new provider appears.
 
 ### C5 — Excel formula injection in export (Low/Info)
 `core/internal/http/handlers/transactions_export.go:82`

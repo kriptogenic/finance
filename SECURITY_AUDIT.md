@@ -19,7 +19,7 @@
 | N1 | notifier | `allowBackup="true"` with default (empty) backup rules | Low |
 | N2 | notifier | No explicit `network_security_config`; URL scheme not validated | Low |
 | F1 | frontend | Basic-auth credentials persisted in `localStorage` (reversible) | Medium |
-| F2 | frontend | No security headers (CSP / X-Frame-Options / nosniff) in nginx | Medium |
+| F2 | frontend | No security headers (CSP / X-Frame-Options / nosniff) in nginx | Medium — ✅ Fixed |
 
 ---
 
@@ -152,6 +152,8 @@ The real username/password are stored base64-encoded (trivially reversible) in `
 No `Content-Security-Policy`, `X-Frame-Options` / `frame-ancestors`, `X-Content-Type-Options: nosniff`, or `Referrer-Policy`. Absent a CSP, any injected script runs with full privileges — which directly amplifies F1 (credential exfiltration). Absent frame-ancestors/X-Frame-Options, the app is framable (clickjacking).
 
 **Recommendation:** Add a strict CSP (default-src 'self', no inline scripts), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`.
+
+**✅ Fixed (2026-06-26):** Added `frontend/security-headers.conf` (CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`) and wired it into `frontend/nginx.conf` — included at server level and re-included in every location that sets its own `add_header` (nginx stops inheriting `add_header` once a block defines one), and shipped via the Dockerfile to `/etc/nginx/snippets/`. The CSP is strict: `default-src 'self'`, `script-src 'self'` (the Vite build is hashed module files plus a bundled `virtual:pwa-register` registration — no inline scripts), `frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'`; `style-src` allows `'unsafe-inline'` for Vue/Tailwind runtime styles. Validated with `nginx -t`. This CSP also substantially mitigates F1 by blocking the injected/exfiltrating scripts that would steal the stored credential.
 
 **Positives:** No XSS sinks found — no `v-html`, `innerHTML`, or `eval` usage; Vue's default output escaping is relied upon. A global 401 handler clears credentials. The production single-origin layout (Traefik HTTPS, relative `/api`) avoids CORS exposure.
 

@@ -15,7 +15,7 @@
 | C4 | core | SSRF via stored push-subscription endpoint | Low — ✅ Fixed |
 | C5 | core | Excel formula injection in transaction export (untrusted SMS-derived notes) | Medium — ✅ Fixed |
 | L1 | lookout | Ingest token optional + delivered over plaintext HTTP to core | Medium — ✅ Fixed |
-| L2 | lookout | Telegram session stored as plaintext JSON on disk | Low |
+| L2 | lookout | Telegram session stored as plaintext JSON on disk | Low — ⏸️ Accepted |
 | N1 | notifier | `allowBackup="true"` with default (empty) backup rules | Low |
 | N2 | notifier | No explicit `network_security_config`; URL scheme not validated | Low |
 | F1 | frontend | Basic-auth credentials persisted in `localStorage` (reversible) | Medium |
@@ -102,6 +102,12 @@ The bearer header is only attached when the token is non-empty, so an unconfigur
 The gotd session file holds the account auth key in cleartext on the `/data` volume. Anyone with read access to that file gains full control of the linked Telegram account (the account also has 2FA, but the live session bypasses it).
 
 **Recommendation:** Restrict file/volume permissions (0600, dedicated user), and treat the volume as a secret store.
+
+**⏸️ Accepted (2026-06-26):** The realistic local adversary is anyone with host/docker access — who already controls the box (can read core's `INGEST_TOKEN`/`AUTH_PASSWORD` from the container env, `docker exec` into lookout, or dump the live session from memory), so file encryption defends against nothing there; the decryption key would also have to live on the same host beside the ciphertext. The conditions that make this acceptable are already in place and verified on the host:
+- gotd writes the session `0600` and lookout runs **non-root** — confirmed live: `-rw------- app app session.json` (and `lookout-state.json`) on a named Docker volume (`tg-session` → `/data`) reachable only by host root / docker-group.
+- The account has **2FA** and the session is **instantly revocable** (Telegram → Settings → Devices → terminate).
+
+Residual risk is offline leakage (volume backup/snapshot or disk theft), mitigated operationally: **encrypt or exclude the `tg-session` volume from backups/snapshots**, keep host access tight, and optionally run the bot under a dedicated Telegram account. Encryption-at-rest on the same host was judged not worth the complexity for a single-user self-hosted deployment.
 
 **Positives:** Non-banking SMS / non-matching messages are dropped by the parser before any network use; no secrets are logged; delivery uses bounded exponential backoff; the container runs as non-root (`USER app`). The atomic state writer (`store.go`) is implemented safely (temp file + fsync + rename).
 

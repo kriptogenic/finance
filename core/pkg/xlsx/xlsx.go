@@ -5,9 +5,17 @@ package xlsx
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/xuri/excelize/v2"
 )
+
+// formulaTriggers are the leading characters a spreadsheet may interpret as the
+// start of a formula. A string cell beginning with one is neutralized (see
+// sanitizeCell) so untrusted text — e.g. a merchant name parsed from a bank SMS
+// that lands in a transaction note — can't become an executable formula when the
+// export is opened. See OWASP "CSV Injection" / "Formula Injection".
+const formulaTriggers = "=+-@\t\r"
 
 // Workbook is a single-sheet spreadsheet being built row by row.
 type Workbook struct {
@@ -85,7 +93,7 @@ func (w *Workbook) AppendRow(values ...any) error {
 		if err != nil {
 			return fmt.Errorf("xlsx: cell name: %w", err)
 		}
-		if err := w.f.SetCellValue(w.sheet, cell, v); err != nil {
+		if err := w.f.SetCellValue(w.sheet, cell, sanitizeCell(v)); err != nil {
 			return fmt.Errorf("xlsx: set cell %s: %w", cell, err)
 		}
 	}
@@ -163,6 +171,22 @@ func (w *Workbook) WriteTo(dst io.Writer) (int64, error) {
 // Close releases the workbook's resources.
 func (w *Workbook) Close() error {
 	return w.f.Close()
+}
+
+// sanitizeCell neutralizes spreadsheet formula injection in string cells by
+// prefixing a single quote — the text marker spreadsheet apps honor — when the
+// value begins with a formula trigger. Non-string values (numbers, dates) pass
+// through unchanged, so numeric columns keep their type and formatting.
+func sanitizeCell(v any) any {
+	s, ok := v.(string)
+	if !ok || s == "" {
+		return v
+	}
+	if strings.ContainsRune(formulaTriggers, rune(s[0])) {
+		return "'" + s
+	}
+
+	return v
 }
 
 func toAny(s []string) []any {

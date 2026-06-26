@@ -40,6 +40,8 @@ let pollTimer: ReturnType<typeof setTimeout> | undefined
 
 async function startCamera() {
   cameraError.value = ''
+  qrUrl.value = ''
+  detected.value = false
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' } },
@@ -248,6 +250,9 @@ onUnmounted(() => {
         v-model="qrUrl"
         type="url"
         inputmode="url"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
         placeholder="https://ofd.soliq.uz/check?..."
         class="field text-sm"
       />

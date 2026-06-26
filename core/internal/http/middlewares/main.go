@@ -50,7 +50,7 @@ func authenticateBasic(req *http.Request, auth *config.Auth) error {
 
 func authenticateBearer(req *http.Request, token string) error {
 	if token == "" {
-		return nil
+		return errors.New("ingest auth not configured")
 	}
 
 	header := req.Header.Get("Authorization")

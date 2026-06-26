@@ -9,7 +9,7 @@
 
 | # | Component | Finding | Severity |
 |---|-----------|---------|----------|
-| C1 | core | Ingest endpoints are unauthenticated when `INGEST_TOKEN` is unset (auth fails open) | **High** |
+| C1 | core | Ingest endpoints are unauthenticated when `INGEST_TOKEN` is unset (auth fails open) | **High** — ✅ Fixed |
 | C2 | core | No brute-force protection / rate limiting on Basic auth | Medium |
 | C3 | core | Database connection defaults to `sslmode=disable` (incl. prod docs) | Medium |
 | C4 | core | SSRF via stored push-subscription endpoint | Low |
@@ -42,6 +42,8 @@ func authenticateBearer(req *http.Request, token string) error {
 This is a fail-open default. `DEPLOY.md` tells the operator to set a strong token, but nothing enforces it.
 
 **Recommendation:** Fail closed. Either make `INGEST_TOKEN` `env-required:"true"`, or reject ingest requests when no token is configured (return an error instead of `nil`). Log loudly at startup if ingest auth is disabled.
+
+**✅ Fixed (2026-06-26):** `INGEST_TOKEN` is now `env-required:"true"` (`core/config/config.go`), so the server refuses to start without it. As defense-in-depth, `authenticateBearer` now returns an error (rejects) instead of `nil` when the token is empty (`core/internal/http/middlewares/main.go`), so auth can never fail open even if the config guard is bypassed. Regression test added: `TestIngestBearerAuth_EmptyTokenFailsClosed`.
 
 ### C2 — No brute-force protection on Basic auth (Medium)
 `core/internal/http/middlewares/main.go:39-49`

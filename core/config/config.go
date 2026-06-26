@@ -55,7 +55,7 @@ type (
 	}
 
 	Ingest struct {
-		Token string `env:"INGEST_TOKEN" env-default:""`
+		Token string `env:"INGEST_TOKEN" env-required:"true"`
 	}
 
 	Auth struct {

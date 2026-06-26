@@ -99,3 +99,13 @@ func TestIngestBearerAuth(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, rec.Code)
 	})
 }
+
+func TestIngestBearerAuth_EmptyTokenFailsClosed(t *testing.T) {
+	h := handler(t, &config.Auth{Username: "admin", Password: "secret"}, &config.Ingest{})
+
+	req := httptest.NewRequest(http.MethodPost, "/ingest/transactions", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+}

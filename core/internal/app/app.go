@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"finance/pkg/proxy"
 	"net/http"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -20,12 +21,14 @@ import (
 	"finance/internal/iconsuggest"
 	"finance/internal/ingest"
 	"finance/internal/pushnotify"
+	"finance/internal/receipts"
 	accountrepository "finance/internal/repositories/account_repository"
 	balancesnapshotrepository "finance/internal/repositories/balance_snapshot_repository"
 	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
 	categoryrulerepository "finance/internal/repositories/category_rule_repository"
 	pushsubscriptionrepository "finance/internal/repositories/push_subscription_repository"
+	receiptrepository "finance/internal/repositories/receipt_repository"
 	reportrepository "finance/internal/repositories/report_repository"
 	scheduledtransactionrepository "finance/internal/repositories/scheduled_transaction_repository"
 	splitrepository "finance/internal/repositories/split_repository"
@@ -34,6 +37,7 @@ import (
 	"finance/pkg/database"
 	"finance/pkg/httpserver"
 	"finance/pkg/log"
+	"finance/pkg/s3"
 )
 
 func CreateApp() fx.Option {
@@ -53,8 +57,12 @@ func CreateApp() fx.Option {
 			balancesnapshotrepository.NewRepository,
 			pushsubscriptionrepository.NewRepository,
 			scheduledtransactionrepository.NewRepository,
+			receiptrepository.NewRepository,
 			scheduler.NewMaterializer,
 			scheduler.NewWorker,
+			newS3,
+			newProxy,
+			receipts.NewService,
 			iconsuggest.New,
 			categorysuggest.New,
 			pushnotify.New,
@@ -66,8 +74,23 @@ func CreateApp() fx.Option {
 			dbLifecycle,
 			HTTPLifecycle,
 			scheduler.Lifecycle,
+			receipts.Lifecycle,
 		),
 	)
+}
+
+func newS3(cfg *config.S3) *s3.Client {
+	return s3.New(s3.Config{
+		Endpoint:        cfg.Endpoint,
+		Region:          cfg.Region,
+		Bucket:          cfg.Bucket,
+		AccessKeyID:     cfg.AccessKeyID,
+		SecretAccessKey: cfg.SecretAccessKey,
+	})
+}
+
+func newProxy(cfg *config.Proxy) *proxy.Client {
+	return proxy.New(cfg.URL, cfg.Secret)
 }
 
 func httpHandler(server *handlers.Server, spec *openapi3.T, cfg *config.HTTP, ingest *config.Ingest, auth *config.Auth, rl *config.RateLimit) http.Handler {

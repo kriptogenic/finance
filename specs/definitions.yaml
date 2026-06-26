@@ -46,3 +46,7 @@ components:
       type: string
       description: How often a scheduled transaction recurs (combined with an interval).
       enum: [daily, weekly, monthly, yearly]
+    ReceiptStatus:
+      type: string
+      description: Lifecycle of an async receipt scrape+parse.
+      enum: [pending, html_received, success, failed]

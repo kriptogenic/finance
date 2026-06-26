@@ -23,6 +23,8 @@ type (
 		Anthropic
 		Push
 		RateLimit
+		S3
+		Proxy
 	}
 
 	App struct {
@@ -81,6 +83,25 @@ type (
 		AuthAttempts int           `env:"AUTH_RATE_LIMIT"  env-default:"5"`
 		AuthWindow   time.Duration `env:"AUTH_RATE_WINDOW" env-default:"1m"`
 	}
+
+	// S3 holds object-storage credentials for receipt photos. Works with AWS S3
+	// (leave Endpoint empty, set Region) or S3-compatible stores like Cloudflare
+	// R2 (set Endpoint to the account endpoint, Region "auto"). Empty Bucket or
+	// credentials disable the feature.
+	S3 struct {
+		Endpoint        string `env:"S3_ENDPOINT"          env-default:""`
+		Region          string `env:"S3_REGION"            env-default:""`
+		Bucket          string `env:"S3_BUCKET"            env-default:""`
+		AccessKeyID     string `env:"S3_ACCESS_KEY_ID"     env-default:""`
+		SecretAccessKey string `env:"S3_SECRET_ACCESS_KEY" env-default:""`
+	}
+
+	// Proxy points at the UZ VPS proxy that fetches geo-restricted
+	// ofd.soliq.uz receipt pages. Empty values disable the feature.
+	Proxy struct {
+		URL    string `env:"PROXY_URL"    env-default:""`
+		Secret string `env:"PROXY_SECRET" env-default:""`
+	}
 )
 
 func NewConfig() (*Config, error) {
@@ -105,6 +126,8 @@ func RegisterConfigs() fx.Option {
 		func(cfg *Config) *Anthropic { return &cfg.Anthropic },
 		func(cfg *Config) *Push { return &cfg.Push },
 		func(cfg *Config) *RateLimit { return &cfg.RateLimit },
+		func(cfg *Config) *S3 { return &cfg.S3 },
+		func(cfg *Config) *Proxy { return &cfg.Proxy },
 	)
 }
 

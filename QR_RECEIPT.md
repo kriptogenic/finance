@@ -223,8 +223,8 @@ Store as strings into `NUMERIC(10,8)` / `NUMERIC(11,8)` DB columns. No float ari
 ### core (additions)
 | Variable | Description |
 |----------|-------------|
-| `UZ_PROXY_URL` | Base URL of UZ proxy, e.g. `http://uz-vps:8080` |
-| `UZ_PROXY_SECRET` | Bearer token for UZ proxy |
+| `PROXY_URL` | Base URL of UZ proxy, e.g. `http://uz-vps:8080` |
+| `PROXY_SECRET` | Bearer token for UZ proxy |
 | `R2_BUCKET` | Cloudflare R2 bucket name |
 | `R2_ACCOUNT_ID` | Cloudflare account ID |
 | `R2_ACCESS_KEY_ID` | R2 access key |

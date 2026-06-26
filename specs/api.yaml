@@ -879,6 +879,70 @@ paths:
         400:
           $ref: '#/components/responses/BadRequest'
 
+  /receipts:
+    get:
+      operationId: listReceipts
+      summary: List receipt headers (no items), newest first
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1, minimum: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+      responses:
+        200:
+          description: Receipts list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptListResponse'
+    post:
+      operationId: createReceipt
+      summary: Upload a fiscal QR url + receipt photo; scrape and parse asynchronously
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - qr_url
+                - photo
+              properties:
+                qr_url:
+                  type: string
+                  description: Full ofd.soliq.uz check URL from the receipt QR code.
+                photo:
+                  type: string
+                  format: binary
+                  description: JPEG image of the paper receipt.
+      responses:
+        201:
+          description: Receipt accepted; processing in the background
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptCreated'
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /receipts/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ReceiptId'
+    get:
+      operationId: getReceipt
+      summary: Get a receipt with its parsed items
+      responses:
+        200:
+          description: Receipt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
+        404:
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
     BudgetId:
@@ -917,6 +981,13 @@ components:
         type: string
         format: uuid
     TransactionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ReceiptId:
       name: id
       in: path
       required: true
@@ -2209,3 +2280,155 @@ components:
           format: date
         paused:
           type: boolean
+
+    ReceiptCreated:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: './definitions.yaml#/components/schemas/ReceiptStatus'
+
+    ReceiptListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - receipts
+      properties:
+        receipts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Receipt'
+
+    Receipt:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - qr_url
+        - status
+        - created_at
+        - items
+      properties:
+        id:
+          type: string
+          format: uuid
+        qr_url:
+          type: string
+        status:
+          $ref: './definitions.yaml#/components/schemas/ReceiptStatus'
+        error:
+          type: string
+          nullable: true
+          description: Failure reason when status is failed.
+        terminal_id:
+          type: string
+          nullable: true
+        receipt_seq:
+          type: integer
+          nullable: true
+        fiscal_sign:
+          type: string
+          nullable: true
+        receipt_type:
+          type: string
+          nullable: true
+        merchant_name:
+          type: string
+          nullable: true
+        merchant_tin:
+          type: string
+          nullable: true
+        merchant_address:
+          type: string
+          nullable: true
+        device_name:
+          type: string
+          nullable: true
+        serial_number:
+          type: string
+          nullable: true
+        card_type:
+          type: string
+          nullable: true
+        merchant_lat:
+          type: string
+          nullable: true
+        merchant_lng:
+          type: string
+          nullable: true
+        paid_cash:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        paid_card:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        total_amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        total_vat:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        photo_key:
+          type: string
+          nullable: true
+          description: Object key of the receipt photo in storage.
+        received_at:
+          type: string
+          format: date-time
+          nullable: true
+        scraped_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReceiptItem'
+
+    ReceiptItem:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - quantity
+        - price
+        - vat_amount
+        - vat_rate
+      properties:
+        name:
+          type: string
+        quantity:
+          type: string
+        price:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        vat_amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        vat_rate:
+          type: integer
+        discount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        other:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        barcode:
+          type: string
+          nullable: true
+        ikpu_code:
+          type: string
+          nullable: true
+        ikpu_name:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        marking_code:
+          type: string
+          nullable: true
+        consignor_tin:
+          type: string
+          nullable: true

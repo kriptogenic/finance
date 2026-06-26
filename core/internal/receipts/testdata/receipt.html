@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head><meta charset="utf-8"></head>
+<body>
+<div class="receipt">
+  <h3>Savdo cheki/Sotuv</h3>
+  <h3 style="font-weight: bold">OOO MAGAZIN</h3>
+  Toshkent sh., Chilonzor 12
+  <i>305123456</i>
+  <b>TRM00099</b>
+
+  <div class="meta">
+    <span class="left">Chek raqami <b>4271</b></span>
+    <span class="left">Onlayn NKM nomi <b>NKM-X</b></span>
+    <span class="left">SN <b>SN9988</b></span>
+    <i>01.02.2024, 13:45</i>
+  </div>
+
+  <table class="items">
+    <tr class="products-row">
+      <td>Non</td>
+      <td>2</td>
+      <td class="price-sum">8,240.00</td>
+    </tr>
+    <tr><td class="nds-sum">880.00</td><td class="nds-sum">12%</td></tr>
+    <tr><td>Chegirma/Boshqa</td><td>0.00 / 0.00</td></tr>
+    <tr><td>Shtrix kodi</td><td>4780000001</td></tr>
+    <tr><td>MXIK kodi</td><td>01234567</td></tr>
+    <tr><td>MXIK nomi</td><td>Non mahsuloti</td></tr>
+    <tr><td>O'lchov birligi</td><td>dona</td></tr>
+
+    <tr class="products-row">
+      <td>Sut</td>
+      <td>1</td>
+      <td class="price-sum">8,240.00</td>
+    </tr>
+    <tr><td class="nds-sum">748.00</td><td class="nds-sum">10%</td></tr>
+    <tr><td>Shtrix kodi</td><td>4780000002</td></tr>
+    <tr><td>MXIK kodi</td><td>07654321</td></tr>
+  </table>
+
+  <table class="totals">
+    <tr><td>Naqd pul</td><td>0.00</td></tr>
+    <tr><td>Bank kartalari</td><td>16,480.00</td></tr>
+    <tr><td>Bank kartasi turi</td><td>Shaxsiy</td></tr>
+    <tr><td>Jami to'lov:</td><td>16,480.00</td></tr>
+    <tr><td>Umumiy QQS qiymati</td><td>1,628.00</td></tr>
+  </table>
+</div>
+
+<script>
+  var map = new ymaps.Map("map", {});
+  var pm = new ymaps.Placemark([41.311081, 69.240562], {});
+  map.geoObjects.add(pm);
+</script>
+</body>
+</html>

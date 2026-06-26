@@ -13,7 +13,7 @@ import (
 
 func TestWorkbook_RoundTrip(t *testing.T) {
 	wb := xlsx.New(xlsx.WithSheet("Transactions"))
-	defer wb.Close()
+	defer func() { _ = wb.Close() }()
 
 	require.NoError(t, wb.Header("Date", "Amount", "Currency", "Category", "Note"))
 	require.NoError(t, wb.AppendRow("2026-06-26 10:00:00", -12.5, "USD", "Groceries", "milk"))
@@ -25,7 +25,7 @@ func TestWorkbook_RoundTrip(t *testing.T) {
 
 	f, err := excelize.OpenReader(&buf)
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	rows, err := f.GetRows("Transactions")
 	require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestWorkbook_RoundTrip(t *testing.T) {
 // spreadsheet won't evaluate it. Safe values are left untouched.
 func TestWorkbook_NeutralizesFormulaInjection(t *testing.T) {
 	wb := xlsx.New(xlsx.WithSheet("T"))
-	defer wb.Close()
+	defer func() { _ = wb.Close() }()
 
 	require.NoError(t, wb.Header("Note"))
 	rows := []struct {
@@ -64,7 +64,7 @@ func TestWorkbook_NeutralizesFormulaInjection(t *testing.T) {
 
 	f, err := excelize.OpenReader(&buf)
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	for i, r := range rows {
 		cell := "A" + strconv.Itoa(i+2) // +2: row 1 is the header

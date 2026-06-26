@@ -10,12 +10,14 @@ import (
 	"finance/internal/categorysuggest"
 	"finance/internal/iconsuggest"
 	"finance/internal/ingest"
+	"finance/internal/receipts"
 	accountrepository "finance/internal/repositories/account_repository"
 	balancesnapshotrepository "finance/internal/repositories/balance_snapshot_repository"
 	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
 	categoryrulerepository "finance/internal/repositories/category_rule_repository"
 	pushsubscriptionrepository "finance/internal/repositories/push_subscription_repository"
+	receiptrepository "finance/internal/repositories/receipt_repository"
 	reportrepository "finance/internal/repositories/report_repository"
 	scheduledtransactionrepository "finance/internal/repositories/scheduled_transaction_repository"
 	splitrepository "finance/internal/repositories/split_repository"
@@ -37,6 +39,8 @@ type Server struct {
 	snapshots      balancesnapshotrepository.Repository
 	push           pushsubscriptionrepository.Repository
 	schedules      scheduledtransactionrepository.Repository
+	receipts       receiptrepository.Repository
+	receiptSvc     *receipts.Service
 	materializer   *scheduler.Materializer
 	icons          iconsuggest.Suggester
 	catSuggest     categorysuggest.Suggester
@@ -60,6 +64,8 @@ func NewServer(
 	snapshots balancesnapshotrepository.Repository,
 	push pushsubscriptionrepository.Repository,
 	schedules scheduledtransactionrepository.Repository,
+	receiptsRepo receiptrepository.Repository,
+	receiptSvc *receipts.Service,
 	materializer *scheduler.Materializer,
 	icons iconsuggest.Suggester,
 	catSuggest categorysuggest.Suggester,
@@ -79,6 +85,8 @@ func NewServer(
 		snapshots:      snapshots,
 		push:           push,
 		schedules:      schedules,
+		receipts:       receiptsRepo,
+		receiptSvc:     receiptSvc,
 		materializer:   materializer,
 		icons:          icons,
 		catSuggest:     catSuggest,

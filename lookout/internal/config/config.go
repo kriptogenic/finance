@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"strings"
 	"time"
 
@@ -26,7 +27,7 @@ type Config struct {
 	TransferHoldDuration time.Duration `env:"TRANSFER_HOLD_DURATION" env-default:"5m"`
 
 	FinanceAPIURL   string `env:"FINANCE_API_URL" env-required:"true"`
-	FinanceAPIToken string `env:"FINANCE_API_TOKEN" env-default:""`
+	FinanceAPIToken string `env:"FINANCE_API_TOKEN" env-required:"true"`
 
 	StateFile string `env:"STATE_FILE" env-default:"lookout-state.json"`
 
@@ -70,7 +71,30 @@ func (c *Config) validate() error {
 	if c.TransferHoldDuration <= c.TransferPairWindow {
 		return fmt.Errorf("TRANSFER_HOLD_DURATION (%s) must exceed TRANSFER_PAIR_WINDOW (%s)", c.TransferHoldDuration, c.TransferPairWindow)
 	}
+	if err := validateAPIURL(c.FinanceAPIURL); err != nil {
+		return err
+	}
 	return nil
+}
+
+// validateAPIURL refuses to send the ingest token in cleartext: FINANCE_API_URL
+// must be https, except plain http to a loopback host for local development.
+func validateAPIURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid FINANCE_API_URL %q: %w", raw, err)
+	}
+	if u.Scheme == "https" {
+		return nil
+	}
+	if u.Scheme == "http" && isLoopbackHost(u.Hostname()) {
+		return nil
+	}
+	return fmt.Errorf("FINANCE_API_URL must use https (got %q) so the ingest token is not sent over plaintext; plain http is allowed only for a loopback host", raw)
+}
+
+func isLoopbackHost(host string) bool {
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 func (c *Config) Location() *time.Location {

@@ -100,12 +100,16 @@ needed. The SPA calls the API at the relative `/api` path.
    TRANSFER_HOLD_DURATION=5m
    TIMEZONE=Asia/Tashkent
    LOG_LEVEL=info
-   FINANCE_API_URL=http://<core-app-name>:8080   # core's internal name on dokploy-network
+   FINANCE_API_URL=https://app.example.com/api   # public https endpoint (Traefik)
    FINANCE_API_TOKEN=<same value as core's INGEST_TOKEN>
    ```
-   - `<core-app-name>` is core's service name on the shared `dokploy-network`
-     (shown in the core app's UI); this reaches core directly, bypassing Traefik
-     so no `/api` prefix is involved. Or use the public `https://app.example.com/api`.
+   - `FINANCE_API_URL` **must be https** in production: the token is bearer-sent on
+     every request, so lookout refuses a non-https remote target (plain http is
+     accepted only for a loopback host in local dev). Use the public
+     `https://app.example.com/api` endpoint. (Reaching core's internal
+     `dokploy-network` name directly would bypass Traefik but send the token in
+     cleartext, so it's no longer used.)
+   - `FINANCE_API_TOKEN` is required and must equal core's `INGEST_TOKEN`.
 3. **Persistent storage:** add a **Volume Mount** so the Telegram session +
    watermark survive redeploys (without it, you'd re-scan the QR every deploy):
    - mount path **`/data`** (the container's working dir; `SESSION_FILE` and

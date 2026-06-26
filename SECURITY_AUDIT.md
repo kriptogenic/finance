@@ -14,7 +14,7 @@
 | C3 | core | Database connection defaults to `sslmode=disable` (incl. prod docs) | Medium — ⏸️ Accepted (local DB) |
 | C4 | core | SSRF via stored push-subscription endpoint | Low — ✅ Fixed |
 | C5 | core | Excel formula injection in transaction export (untrusted SMS-derived notes) | Medium — ✅ Fixed |
-| L1 | lookout | Ingest token optional + delivered over plaintext HTTP to core | Medium |
+| L1 | lookout | Ingest token optional + delivered over plaintext HTTP to core | Medium — ✅ Fixed |
 | L2 | lookout | Telegram session stored as plaintext JSON on disk | Low |
 | N1 | notifier | `allowBackup="true"` with default (empty) backup rules | Low |
 | N2 | notifier | No explicit `network_security_config`; URL scheme not validated | Low |
@@ -93,6 +93,8 @@ The exported `note` column is populated from **merchant strings parsed out of ba
 The bearer header is only attached when the token is non-empty, so an unconfigured token means no auth — which, paired with C1, yields an entirely unauthenticated ingest pipeline. The deployment guide also points lookout at `http://<core>:8080` (plaintext), so the bearer token and financial data are sent in cleartext over the internal network.
 
 **Recommendation:** Require `FINANCE_API_TOKEN`; prefer HTTPS for the core call, or explicitly document and isolate the internal trust boundary.
+
+**✅ Fixed (2026-06-26):** `FINANCE_API_TOKEN` is now `env-required:"true"` (`lookout/internal/config/config.go`), so lookout won't start without it (pairs with core's C1 fix — both sides now require the bearer). Transport is enforced in `validateAPIURL`: `FINANCE_API_URL` must be `https`, with plain `http` allowed only for a loopback host (local dev), so the token can never be bearer-sent in cleartext to a remote core. `DEPLOY.md` updated to use the public `https://app.example.com/api` endpoint instead of the internal `http://core:8080`. Covered by `config_test.go` (`TestValidateAPIURL`).
 
 ### L2 — Telegram session stored as plaintext JSON (Low)
 `lookout/internal/telegram/telegram.go:68` (`telegram.FileSessionStorage{Path: SessionFile}`)

@@ -9,6 +9,7 @@ require (
 	github.com/getkin/kin-openapi v0.140.0
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-chi/cors v1.2.2
+	github.com/go-chi/httprate v0.15.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
 	github.com/ilyakaznacheev/cleanenv v1.5.0
@@ -60,6 +61,7 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
@@ -99,6 +101,7 @@ require (
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
 	go.opentelemetry.io/otel v1.41.0 // indirect

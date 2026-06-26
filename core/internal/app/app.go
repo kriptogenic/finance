@@ -70,7 +70,7 @@ func CreateApp() fx.Option {
 	)
 }
 
-func httpHandler(server *handlers.Server, spec *openapi3.T, cfg *config.HTTP, ingest *config.Ingest, auth *config.Auth) http.Handler {
+func httpHandler(server *handlers.Server, spec *openapi3.T, cfg *config.HTTP, ingest *config.Ingest, auth *config.Auth, rl *config.RateLimit) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.Recoverer)
 
@@ -81,6 +81,8 @@ func httpHandler(server *handlers.Server, spec *openapi3.T, cfg *config.HTTP, in
 			AllowedHeaders: []string{"Authorization", "Content-Type"},
 		}))
 	}
+
+	r.Use(middlewares.AuthRateLimiter(rl.AuthAttempts, rl.AuthWindow))
 
 	strictServer := api.NewStrictHandler(server, nil)
 

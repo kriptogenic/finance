@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"go.uber.org/fx"
@@ -21,6 +22,7 @@ type (
 		Auth
 		Anthropic
 		Push
+		RateLimit
 	}
 
 	App struct {
@@ -74,6 +76,11 @@ type (
 		VAPIDPrivate string `env:"VAPID_PRIVATE_KEY" env-default:""`
 		Subscriber   string `env:"VAPID_SUBSCRIBER"  env-default:""` // mailto: or https contact for push services
 	}
+
+	RateLimit struct {
+		AuthAttempts int           `env:"AUTH_RATE_LIMIT"  env-default:"5"`
+		AuthWindow   time.Duration `env:"AUTH_RATE_WINDOW" env-default:"1m"`
+	}
 )
 
 func NewConfig() (*Config, error) {
@@ -97,6 +104,7 @@ func RegisterConfigs() fx.Option {
 		func(cfg *Config) *Auth { return &cfg.Auth },
 		func(cfg *Config) *Anthropic { return &cfg.Anthropic },
 		func(cfg *Config) *Push { return &cfg.Push },
+		func(cfg *Config) *RateLimit { return &cfg.RateLimit },
 	)
 }
 

@@ -10,7 +10,7 @@
 | # | Component | Finding | Severity |
 |---|-----------|---------|----------|
 | C1 | core | Ingest endpoints are unauthenticated when `INGEST_TOKEN` is unset (auth fails open) | **High** — ✅ Fixed |
-| C2 | core | No brute-force protection / rate limiting on Basic auth | Medium |
+| C2 | core | No brute-force protection / rate limiting on Basic auth | Medium — ✅ Fixed |
 | C3 | core | Database connection defaults to `sslmode=disable` (incl. prod docs) | Medium |
 | C4 | core | SSRF via stored push-subscription endpoint | Low |
 | C5 | core | Excel formula injection in transaction export | Low/Info |
@@ -51,6 +51,8 @@ This is a fail-open default. `DEPLOY.md` tells the operator to set a strong toke
 The whole API is gated by a single global Basic credential with no rate limiting, throttling, or lockout. Online password guessing is unbounded. The credential compare itself is constant-time (good — SHA-256 + `subtle.ConstantTimeCompare`), but the auth attempt rate is not constrained.
 
 **Recommendation:** Add rate limiting / temporary lockout on failed auth (at the app or reverse-proxy layer, e.g. Traefik middleware / fail2ban). Use a long, high-entropy password.
+
+**✅ Fixed (2026-06-26):** Added a `go-chi/httprate`-based `AuthRateLimiter` middleware (`core/internal/http/middlewares/ratelimit.go`), wired into the router (`core/internal/app/app.go`). It keys by real client IP (honoring `X-Real-IP`/`X-Forwarded-For` behind Traefik, falling back to `RemoteAddr`) and **counts only 401 responses**, so legitimate traffic is never throttled while failed auth is capped at `AUTH_RATE_LIMIT` attempts per `AUTH_RATE_WINDOW` per IP (defaults 5/min) — further attempts get `429`. Tests in `core/internal/http/middlewares/ratelimit_test.go` cover throttling, the per-IP boundary, and that success/non-401 responses don't count.
 
 ### C3 — Database TLS disabled by default and in production docs (Medium)
 `core/config/config.go:46` (`POSTGRES_SSLMODE env-default:"disable"`), `DEPLOY.md:65` (`POSTGRES_SSLMODE=disable`).

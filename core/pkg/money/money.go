@@ -1,7 +1,3 @@
-// Package money decorates Rhymond/go-money with JSON (de)serialization so the
-// type can be wired straight into generated OpenAPI models via x-go-type. The
-// underlying value stays an integer minor-unit amount plus an ISO-4217 currency
-// code — never floating point (REQUIREMENTS §3).
 package money
 
 import (
@@ -16,36 +12,55 @@ import (
 	gomoney "github.com/Rhymond/go-money"
 )
 
-// Money embeds *go-money.Money, so the whole go-money API (Add, Subtract,
-// Display, Compare, ...) is available on the wrapper. It serializes as
-//
-//	{"amount": <int64 minor units>, "currency": "<ISO-4217>"}
 type Money struct {
 	*gomoney.Money
 }
 
-// New builds a Money from an integer minor-unit amount and an ISO-4217 code.
 func New(amount int64, code string) Money {
 	return Money{gomoney.New(amount, code)}
 }
 
-// Wrap adapts an existing *go-money.Money (e.g. a ledger result) into the wrapper.
 func Wrap(m *gomoney.Money) Money {
 	return Money{m}
 }
 
-// IsZeroValue reports whether the wrapper holds no money value at all (as
-// opposed to a zero amount).
+func Zero(code string) Money {
+	return Money{gomoney.New(0, code)}
+}
+
 func (m Money) IsZeroValue() bool {
 	return m.Money == nil
 }
+
+func (m Money) Minor() int64 { return m.Amount() }
+
+func (m Money) Code() string { return m.Currency().Code }
+
+func (m Money) Plus(o Money) (Money, error) {
+	sum, err := m.Add(o.Money)
+	if err != nil {
+		return Money{}, err
+	}
+
+	return Wrap(sum), nil
+}
+
+func (m Money) Minus(o Money) (Money, error) {
+	diff, err := m.Subtract(o.Money)
+	if err != nil {
+		return Money{}, err
+	}
+
+	return Wrap(diff), nil
+}
+
+func (m Money) Neg() Money { return Wrap(m.Negative()) }
 
 type payload struct {
 	Amount   *int64 `json:"amount"`
 	Currency string `json:"currency"`
 }
 
-// MarshalJSON implements json.Marshaler.
 func (m Money) MarshalJSON() ([]byte, error) {
 	if m.Money == nil {
 		return []byte("null"), nil
@@ -56,7 +71,6 @@ func (m Money) MarshalJSON() ([]byte, error) {
 	return json.Marshal(payload{Amount: &amount, Currency: m.Currency().Code})
 }
 
-// UnmarshalJSON implements json.Unmarshaler.
 func (m *Money) UnmarshalJSON(data []byte) error {
 	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 		m.Money = nil
@@ -82,9 +96,6 @@ func (m *Money) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer, rendering the value as a PostgreSQL composite
-// literal "(amount,currency)" — suitable for a column of a composite type whose
-// fields are (bigint, text). A nil value stores SQL NULL.
 func (m Money) Value() (driver.Value, error) {
 	if m.Money == nil {
 		return nil, nil
@@ -93,7 +104,6 @@ func (m Money) Value() (driver.Value, error) {
 	return fmt.Sprintf("(%d,%s)", m.Amount(), m.Currency().Code), nil
 }
 
-// Scan implements sql.Scanner for the same "(amount,currency)" composite text.
 func (m *Money) Scan(src any) error {
 	if src == nil {
 		m.Money = nil

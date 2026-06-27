@@ -9,6 +9,7 @@ import (
 	"finance/internal/entities"
 	"finance/internal/ledger"
 	splitrepository "finance/internal/repositories/split_repository"
+	"finance/pkg/money"
 )
 
 func splitRepo() splitrepository.Repository { return splitrepository.NewRepository(testDB) }
@@ -25,13 +26,14 @@ func TestSplitExpense(t *testing.T) {
 	require.NoError(t, transactionRepo().Create(ctx, &expense))
 
 	// split 4 ways: you 50, three friends 50 each
+	uzs := func(v int64) money.Money { return money.New(v, "UZS") }
 	parts := []ledger.SplitParticipant{
-		{Name: "Alice", Amount: 50},
-		{Name: "Bob", Amount: 50},
-		{Name: "Cara", Amount: 50},
+		{Name: "Alice", Amount: uzs(50)},
+		{Name: "Bob", Amount: uzs(50)},
+		{Name: "Cara", Amount: uzs(50)},
 	}
 	group, err := splitRepo().Apply(ctx, splitrepository.ApplyParams{
-		MainTxID: expense.ID, PayingAccount: paying, MyShare: 50, Participants: parts,
+		MainTxID: expense.ID, PayingAccount: paying, MyShare: uzs(50), Participants: parts,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, group)
@@ -39,7 +41,7 @@ func TestSplitExpense(t *testing.T) {
 	// main expense shrank to your share
 	main, err := transactionRepo().Get(ctx, expense.ID)
 	require.NoError(t, err)
-	require.Equal(t, int64(50), main.Amount)
+	require.Equal(t, int64(50), main.Amount.Minor())
 	require.NotNil(t, main.SplitGroupID)
 
 	// four legs in the group (expense + 3 transfers)
@@ -62,13 +64,13 @@ func TestSplitExpense(t *testing.T) {
 	balances, err := accountRepo().Balances(ctx)
 	require.NoError(t, err)
 	// paying account lost the full 200 (your 50 + 3×50)
-	require.Equal(t, int64(800), balances[paying.ID])
+	require.Equal(t, int64(800), balances[paying.ID].Minor())
 	// net worth only dropped by your share (assets: 800 cash + 150 owed = 950)
 	var assets int64
 	for id, b := range balances {
 		acc := accByID(t, accs, id)
 		if acc.IsAsset() {
-			assets += b
+			assets += b.Minor()
 		}
 	}
 	require.Equal(t, int64(950), assets)
@@ -85,13 +87,13 @@ func TestSplitExpense(t *testing.T) {
 
 	// un-split restores the full expense and drops the (unpaid) person accounts
 	_, err = splitRepo().Apply(ctx, splitrepository.ApplyParams{
-		MainTxID: expense.ID, PayingAccount: paying, MyShare: 200, Participants: nil,
+		MainTxID: expense.ID, PayingAccount: paying, MyShare: uzs(200), Participants: nil,
 	})
 	require.NoError(t, err)
 
 	main, err = transactionRepo().Get(ctx, expense.ID)
 	require.NoError(t, err)
-	require.Equal(t, int64(200), main.Amount)
+	require.Equal(t, int64(200), main.Amount.Minor())
 	require.Nil(t, main.SplitGroupID)
 
 	// Alice survives (a repayment still references her); Bob and Cara are gone

@@ -12,7 +12,6 @@ import (
 	"finance/generated/api"
 	"finance/internal/entities"
 	transactionrepository "finance/internal/repositories/transaction_repository"
-	"finance/pkg/money"
 	"finance/pkg/xlsx"
 )
 
@@ -65,7 +64,7 @@ func (s Server) ExportTransactions(ctx context.Context, request api.ExportTransa
 			continue // transfers carry no category and aren't income/expense
 		}
 
-		amount := money.New(t.Amount, t.Currency).AsMajorUnits()
+		amount := t.Amount.AsMajorUnits()
 		if t.Type == entities.TxExpense {
 			amount = -amount
 		}
@@ -79,7 +78,7 @@ func (s Server) ExportTransactions(ctx context.Context, request api.ExportTransa
 			note = *t.Note
 		}
 
-		if err = wb.AppendRow(t.Date.Format("2006-01-02 15:04:05"), amount, t.Currency, category, note); err != nil {
+		if err = wb.AppendRow(t.Date.Format("2006-01-02 15:04:05"), amount, t.Amount.Code(), category, note); err != nil {
 			return nil, err
 		}
 	}

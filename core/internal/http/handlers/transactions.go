@@ -79,7 +79,7 @@ func (s Server) UpdateTransaction(ctx context.Context, request api.UpdateTransac
 // returns a non-empty message describing the first client error, or an empty
 // string on success.
 func (s Server) buildTransaction(ctx context.Context, body *api.CreateTransactionRequest) (entities.Transaction, string) {
-	in := ledgerInput(body)
+	in := ledgerInput(body, s.base)
 
 	if body.FromAccountId != nil {
 		acc, msg := s.getAccount(ctx, *body.FromAccountId)
@@ -124,8 +124,8 @@ func (s Server) buildTransaction(ctx context.Context, body *api.CreateTransactio
 
 // requireNote enforces the large-amount note policy (configurable threshold).
 func (s Server) requireNote(tx entities.Transaction) string {
-	if s.noteThreshold > 0 && tx.Amount > s.noteThreshold && (tx.Note == nil || *tx.Note == "") {
-		return "a note is required for amounts over " + money.New(s.noteThreshold, tx.Currency).Display()
+	if s.noteThreshold > 0 && tx.Amount.Minor() > s.noteThreshold && (tx.Note == nil || *tx.Note == "") {
+		return "a note is required for amounts over " + money.New(s.noteThreshold, tx.Amount.Code()).Display()
 	}
 
 	return ""
@@ -377,7 +377,9 @@ func (s Server) DeleteTransaction(ctx context.Context, request api.DeleteTransac
 	return api.DeleteTransaction204Response{}, nil
 }
 
-func ledgerInput(body *api.CreateTransactionJSONRequestBody) ledger.NewTransaction {
+// ledgerInput maps the request body to the engine input. The amount currency is
+// a placeholder (base); BuildTransaction re-derives it from the resolved account.
+func ledgerInput(body *api.CreateTransactionJSONRequestBody, base string) ledger.NewTransaction {
 	date := time.Now()
 	if body.Date != nil {
 		date = *body.Date
@@ -388,14 +390,19 @@ func ledgerInput(body *api.CreateTransactionJSONRequestBody) ledger.NewTransacti
 		tags = *body.Tags
 	}
 
-	return ledger.NewTransaction{
-		Date:     date,
-		Type:     entities.TransactionType(body.Type),
-		Amount:   body.Amount,
-		ToAmount: body.ToAmount,
-		Note:     body.Note,
-		Tags:     tags,
+	in := ledger.NewTransaction{
+		Date:   date,
+		Type:   entities.TransactionType(body.Type),
+		Amount: money.New(body.Amount, base),
+		Note:   body.Note,
+		Tags:   tags,
 	}
+	if body.ToAmount != nil {
+		m := money.New(*body.ToAmount, base)
+		in.ToAmount = &m
+	}
+
+	return in
 }
 
 func (s Server) getAccount(ctx context.Context, id uuid.UUID) (*entities.Account, string) {
@@ -436,7 +443,7 @@ func (s Server) toTransaction(tx entities.Transaction) api.Transaction {
 		Id:        tx.ID,
 		Date:      tx.Date,
 		Type:      api.TransactionType(tx.Type),
-		Amount:    money.New(tx.Amount, tx.Currency),
+		Amount:    tx.Amount,
 		Tags:      tags,
 		CreatedAt: tx.CreatedAt,
 	}
@@ -450,16 +457,16 @@ func (s Server) toTransaction(tx entities.Transaction) api.Transaction {
 	if tx.CategoryID != nil {
 		out.CategoryId = nullable.NewNullableWithValue(*tx.CategoryID)
 	}
-	if tx.ToAmount != nil && tx.ToCurrency != nil {
-		m := money.New(*tx.ToAmount, *tx.ToCurrency)
-		out.ToAmount = &m
+	if tx.ToAmount != nil {
+		toAmount := *tx.ToAmount
+		out.ToAmount = &toAmount
 	}
 	if tx.RateToBase != nil {
 		out.RateToBase = nullable.NewNullableWithValue(tx.RateToBase.String())
 	}
 	if tx.BaseAmount != nil {
-		m := money.New(*tx.BaseAmount, s.base)
-		out.BaseAmount = &m
+		baseAmount := *tx.BaseAmount
+		out.BaseAmount = &baseAmount
 	}
 	if tx.Note != nil {
 		out.Note = nullable.NewNullableWithValue(*tx.Note)

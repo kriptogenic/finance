@@ -13,6 +13,7 @@ import (
 	"finance/internal/ledger"
 	transactionrepository "finance/internal/repositories/transaction_repository"
 	"finance/pkg/fx"
+	"finance/pkg/money"
 )
 
 func TestTransaction_CreateGetDelete(t *testing.T) {
@@ -32,8 +33,8 @@ func TestTransaction_CreateGetDelete(t *testing.T) {
 	got, err := repo.Get(ctx, tx.ID)
 	require.NoError(t, err)
 	assert.Equal(t, entities.TxExpense, got.Type)
-	assert.Equal(t, int64(120000), got.Amount)
-	assert.Equal(t, "UZS", got.Currency)
+	assert.Equal(t, int64(120000), got.Amount.Minor())
+	assert.Equal(t, "UZS", got.Amount.Code())
 	require.NotNil(t, got.Note)
 	assert.Equal(t, "lunch", *got.Note)
 	assert.Equal(t, []string{"work"}, got.Tags)
@@ -54,7 +55,7 @@ func TestTransaction_RateFrozenRoundTrip(t *testing.T) {
 	// USD expense with base UZS: build with a frozen rate
 	rate := fx.MustParseRate("12500")
 	tx := mustBuild(t, ledger.NewTransaction{
-		Type: entities.TxExpense, From: &usd, Category: &food, Amount: 1000, RateToBase: &rate,
+		Type: entities.TxExpense, From: &usd, Category: &food, Amount: money.New(1000, "USD"), RateToBase: &rate,
 	}, "UZS")
 	require.NoError(t, repo.Create(ctx, &tx))
 
@@ -63,7 +64,8 @@ func TestTransaction_RateFrozenRoundTrip(t *testing.T) {
 	require.NotNil(t, got.RateToBase)
 	require.NotNil(t, got.BaseAmount)
 	assert.Equal(t, "12500.0000000000", got.RateToBase.String())
-	assert.Equal(t, int64(12500000), *got.BaseAmount) // 1000 * 12500
+	assert.Equal(t, int64(12500000), got.BaseAmount.Minor()) // 1000 * 12500
+	assert.Equal(t, "UZS", got.BaseAmount.Code())
 }
 
 func TestTransaction_Update(t *testing.T) {
@@ -85,7 +87,7 @@ func TestTransaction_Update(t *testing.T) {
 
 	got, err := repo.Get(ctx, tx.ID)
 	require.NoError(t, err)
-	assert.Equal(t, int64(250000), got.Amount)
+	assert.Equal(t, int64(250000), got.Amount.Minor())
 	require.NotNil(t, got.CategoryID)
 	assert.Equal(t, rent.ID, *got.CategoryID)
 }
@@ -103,7 +105,7 @@ func TestTransaction_ShapeConstraint(t *testing.T) {
 	bad := entities.Transaction{
 		Date: time.Now(), Type: entities.TxTransfer,
 		FromAccountID: &cash.ID, ToAccountID: &other.ID, CategoryID: &food.ID,
-		Amount: 100, Currency: "UZS", Tags: []string{},
+		Amount: money.New(100, "UZS"), Tags: []string{},
 	}
 	require.Error(t, transactionRepo().Create(ctx, &bad))
 }

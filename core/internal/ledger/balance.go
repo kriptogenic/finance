@@ -7,88 +7,99 @@ package ledger
 import (
 	"fmt"
 
-	money "github.com/Rhymond/go-money"
-
 	"finance/internal/entities"
 	"finance/pkg/fx"
+	"finance/pkg/money"
 )
 
-// DeriveBalance computes an account's balance in its own currency (minor units)
-// from its opening balance and the transactions touching it (§5):
+// DeriveBalance computes an account's balance in its own currency from its
+// opening balance and the transactions touching it (§5):
 //
-//	asset.balance     = opening + inflows − outflows   (what you own)
-//	liability.balance = opening − inflows + outflows   (what you owe)
-//
-// For a liability, an outflow (card spend, loan draw) increases what you owe and
-// an inflow (repayment) reduces it — the mirror of an asset.
-func DeriveBalance(acc entities.Account, txns []entities.Transaction) int64 {
-	var inflow, outflow int64
+//	asset.balance     = opening + inflows − outflows
+//	liability.balance = opening − inflows + outflows
+func DeriveBalance(acc entities.Account, txns []entities.Transaction) (money.Money, error) {
+	inflow := money.Zero(acc.Currency)
+	outflow := money.Zero(acc.Currency)
 
+	var err error
 	for _, t := range txns {
 		if t.ToAccountID != nil && *t.ToAccountID == acc.ID {
-			inflow += t.CreditAmount()
+			if inflow, err = inflow.Plus(t.CreditAmount()); err != nil {
+				return money.Money{}, err
+			}
 		}
 
 		if t.FromAccountID != nil && *t.FromAccountID == acc.ID {
-			outflow += t.Amount
+			if outflow, err = outflow.Plus(t.Amount); err != nil {
+				return money.Money{}, err
+			}
 		}
 	}
 
 	return Balance(acc.Kind, acc.OpeningBalance, inflow, outflow)
 }
 
-// Balance applies the derivation formula to pre-aggregated inflow/outflow totals
-// (e.g. computed in SQL). It is the single source of truth for the asset vs
-// liability sign convention used by DeriveBalance.
-func Balance(kind entities.AccountKind, opening, inflow, outflow int64) int64 {
+// Balance applies the derivation formula to pre-aggregated inflow/outflow totals.
+// It is the single source of truth for the asset vs liability sign convention.
+func Balance(kind entities.AccountKind, opening, inflow, outflow money.Money) (money.Money, error) {
 	if kind == entities.KindLiability {
-		return opening - inflow + outflow
+		net, err := opening.Minus(inflow)
+		if err != nil {
+			return money.Money{}, err
+		}
+
+		return net.Plus(outflow)
 	}
 
-	return opening + inflow - outflow
+	net, err := opening.Plus(inflow)
+	if err != nil {
+		return money.Money{}, err
+	}
+
+	return net.Minus(outflow)
 }
 
-// FreezeBase computes the base_amount to persist on a transaction, freezing the
-// FX rate at transaction time so historical reports never re-convert (§3).
-func FreezeBase(amount int64, rate fx.Rate) int64 {
-	return rate.Convert(amount)
+// FreezeBase converts amount to base at the frozen rate, returning the
+// base_amount to persist (§3).
+func FreezeBase(amount money.Money, rate fx.Rate, base string) money.Money {
+	return money.New(rate.Convert(amount.Minor()), base)
 }
 
 // AccountBalance pairs an account with its derived balance (in the account's
 // currency), the input to net-worth aggregation.
 type AccountBalance struct {
 	Account entities.Account
-	Balance int64
+	Balance money.Money
 }
 
 // NetWorth converts every balance to the base currency and returns
 // Σ(assets) − Σ(liabilities). rates maps a currency code to its rate-to-base;
 // the base currency itself needs no entry (it converts at identity).
-func NetWorth(base string, balances []AccountBalance, rates map[string]fx.Rate) (*money.Money, error) {
-	total := money.New(0, base)
+func NetWorth(base string, balances []AccountBalance, rates map[string]fx.Rate) (money.Money, error) {
+	total := money.Zero(base)
 
 	for _, ab := range balances {
 		rate := fx.One()
 		if ab.Account.Currency != base {
 			r, ok := rates[ab.Account.Currency]
 			if !ok || !r.Valid() {
-				return nil, fmt.Errorf("ledger: missing rate for %s", ab.Account.Currency)
+				return money.Money{}, fmt.Errorf("ledger: missing rate for %s", ab.Account.Currency)
 			}
 
 			rate = r
 		}
 
-		leg := money.New(rate.Convert(ab.Balance), base)
+		leg := money.New(rate.Convert(ab.Balance.Minor()), base)
 
 		var err error
 		if ab.Account.IsLiability() {
-			total, err = total.Subtract(leg)
+			total, err = total.Minus(leg)
 		} else {
-			total, err = total.Add(leg)
+			total, err = total.Plus(leg)
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("ledger: aggregate net worth: %w", err)
+			return money.Money{}, fmt.Errorf("ledger: aggregate net worth: %w", err)
 		}
 	}
 

@@ -33,7 +33,7 @@ func TestIngest_Idempotent(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, created, "same external_id must dedupe")
 	assert.Equal(t, tx1.ID, tx2.ID, "returns the originally-stored transaction")
-	assert.Equal(t, int64(57550_00), tx2.Amount, "original amount preserved, not overwritten")
+	assert.Equal(t, int64(57550_00), tx2.Amount.Minor(), "original amount preserved, not overwritten")
 
 	// exactly one row exists
 	all, err := repo.List(ctx, allFilter())

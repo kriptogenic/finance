@@ -12,6 +12,7 @@ import (
 	"finance/internal/entities"
 	"finance/pkg/database"
 	"finance/pkg/fx"
+	"finance/pkg/money"
 )
 
 var ErrNotFound = errors.New("scheduled transaction not found")
@@ -39,21 +40,35 @@ func NewRepository(db *database.DB) Repository {
 // rate_to_base is cast to text so it parses into fx.Rate without relying on pgx
 // numeric decoding (mirrors transaction_repository).
 const columns = `id, name, type, from_account_id, to_account_id, category_id,
-	amount, to_amount, rate_to_base::text, note, tags,
+	amount,
+	(SELECT a.currency FROM accounts a WHERE a.id = COALESCE(from_account_id, to_account_id)),
+	to_amount,
+	(SELECT a.currency FROM accounts a WHERE a.id = to_account_id),
+	rate_to_base::text, note, tags,
 	frequency, interval, next_run, end_date, paused, last_run_at, created_at`
 
 func scanScheduled(row pgx.Row) (entities.ScheduledTransaction, error) {
 	var (
-		s        entities.ScheduledTransaction
-		rateText *string
+		s          entities.ScheduledTransaction
+		amount     int64
+		currency   string
+		toAmount   *int64
+		toCurrency *string
+		rateText   *string
 	)
 	err := row.Scan(
 		&s.ID, &s.Name, &s.Type, &s.FromAccountID, &s.ToAccountID, &s.CategoryID,
-		&s.Amount, &s.ToAmount, &rateText, &s.Note, &s.Tags,
+		&amount, &currency, &toAmount, &toCurrency, &rateText, &s.Note, &s.Tags,
 		&s.Frequency, &s.Interval, &s.NextRun, &s.EndDate, &s.Paused, &s.LastRunAt, &s.CreatedAt,
 	)
 	if err != nil {
 		return entities.ScheduledTransaction{}, err
+	}
+
+	s.Amount = money.New(amount, currency)
+	if toAmount != nil && toCurrency != nil {
+		m := money.New(*toAmount, *toCurrency)
+		s.ToAmount = &m
 	}
 
 	if rateText != nil {
@@ -65,6 +80,15 @@ func scanScheduled(row pgx.Row) (entities.ScheduledTransaction, error) {
 	}
 
 	return s, nil
+}
+
+func schedMinor(m *money.Money) *int64 {
+	if m == nil {
+		return nil
+	}
+	v := m.Minor()
+
+	return &v
 }
 
 func rateText(rate *fx.Rate) *string {
@@ -94,7 +118,7 @@ func (r repository) Create(ctx context.Context, s *entities.ScheduledTransaction
 		RETURNING id, created_at`
 
 	err := r.db.Pool.QueryRow(ctx, query,
-		s.Name, s.Type, s.FromAccountID, s.ToAccountID, s.CategoryID, s.Amount, s.ToAmount,
+		s.Name, s.Type, s.FromAccountID, s.ToAccountID, s.CategoryID, s.Amount.Minor(), schedMinor(s.ToAmount),
 		rateText(s.RateToBase), s.Note, tags(s.Tags), s.Frequency, s.Interval, s.NextRun, s.EndDate, s.Paused,
 	).Scan(&s.ID, &s.CreatedAt)
 	if err != nil {
@@ -160,7 +184,7 @@ func (r repository) Update(ctx context.Context, s *entities.ScheduledTransaction
 
 	res, err := r.db.Pool.Exec(ctx, query,
 		s.ID, s.Name, s.Type, s.FromAccountID, s.ToAccountID, s.CategoryID,
-		s.Amount, s.ToAmount, rateText(s.RateToBase), s.Note, tags(s.Tags),
+		s.Amount.Minor(), schedMinor(s.ToAmount), rateText(s.RateToBase), s.Note, tags(s.Tags),
 		s.Frequency, s.Interval, s.NextRun, s.EndDate, s.Paused,
 	)
 	if err != nil {

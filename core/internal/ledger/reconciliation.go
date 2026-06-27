@@ -4,6 +4,7 @@ import (
 	"github.com/google/uuid"
 
 	"finance/internal/entities"
+	"finance/pkg/money"
 )
 
 // ReconRow pairs an account with the latest balance an external source reported
@@ -11,8 +12,8 @@ import (
 type ReconRow struct {
 	Account       entities.Account
 	Snapshot      entities.BalanceSnapshot
-	Derived       int64 // account's derived balance, in the account's currency
-	Delta         int64 // reported − derived (valid when CurrencyMatch)
+	Derived       money.Money // account's derived balance, in the account's currency
+	Delta         money.Money // reported − derived (valid when CurrencyMatch)
 	CurrencyMatch bool
 	InSync        bool
 }
@@ -20,7 +21,7 @@ type ReconRow struct {
 // Reconcile matches reported card balances to accounts by card_last4 and compares
 // each against the account's derived balance. Only matched pairs are returned, in
 // account order. Pure: derived balances are supplied pre-computed (e.g. from SQL).
-func Reconcile(snaps []entities.BalanceSnapshot, accounts []entities.Account, balances map[uuid.UUID]int64) []ReconRow {
+func Reconcile(snaps []entities.BalanceSnapshot, accounts []entities.Account, balances map[uuid.UUID]money.Money) []ReconRow {
 	byCard := make(map[string]entities.BalanceSnapshot, len(snaps))
 	for _, s := range snaps {
 		byCard[s.CardLast4] = s
@@ -37,7 +38,7 @@ func Reconcile(snaps []entities.BalanceSnapshot, accounts []entities.Account, ba
 		}
 
 		derived := balances[acc.ID]
-		match := snap.Currency == acc.Currency
+		match := snap.Amount.Code() == acc.Currency
 		row := ReconRow{
 			Account:       acc,
 			Snapshot:      snap,
@@ -45,8 +46,11 @@ func Reconcile(snaps []entities.BalanceSnapshot, accounts []entities.Account, ba
 			CurrencyMatch: match,
 		}
 		if match {
-			row.Delta = snap.Amount - derived
-			row.InSync = row.Delta == 0
+			delta, err := snap.Amount.Minus(derived)
+			if err == nil {
+				row.Delta = delta
+				row.InSync = delta.IsZero()
+			}
 		}
 
 		rows = append(rows, row)

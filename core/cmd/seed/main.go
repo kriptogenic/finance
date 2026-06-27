@@ -31,7 +31,11 @@ import (
 	"finance/pkg/database"
 	"finance/pkg/fx"
 	"finance/pkg/log"
+	"finance/pkg/money"
 )
+
+func uzs(v int64) money.Money { return money.New(v, "UZS") }
+func usd(v int64) money.Money { return money.New(v, "USD") }
 
 func main() {
 	if err := godotenv.Load(".env"); err != nil {
@@ -65,8 +69,8 @@ func main() {
 		base:       cfg.BaseCurrency,
 		accounts:   accountrepository.NewRepository(db),
 		categories: categoryrepository.NewRepository(db),
-		txns:       transactionrepository.NewRepository(db),
-		budgets:    budgetrepository.NewRepository(db),
+		txns:       transactionrepository.NewRepository(db, &cfg.Finance),
+		budgets:    budgetrepository.NewRepository(db, &cfg.Finance),
 		snapshots:  balancesnapshotrepository.NewRepository(db),
 		receipts:   receiptrepository.NewRepository(db),
 		logger:     logger,
@@ -141,8 +145,8 @@ func (s *seeder) run(ctx context.Context, db *database.DB, reset bool) error {
 
 func (s *seeder) seedBudgets(ctx context.Context, cat map[string]entities.Category) error {
 	defs := []entities.Budget{
-		{CategoryID: cat["Food"].ID, Period: entities.BudgetMonthly, Amount: 200_000_00},
-		{CategoryID: cat["Rent"].ID, Period: entities.BudgetMonthly, Amount: 2_000_000_00},
+		{CategoryID: cat["Food"].ID, Period: entities.BudgetMonthly, Amount: uzs(200_000_00)},
+		{CategoryID: cat["Rent"].ID, Period: entities.BudgetMonthly, Amount: uzs(2_000_000_00)},
 	}
 	for i := range defs {
 		b := defs[i]
@@ -161,8 +165,8 @@ func ptr[T any](v T) *T { return &v }
 func (s *seeder) seedSnapshots(ctx context.Context) error {
 	now := time.Now()
 	defs := []entities.BalanceSnapshot{
-		{CardLast4: "8400", Bank: ptr("TBCBANK"), Amount: 1_100_000_00, Currency: "UZS", Source: ptr("humo"), ReportedAt: now},
-		{CardLast4: "4853", Bank: ptr("IPAKYULIBANK"), Amount: 700_050_00, Currency: "UZS", Source: ptr("humo"), ReportedAt: now},
+		{CardLast4: "8400", Bank: ptr("TBCBANK"), Amount: uzs(1_100_000_00), Source: ptr("humo"), ReportedAt: now},
+		{CardLast4: "4853", Bank: ptr("IPAKYULIBANK"), Amount: uzs(700_050_00), Source: ptr("humo"), ReportedAt: now},
 	}
 	for i := range defs {
 		snap := defs[i]
@@ -176,21 +180,21 @@ func (s *seeder) seedSnapshots(ctx context.Context) error {
 
 func (s *seeder) seedAccounts(ctx context.Context) (map[string]entities.Account, error) {
 	defs := []entities.Account{
-		{Name: "Cash", Kind: entities.KindAsset, Type: entities.TypeCash, Currency: "UZS", OpeningBalance: 2_000_000_00},
-		{Name: "Humo *4853", Kind: entities.KindAsset, Type: entities.TypeDebitCard, Currency: "UZS", OpeningBalance: 700_000_00, CardLast4: ptr("4853")},
-		{Name: "Humo *8400", Kind: entities.KindAsset, Type: entities.TypeDebitCard, Currency: "UZS", OpeningBalance: 1_100_000_00, CardLast4: ptr("8400")},
-		{Name: "USD Wallet", Kind: entities.KindAsset, Type: entities.TypeCash, Currency: "USD", OpeningBalance: 0},
+		{Name: "Cash", Kind: entities.KindAsset, Type: entities.TypeCash, Currency: "UZS", OpeningBalance: uzs(2_000_000_00)},
+		{Name: "Humo *4853", Kind: entities.KindAsset, Type: entities.TypeDebitCard, Currency: "UZS", OpeningBalance: uzs(700_000_00), CardLast4: ptr("4853")},
+		{Name: "Humo *8400", Kind: entities.KindAsset, Type: entities.TypeDebitCard, Currency: "UZS", OpeningBalance: uzs(1_100_000_00), CardLast4: ptr("8400")},
+		{Name: "USD Wallet", Kind: entities.KindAsset, Type: entities.TypeCash, Currency: "USD", OpeningBalance: usd(0)},
 		{
 			Name: "Savings", Kind: entities.KindAsset, Type: entities.TypeDeposit, Currency: "UZS",
-			OpeningBalance: 5_000_000_00, InterestRate: ptr(0.18), TermMonths: ptr(12),
+			OpeningBalance: uzs(5_000_000_00), InterestRate: ptr(0.18), TermMonths: ptr(12),
 		},
 		{
 			Name: "Visa Card", Kind: entities.KindLiability, Type: entities.TypeCreditCard, Currency: "UZS",
-			OpeningBalance: 0, CreditLimit: ptr(int64(10_000_000_00)),
+			OpeningBalance: uzs(0), CreditLimit: ptr(uzs(10_000_000_00)),
 		},
 		{
 			Name: "Home Loan", Kind: entities.KindLiability, Type: entities.TypeLoan, Currency: "UZS",
-			OpeningBalance: 50_000_000_00, Principal: ptr(int64(60_000_000_00)),
+			OpeningBalance: uzs(50_000_000_00), Principal: ptr(uzs(60_000_000_00)),
 			InterestRate: ptr(0.16), TermMonths: ptr(240), PaymentDay: ptr(5),
 			StartDate: ptr(time.Date(2025, time.June, 5, 0, 0, 0, 0, time.UTC)),
 		},
@@ -302,18 +306,18 @@ func (s *seeder) seedTransactions(ctx context.Context, acc map[string]entities.A
 	category := func(name string) *entities.Category { c := cat[name]; return &c }
 
 	specs := []spec{
-		{"", day(1, time.May), ledger.NewTransaction{Type: entities.TxIncome, To: from("Cash"), Category: category("Salary"), Amount: 5_000_000_00}},
-		{"", day(3, time.May), ledger.NewTransaction{Type: entities.TxExpense, From: from("Cash"), Category: category("Rent"), Amount: 1_500_000_00}},
-		{"groceries", day(10, time.May), ledger.NewTransaction{Type: entities.TxExpense, From: from("Cash"), Category: category("Groceries"), Amount: 300_000_00, Tags: []string{"weekly"}}},
-		{"", day(15, time.May), ledger.NewTransaction{Type: entities.TxExpense, From: from("Cash"), Category: category("Transport"), Amount: 50_000_00}},
-		{"", day(1, time.June), ledger.NewTransaction{Type: entities.TxIncome, To: from("Cash"), Category: category("Salary"), Amount: 5_000_000_00}},
-		{"dinner", day(5, time.June), ledger.NewTransaction{Type: entities.TxExpense, From: from("Visa Card"), Category: category("Restaurants"), Amount: 120_000_00, Note: ptr("dinner")}},
+		{"", day(1, time.May), ledger.NewTransaction{Type: entities.TxIncome, To: from("Cash"), Category: category("Salary"), Amount: uzs(5_000_000_00)}},
+		{"", day(3, time.May), ledger.NewTransaction{Type: entities.TxExpense, From: from("Cash"), Category: category("Rent"), Amount: uzs(1_500_000_00)}},
+		{"groceries", day(10, time.May), ledger.NewTransaction{Type: entities.TxExpense, From: from("Cash"), Category: category("Groceries"), Amount: uzs(300_000_00), Tags: []string{"weekly"}}},
+		{"", day(15, time.May), ledger.NewTransaction{Type: entities.TxExpense, From: from("Cash"), Category: category("Transport"), Amount: uzs(50_000_00)}},
+		{"", day(1, time.June), ledger.NewTransaction{Type: entities.TxIncome, To: from("Cash"), Category: category("Salary"), Amount: uzs(5_000_000_00)}},
+		{"dinner", day(5, time.June), ledger.NewTransaction{Type: entities.TxExpense, From: from("Visa Card"), Category: category("Restaurants"), Amount: uzs(120_000_00), Note: ptr("dinner")}},
 		// cross-currency transfer: 125,000.00 UZS -> 10.00 USD
-		{"", day(6, time.June), ledger.NewTransaction{Type: entities.TxTransfer, From: from("Cash"), To: from("USD Wallet"), Amount: 125_000_00, ToAmount: ptr(int64(10_00))}},
+		{"", day(6, time.June), ledger.NewTransaction{Type: entities.TxTransfer, From: from("Cash"), To: from("USD Wallet"), Amount: uzs(125_000_00), ToAmount: ptr(usd(10_00))}},
 		// USD expense with a frozen rate to base (UZS)
-		{"", day(7, time.June), ledger.NewTransaction{Type: entities.TxExpense, From: from("USD Wallet"), Category: category("Food"), Amount: 5_00, RateToBase: &usdRate}},
+		{"", day(7, time.June), ledger.NewTransaction{Type: entities.TxExpense, From: from("USD Wallet"), Category: category("Food"), Amount: usd(5_00), RateToBase: &usdRate}},
 		// repay part of the card bill
-		{"", day(10, time.June), ledger.NewTransaction{Type: entities.TxTransfer, From: from("Cash"), To: from("Visa Card"), Amount: 200_000_00}},
+		{"", day(10, time.June), ledger.NewTransaction{Type: entities.TxTransfer, From: from("Cash"), To: from("Visa Card"), Amount: uzs(200_000_00)}},
 	}
 
 	out := make(map[string]entities.Transaction)
@@ -357,7 +361,7 @@ type seedReceipt struct {
 func (s *seeder) seedReceipts(ctx context.Context, txns map[string]entities.Transaction) error {
 	// item builds a line with 12% VAT extracted from the (VAT-inclusive) price.
 	item := func(name, qty string, price int64) entities.ReceiptItem {
-		return entities.ReceiptItem{Name: name, Quantity: qty, Price: price, VATAmount: price * 12 / 112, VATRate: 12}
+		return entities.ReceiptItem{Name: name, Quantity: qty, Price: uzs(price), VATAmount: uzs(price * 12 / 112), VATRate: 12}
 	}
 
 	defs := []seedReceipt{
@@ -432,17 +436,17 @@ func (s *seeder) parsedReceipt(ctx context.Context, def seedReceipt, txns map[st
 
 	var vat int64
 	for _, it := range def.items {
-		vat += it.VATAmount
+		vat += it.VATAmount.Minor()
 	}
 	rec.ReceiptType = ptr("Sale")
 	rec.MerchantName = &def.merchant
 	rec.MerchantTIN = &def.tin
 	rec.MerchantAddress = &def.address
 	rec.CardType = &def.cardType
-	rec.PaidCard = def.paidCard
-	rec.PaidCash = def.paidCash
-	rec.TotalAmount = def.paidCard + def.paidCash
-	rec.TotalVAT = vat
+	rec.PaidCard = uzs(def.paidCard)
+	rec.PaidCash = uzs(def.paidCash)
+	rec.TotalAmount = uzs(def.paidCard + def.paidCash)
+	rec.TotalVAT = uzs(vat)
 	rec.Items = def.items
 	if err := s.receipts.SaveParsed(ctx, &rec); err != nil {
 		return fmt.Errorf("save parsed receipt %q: %w", def.merchant, err)

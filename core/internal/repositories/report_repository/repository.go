@@ -7,23 +7,25 @@ import (
 
 	"github.com/google/uuid"
 
+	"finance/config"
 	"finance/pkg/database"
 	"finance/pkg/fx"
+	"finance/pkg/money"
 )
 
 // CategorySpend is total expense in a top-level category over a period, in base
-// currency minor units.
+// currency.
 type CategorySpend struct {
 	CategoryID   uuid.UUID
 	CategoryName string
-	Amount       int64
+	Amount       money.Money
 }
 
-// MonthFlow is income vs expense for one calendar month, in base minor units.
+// MonthFlow is income vs expense for one calendar month, in base currency.
 type MonthFlow struct {
 	Month   string // YYYY-MM
-	Income  int64
-	Expense int64
+	Income  money.Money
+	Expense money.Money
 }
 
 type Repository interface {
@@ -35,11 +37,12 @@ type Repository interface {
 }
 
 type repository struct {
-	db *database.DB
+	db   *database.DB
+	base string
 }
 
-func NewRepository(db *database.DB) Repository {
-	return &repository{db: db}
+func NewRepository(db *database.DB, finance *config.Finance) Repository {
+	return &repository{db: db, base: finance.BaseCurrency}
 }
 
 func (r repository) LatestRates(ctx context.Context) (map[string]fx.Rate, error) {
@@ -97,10 +100,14 @@ func (r repository) SpendingByCategory(ctx context.Context, from, to time.Time) 
 
 	var out []CategorySpend
 	for rows.Next() {
-		var c CategorySpend
-		if err = rows.Scan(&c.CategoryID, &c.CategoryName, &c.Amount); err != nil {
+		var (
+			c      CategorySpend
+			amount int64
+		)
+		if err = rows.Scan(&c.CategoryID, &c.CategoryName, &amount); err != nil {
 			return nil, fmt.Errorf("spending by category: %w", err)
 		}
+		c.Amount = money.New(amount, r.base)
 
 		out = append(out, c)
 	}
@@ -129,10 +136,15 @@ func (r repository) CashFlow(ctx context.Context, from, to time.Time) ([]MonthFl
 
 	var out []MonthFlow
 	for rows.Next() {
-		var m MonthFlow
-		if err = rows.Scan(&m.Month, &m.Income, &m.Expense); err != nil {
+		var (
+			m               MonthFlow
+			income, expense int64
+		)
+		if err = rows.Scan(&m.Month, &income, &expense); err != nil {
 			return nil, fmt.Errorf("cash flow: %w", err)
 		}
+		m.Income = money.New(income, r.base)
+		m.Expense = money.New(expense, r.base)
 
 		out = append(out, m)
 	}

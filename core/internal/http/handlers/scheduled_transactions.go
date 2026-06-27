@@ -170,14 +170,17 @@ func (s Server) buildSchedule(ctx context.Context, body *api.CreateScheduledTran
 		FromAccountID: body.FromAccountId,
 		ToAccountID:   body.ToAccountId,
 		CategoryID:    body.CategoryId,
-		Amount:        body.Amount,
-		ToAmount:      body.ToAmount,
+		Amount:        money.New(body.Amount, s.base),
 		Note:          body.Note,
 		Tags:          tags,
 		Frequency:     entities.ScheduleFrequency(body.Frequency),
 		Interval:      interval,
 		NextRun:       body.NextRun.UTC(),
 		Paused:        body.Paused != nil && *body.Paused,
+	}
+	if body.ToAmount != nil {
+		m := money.New(*body.ToAmount, s.base)
+		sc.ToAmount = &m
 	}
 	if body.EndDate != nil {
 		end := body.EndDate.UTC()
@@ -214,7 +217,7 @@ func (s Server) scheduleResponse(ctx context.Context, sc entities.ScheduledTrans
 	out := api.ScheduledTransaction{
 		Id:        sc.ID,
 		Type:      api.TransactionType(sc.Type),
-		Amount:    money.New(sc.Amount, currency),
+		Amount:    money.New(sc.Amount.Minor(), currency),
 		Tags:      tags,
 		Frequency: api.ScheduleFrequency(sc.Frequency),
 		Interval:  sc.Interval,
@@ -236,7 +239,7 @@ func (s Server) scheduleResponse(ctx context.Context, sc entities.ScheduledTrans
 		out.CategoryId = nullable.NewNullableWithValue(*sc.CategoryID)
 	}
 	if sc.ToAmount != nil {
-		m := money.New(*sc.ToAmount, toCurrency)
+		m := money.New(sc.ToAmount.Minor(), toCurrency)
 		out.ToAmount = &m
 	}
 	if sc.RateToBase != nil {

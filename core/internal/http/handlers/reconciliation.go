@@ -22,8 +22,7 @@ func (s Server) IngestBalances(ctx context.Context, request api.IngestBalancesRe
 		snap := entities.BalanceSnapshot{
 			CardLast4:  e.CardLast4,
 			Bank:       e.Bank,
-			Amount:     e.Amount,
-			Currency:   e.Currency,
+			Amount:     money.New(e.Amount, e.Currency),
 			Source:     body.Source,
 			ReportedAt: body.ReportedAt,
 		}
@@ -61,8 +60,8 @@ func (s Server) GetReconciliation(ctx context.Context, _ api.GetReconciliationRe
 			CardLast4:        r.Snapshot.CardLast4,
 			AccountId:        r.Account.ID,
 			AccountName:      r.Account.Name,
-			Reported:         money.New(r.Snapshot.Amount, r.Snapshot.Currency),
-			Derived:          money.New(r.Derived, r.Account.Currency),
+			Reported:         r.Snapshot.Amount,
+			Derived:          r.Derived,
 			InSync:           r.InSync,
 			CurrencyMismatch: !r.CurrencyMatch,
 			ReportedAt:       r.Snapshot.ReportedAt,
@@ -71,8 +70,8 @@ func (s Server) GetReconciliation(ctx context.Context, _ api.GetReconciliationRe
 			row.Bank = nullable.NewNullableWithValue(*r.Snapshot.Bank)
 		}
 		if r.CurrencyMatch {
-			d := money.New(r.Delta, r.Account.Currency)
-			row.Delta = &d
+			delta := r.Delta
+			row.Delta = &delta
 		}
 
 		rows[i] = row

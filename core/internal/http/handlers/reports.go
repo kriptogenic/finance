@@ -46,20 +46,22 @@ func (s Server) GetSpending(ctx context.Context, request api.GetSpendingRequestO
 		return nil, err
 	}
 
-	var total int64
+	total := money.Zero(s.base)
 	categories := make([]api.CategorySpend, len(spends))
 	for i, sp := range spends {
-		total += sp.Amount
+		if total, err = total.Plus(sp.Amount); err != nil {
+			return nil, err
+		}
 		categories[i] = api.CategorySpend{
 			CategoryId:   sp.CategoryID,
 			CategoryName: sp.CategoryName,
-			Amount:       money.New(sp.Amount, s.base),
+			Amount:       sp.Amount,
 		}
 	}
 
 	return api.GetSpending200JSONResponse{
 		Base:       s.base,
-		Total:      money.New(total, s.base),
+		Total:      total,
 		Categories: categories,
 	}, nil
 }
@@ -74,11 +76,15 @@ func (s Server) GetCashFlow(ctx context.Context, request api.GetCashFlowRequestO
 
 	months := make([]api.MonthFlow, len(flows))
 	for i, f := range flows {
+		net, nerr := f.Income.Minus(f.Expense)
+		if nerr != nil {
+			return nil, nerr
+		}
 		months[i] = api.MonthFlow{
 			Month:   f.Month,
-			Income:  money.New(f.Income, s.base),
-			Expense: money.New(f.Expense, s.base),
-			Net:     money.New(f.Income-f.Expense, s.base),
+			Income:  f.Income,
+			Expense: f.Expense,
+			Net:     net,
 		}
 	}
 
@@ -88,9 +94,9 @@ func (s Server) GetCashFlow(ctx context.Context, request api.GetCashFlowRequestO
 func (s Server) toNetWorth(nw ledger.NetWorthBreakdown) api.NetWorthReport {
 	out := api.NetWorthReport{
 		Base:         s.base,
-		NetWorth:     money.New(nw.Net, s.base),
-		Assets:       money.New(nw.Assets, s.base),
-		Liabilities:  money.New(nw.Liabilities, s.base),
+		NetWorth:     nw.Net,
+		Assets:       nw.Assets,
+		Liabilities:  nw.Liabilities,
 		ByCurrency:   make([]api.CurrencyExposure, len(nw.ByCurrency)),
 		MissingRates: nw.MissingRates,
 	}
@@ -101,14 +107,14 @@ func (s Server) toNetWorth(nw ledger.NetWorthBreakdown) api.NetWorthReport {
 	for i, e := range nw.ByCurrency {
 		ce := api.CurrencyExposure{
 			Currency:    e.Currency,
-			Assets:      e.Assets,
-			Liabilities: e.Liabilities,
-			Net:         e.Net,
+			Assets:      e.Assets.Minor(),
+			Liabilities: e.Liabilities.Minor(),
+			Net:         e.Net.Minor(),
 			RateKnown:   e.RateKnown,
 		}
 		if e.RateKnown {
-			m := money.New(e.NetInBase, s.base)
-			ce.NetInBase = &m
+			netInBase := e.NetInBase
+			ce.NetInBase = &netInBase
 		}
 		out.ByCurrency[i] = ce
 	}

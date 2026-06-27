@@ -68,12 +68,12 @@ func TestParseHTML(t *testing.T) {
 	require.NotNil(t, r.ReceivedAt)
 	assert.Equal(t, 2024, r.ReceivedAt.Year())
 
-	assert.Equal(t, int64(0), r.PaidCash)
-	assert.Equal(t, int64(1648000), r.PaidCard)
+	assert.Equal(t, int64(0), r.PaidCash.Minor())
+	assert.Equal(t, int64(1648000), r.PaidCard.Minor())
 	require.NotNil(t, r.CardType)
 	assert.Equal(t, "Shaxsiy", *r.CardType)
-	assert.Equal(t, int64(1648000), r.TotalAmount)
-	assert.Equal(t, int64(162800), r.TotalVAT)
+	assert.Equal(t, int64(1648000), r.TotalAmount.Minor())
+	assert.Equal(t, int64(162800), r.TotalVAT.Minor())
 
 	require.NotNil(t, r.MerchantLat)
 	assert.Equal(t, "41.311081", *r.MerchantLat)
@@ -85,8 +85,8 @@ func TestParseHTML(t *testing.T) {
 	non := r.Items[0]
 	assert.Equal(t, "Non", non.Name)
 	assert.Equal(t, "2", non.Quantity)
-	assert.Equal(t, int64(824000), non.Price)
-	assert.Equal(t, int64(88000), non.VATAmount)
+	assert.Equal(t, int64(824000), non.Price.Minor())
+	assert.Equal(t, int64(88000), non.VATAmount.Minor())
 	assert.Equal(t, 12, non.VATRate)
 	require.NotNil(t, non.Barcode)
 	assert.Equal(t, "4780000001", *non.Barcode)
@@ -100,7 +100,7 @@ func TestParseHTML(t *testing.T) {
 
 	sut := r.Items[1]
 	assert.Equal(t, "Sut", sut.Name)
-	assert.Equal(t, int64(74800), sut.VATAmount)
+	assert.Equal(t, int64(74800), sut.VATAmount.Minor())
 	assert.Equal(t, 10, sut.VATRate)
 	require.NotNil(t, sut.IKPUCode)
 	assert.Equal(t, "07654321", *sut.IKPUCode)
@@ -123,10 +123,10 @@ func TestParseHTMLReal(t *testing.T) {
 	assert.Equal(t, "202099756", *r.MerchantTIN)
 
 	// totals: the bug put 1,968.23 (VAT) into cash/card/card_type and 0 into total
-	assert.Equal(t, int64(0), r.PaidCash)
-	assert.Equal(t, int64(1837000), r.PaidCard)    // 18,370.00
-	assert.Equal(t, int64(1837000), r.TotalAmount) // 18,370.00
-	assert.Equal(t, int64(196823), r.TotalVAT)     // 1,968.23
+	assert.Equal(t, int64(0), r.PaidCash.Minor())
+	assert.Equal(t, int64(1837000), r.PaidCard.Minor())    // 18,370.00
+	assert.Equal(t, int64(1837000), r.TotalAmount.Minor()) // 18,370.00
+	assert.Equal(t, int64(196823), r.TotalVAT.Minor())     // 1,968.23
 	require.NotNil(t, r.CardType)
 	assert.Equal(t, "Shaxsiy", *r.CardType)
 
@@ -134,8 +134,8 @@ func TestParseHTMLReal(t *testing.T) {
 	first := r.Items[0]
 	assert.Equal(t, "Logotipli paket Bio poelitilen 4 k gacha", first.Name)
 	assert.Equal(t, "1", first.Quantity)
-	assert.Equal(t, int64(40000), first.Price)    // 400.00
-	assert.Equal(t, int64(4286), first.VATAmount) // 42.86
+	assert.Equal(t, int64(40000), first.Price.Minor())    // 400.00
+	assert.Equal(t, int64(4286), first.VATAmount.Minor()) // 42.86
 	assert.Equal(t, 12, first.VATRate)
 	require.NotNil(t, first.Barcode)
 	assert.Equal(t, "21005602", *first.Barcode)

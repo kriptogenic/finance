@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"finance/pkg/fx"
+	"finance/pkg/money"
 )
 
 // ScheduleFrequency is the unit a scheduled transaction recurs in; combined with
@@ -30,8 +31,8 @@ type ScheduledTransaction struct {
 	FromAccountID *uuid.UUID
 	ToAccountID   *uuid.UUID
 	CategoryID    *uuid.UUID
-	Amount        int64
-	ToAmount      *int64
+	Amount        money.Money
+	ToAmount      *money.Money
 	RateToBase    *fx.Rate
 	Note          *string
 	Tags          []string

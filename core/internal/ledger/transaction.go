@@ -7,6 +7,7 @@ import (
 
 	"finance/internal/entities"
 	"finance/pkg/fx"
+	"finance/pkg/money"
 )
 
 // NewTransaction is the validated input to BuildTransaction. The caller resolves
@@ -18,8 +19,8 @@ type NewTransaction struct {
 	From       *entities.Account
 	To         *entities.Account
 	Category   *entities.Category
-	Amount     int64
-	ToAmount   *int64 // cross-currency transfers only
+	Amount     money.Money
+	ToAmount   *money.Money // cross-currency transfers only
 	RateToBase *fx.Rate
 	Note       *string
 	Tags       []string
@@ -32,7 +33,7 @@ type NewTransaction struct {
 //
 // Every returned error is a client-input error (map to HTTP 400).
 func BuildTransaction(in NewTransaction, base string) (entities.Transaction, error) {
-	if in.Amount <= 0 {
+	if in.Amount.Minor() <= 0 {
 		return entities.Transaction{}, errors.New("amount must be positive")
 	}
 
@@ -41,18 +42,17 @@ func BuildTransaction(in NewTransaction, base string) (entities.Transaction, err
 	}
 
 	tx := entities.Transaction{
-		Date:   in.Date,
-		Type:   in.Type,
-		Amount: in.Amount,
-		Note:   in.Note,
-		Tags:   in.Tags,
+		Date: in.Date,
+		Type: in.Type,
+		Note: in.Note,
+		Tags: in.Tags,
 	}
 	if tx.Tags == nil {
 		tx.Tags = []string{}
 	}
 
 	currency := assignBuckets(&tx, in)
-	tx.Currency = currency
+	tx.Amount = money.New(in.Amount.Minor(), currency)
 
 	if err := resolveSecondLeg(&tx, in); err != nil {
 		return entities.Transaction{}, err
@@ -150,7 +150,7 @@ func resolveSecondLeg(tx *entities.Transaction, in NewTransaction) error {
 	}
 
 	if in.From.Currency == in.To.Currency {
-		if in.ToAmount != nil && *in.ToAmount != in.Amount {
+		if in.ToAmount != nil && in.ToAmount.Minor() != in.Amount.Minor() {
 			return errors.New("same-currency transfer must not change the amount")
 		}
 
@@ -158,13 +158,12 @@ func resolveSecondLeg(tx *entities.Transaction, in NewTransaction) error {
 	}
 
 	// cross-currency: the credited leg is independent and required
-	if in.ToAmount == nil || *in.ToAmount <= 0 {
+	if in.ToAmount == nil || in.ToAmount.Minor() <= 0 {
 		return errors.New("cross-currency transfer requires a positive to_amount")
 	}
 
-	toCurrency := in.To.Currency
-	tx.ToAmount = in.ToAmount
-	tx.ToCurrency = &toCurrency
+	toLeg := money.New(in.ToAmount.Minor(), in.To.Currency)
+	tx.ToAmount = &toLeg
 
 	return nil
 }
@@ -181,7 +180,7 @@ func freezeRate(tx *entities.Transaction, in NewTransaction, currency, base stri
 	}
 
 	rate := *in.RateToBase
-	baseAmount := FreezeBase(in.Amount, rate)
+	baseAmount := FreezeBase(tx.Amount, rate, base)
 	tx.RateToBase = &rate
 	tx.BaseAmount = &baseAmount
 

@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"finance/pkg/money"
 )
 
 // AccountKind is the asset/liability split that drives net worth (REQUIREMENTS §2).
@@ -36,8 +38,8 @@ type Account struct {
 	Name           string
 	Kind           AccountKind
 	Type           AccountType
-	Currency       string // ISO 4217
-	OpeningBalance int64  // minor units; for liabilities, positive = owed at start
+	Currency       string      // ISO 4217 — the account's single currency
+	OpeningBalance money.Money // in Currency; for liabilities, positive = owed at start
 	Archived       bool
 	CreatedAt      time.Time
 
@@ -55,10 +57,10 @@ type Account struct {
 	Capitalization *bool
 
 	// credit_card subtype
-	CreditLimit *int64 // minor units
+	CreditLimit *money.Money // in Currency
 
 	// loan subtype
-	Principal  *int64 // minor units
+	Principal  *money.Money // in Currency
 	StartDate  *time.Time
 	PaymentDay *int
 }

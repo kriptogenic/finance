@@ -13,6 +13,7 @@ import (
 	"finance/internal/entities"
 	scheduledtransactionrepository "finance/internal/repositories/scheduled_transaction_repository"
 	"finance/internal/scheduler"
+	"finance/pkg/money"
 )
 
 func scheduleRepo() scheduledtransactionrepository.Repository {
@@ -37,7 +38,7 @@ func TestScheduled_RunDueMaterializesAndAdvances(t *testing.T) {
 		Type:          entities.TxExpense,
 		FromAccountID: &acc.ID,
 		CategoryID:    &cat.ID,
-		Amount:        150000,
+		Amount:        money.New(150000, "USD"),
 		Frequency:     entities.FreqMonthly,
 		Interval:      1,
 		NextRun:       yesterday,
@@ -54,7 +55,7 @@ func TestScheduled_RunDueMaterializesAndAdvances(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, txns, 1)
 	assert.Equal(t, entities.TxExpense, txns[0].Type)
-	assert.Equal(t, int64(150000), txns[0].Amount)
+	assert.Equal(t, int64(150000), txns[0].Amount.Minor())
 	assert.Equal(t, acc.ID, *txns[0].FromAccountID)
 	assert.Equal(t, cat.ID, *txns[0].CategoryID)
 
@@ -79,14 +80,14 @@ func TestScheduled_PausedAndExpiredAreSkipped(t *testing.T) {
 	yesterday := time.Now().UTC().AddDate(0, 0, -1)
 
 	paused := entities.ScheduledTransaction{
-		Type: entities.TxExpense, FromAccountID: &acc.ID, CategoryID: &cat.ID, Amount: 1000,
+		Type: entities.TxExpense, FromAccountID: &acc.ID, CategoryID: &cat.ID, Amount: money.New(1000, "USD"),
 		Frequency: entities.FreqMonthly, Interval: 1, NextRun: yesterday, Paused: true,
 	}
 	require.NoError(t, scheduleRepo().Create(ctx, &paused))
 
 	lastWeek := time.Now().UTC().AddDate(0, 0, -7)
 	expired := entities.ScheduledTransaction{
-		Type: entities.TxExpense, FromAccountID: &acc.ID, CategoryID: &cat.ID, Amount: 1000,
+		Type: entities.TxExpense, FromAccountID: &acc.ID, CategoryID: &cat.ID, Amount: money.New(1000, "USD"),
 		Frequency: entities.FreqMonthly, Interval: 1, NextRun: yesterday, EndDate: &lastWeek,
 	}
 	require.NoError(t, scheduleRepo().Create(ctx, &expired))

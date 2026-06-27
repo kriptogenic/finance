@@ -6,6 +6,7 @@ import (
 
 	"finance/internal/entities"
 	"finance/pkg/database"
+	"finance/pkg/money"
 )
 
 type Repository interface {
@@ -35,7 +36,7 @@ func (r repository) Upsert(ctx context.Context, snap *entities.BalanceSnapshot) 
 			updated_at = now()`
 
 	_, err := r.db.Pool.Exec(ctx, query,
-		snap.CardLast4, snap.Bank, snap.Amount, snap.Currency, snap.Source, snap.ReportedAt,
+		snap.CardLast4, snap.Bank, snap.Amount.Minor(), snap.Amount.Code(), snap.Source, snap.ReportedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert balance snapshot: %w", err)
@@ -56,10 +57,15 @@ func (r repository) List(ctx context.Context) ([]entities.BalanceSnapshot, error
 
 	var snaps []entities.BalanceSnapshot
 	for rows.Next() {
-		var s entities.BalanceSnapshot
-		if err = rows.Scan(&s.CardLast4, &s.Bank, &s.Amount, &s.Currency, &s.Source, &s.ReportedAt); err != nil {
+		var (
+			s        entities.BalanceSnapshot
+			amount   int64
+			currency string
+		)
+		if err = rows.Scan(&s.CardLast4, &s.Bank, &amount, &currency, &s.Source, &s.ReportedAt); err != nil {
 			return nil, fmt.Errorf("list balance snapshots: %w", err)
 		}
+		s.Amount = money.New(amount, currency)
 
 		snaps = append(snaps, s)
 	}

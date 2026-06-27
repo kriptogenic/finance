@@ -4,32 +4,36 @@ import (
 	"errors"
 	"math/big"
 	"time"
+
+	"finance/pkg/money"
 )
 
 // AmortizationRow is one scheduled installment of a fully-amortizing loan.
 type AmortizationRow struct {
 	Period    int
 	Date      time.Time
-	Payment   int64 // minor units = Principal + Interest
-	Principal int64
-	Interest  int64
-	Balance   int64 // remaining principal after this installment
+	Payment   money.Money // = Principal + Interest
+	Principal money.Money
+	Interest  money.Money
+	Balance   money.Money // remaining principal after this installment
 }
 
 // AmortizationSchedule is the full repayment plan plus its totals.
 type AmortizationSchedule struct {
-	MonthlyPayment int64
-	TotalPayment   int64
-	TotalInterest  int64
+	MonthlyPayment money.Money
+	TotalPayment   money.Money
+	TotalInterest  money.Money
 	Rows           []AmortizationRow
 }
 
 // Amortize builds the schedule for a fixed-rate, fully-amortizing loan using the
-// standard annuity formula. Money stays in integer minor units; interest each
-// period is round(balance × monthlyRate) so the rows reconcile exactly and the
-// final balance lands on zero. annualRate is a fraction (0.16 == 16%).
-func Amortize(principal int64, annualRate float64, termMonths int, start time.Time, paymentDay int) (AmortizationSchedule, error) {
-	if principal <= 0 {
+// standard annuity formula. Math runs on integer minor units (re-wrapped in the
+// loan currency); interest each period is round(balance × monthlyRate) so the
+// rows reconcile exactly. annualRate is a fraction (0.16 == 16%).
+func Amortize(principal money.Money, annualRate float64, termMonths int, start time.Time, paymentDay int) (AmortizationSchedule, error) {
+	code := principal.Code()
+	principalMinor := principal.Minor()
+	if principalMinor <= 0 {
 		return AmortizationSchedule{}, errors.New("loan principal must be positive")
 	}
 	if termMonths <= 0 {
@@ -37,14 +41,15 @@ func Amortize(principal int64, annualRate float64, termMonths int, start time.Ti
 	}
 
 	monthlyRate := new(big.Rat).Quo(new(big.Rat).SetFloat64(annualRate), big.NewRat(12, 1))
-	payment := monthlyPayment(principal, monthlyRate, termMonths)
+	payment := monthlyPayment(principalMinor, monthlyRate, termMonths)
 
 	schedule := AmortizationSchedule{
-		MonthlyPayment: payment,
+		MonthlyPayment: money.New(payment, code),
 		Rows:           make([]AmortizationRow, 0, termMonths),
 	}
 
-	balance := principal
+	var totalPayment, totalInterest int64
+	balance := principalMinor
 	for period := 1; period <= termMonths; period++ {
 		interest := roundRat(new(big.Rat).Mul(new(big.Rat).SetInt64(balance), monthlyRate))
 
@@ -60,18 +65,21 @@ func Amortize(principal int64, annualRate float64, termMonths int, start time.Ti
 		schedule.Rows = append(schedule.Rows, AmortizationRow{
 			Period:    period,
 			Date:      dueDate(start, period, paymentDay),
-			Payment:   pay,
-			Principal: principalPaid,
-			Interest:  interest,
-			Balance:   balance,
+			Payment:   money.New(pay, code),
+			Principal: money.New(principalPaid, code),
+			Interest:  money.New(interest, code),
+			Balance:   money.New(balance, code),
 		})
-		schedule.TotalPayment += pay
-		schedule.TotalInterest += interest
+		totalPayment += pay
+		totalInterest += interest
 
 		if balance <= 0 {
 			break
 		}
 	}
+
+	schedule.TotalPayment = money.New(totalPayment, code)
+	schedule.TotalInterest = money.New(totalInterest, code)
 
 	return schedule, nil
 }

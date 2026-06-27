@@ -12,9 +12,12 @@ import (
 	"finance/internal/ledger"
 	reportrepository "finance/internal/repositories/report_repository"
 	"finance/pkg/fx"
+	"finance/pkg/money"
 )
 
-func reportRepo() reportrepository.Repository { return reportrepository.NewRepository(testDB) }
+func reportRepo() reportrepository.Repository {
+	return reportrepository.NewRepository(testDB, financeCfg())
+}
 
 func TestReport_LatestRates(t *testing.T) {
 	reset(t)
@@ -27,7 +30,7 @@ func TestReport_LatestRates(t *testing.T) {
 	mk := func(rate string, day int) {
 		r := fx.MustParseRate(rate)
 		tx := mustBuild(t, ledger.NewTransaction{
-			Type: entities.TxExpense, From: &usd, Category: &food, Amount: 100, RateToBase: &r,
+			Type: entities.TxExpense, From: &usd, Category: &food, Amount: money.New(100, "USD"), RateToBase: &r,
 		}, "UZS")
 		tx.Date = time.Date(2026, time.June, day, 12, 0, 0, 0, time.UTC)
 		require.NoError(t, repo.Create(ctx, &tx))
@@ -64,7 +67,7 @@ func TestReport_SpendingByCategory(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, &e3))
 	// USD expense 10.00 @ 12500 -> 125000 base, under Food
 	rate := fx.MustParseRate("12500")
-	e4 := mustBuild(t, ledger.NewTransaction{Type: entities.TxExpense, From: &usd, Category: &food, Amount: 1000, RateToBase: &rate}, "UZS")
+	e4 := mustBuild(t, ledger.NewTransaction{Type: entities.TxExpense, From: &usd, Category: &food, Amount: money.New(1000, "USD"), RateToBase: &rate}, "UZS")
 	require.NoError(t, repo.Create(ctx, &e4))
 
 	from := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -73,7 +76,7 @@ func TestReport_SpendingByCategory(t *testing.T) {
 
 	byName := map[string]int64{}
 	for _, s := range spend {
-		byName[s.CategoryName] = s.Amount
+		byName[s.CategoryName] = s.Amount.Minor()
 	}
 	// Food = 200000 + 300000 (subcat) + 12,500,000 (USD base) = 13,000,000
 	assert.Equal(t, int64(13000000), byName["Food"])
@@ -110,8 +113,8 @@ func TestReport_CashFlow(t *testing.T) {
 	for _, m := range flow {
 		byMonth[m.Month] = m
 	}
-	assert.Equal(t, int64(5000000), byMonth["2026-05"].Income)
-	assert.Equal(t, int64(1800000), byMonth["2026-05"].Expense)
-	assert.Equal(t, int64(5000000), byMonth["2026-06"].Income)
-	assert.Equal(t, int64(200000), byMonth["2026-06"].Expense)
+	assert.Equal(t, int64(5000000), byMonth["2026-05"].Income.Minor())
+	assert.Equal(t, int64(1800000), byMonth["2026-05"].Expense.Minor())
+	assert.Equal(t, int64(5000000), byMonth["2026-06"].Income.Minor())
+	assert.Equal(t, int64(200000), byMonth["2026-06"].Expense.Minor())
 }

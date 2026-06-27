@@ -10,9 +10,12 @@ import (
 
 	"finance/internal/entities"
 	budgetrepository "finance/internal/repositories/budget_repository"
+	"finance/pkg/money"
 )
 
-func budgetRepo() budgetrepository.Repository { return budgetrepository.NewRepository(testDB) }
+func budgetRepo() budgetrepository.Repository {
+	return budgetrepository.NewRepository(testDB, financeCfg())
+}
 
 func TestBudget_CRUD(t *testing.T) {
 	reset(t)
@@ -21,19 +24,19 @@ func TestBudget_CRUD(t *testing.T) {
 
 	food := mustCategory(t, entities.Category{Name: "Food", Type: entities.CategoryExpense})
 
-	b := entities.Budget{CategoryID: food.ID, Period: entities.BudgetMonthly, Amount: 1000000}
+	b := entities.Budget{CategoryID: food.ID, Period: entities.BudgetMonthly, Amount: money.New(1000000, "UZS")}
 	require.NoError(t, repo.Create(ctx, &b))
 
 	got, err := repo.Get(ctx, b.ID)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1000000), got.Amount)
+	assert.Equal(t, int64(1000000), got.Amount.Minor())
 	assert.Equal(t, entities.BudgetMonthly, got.Period)
 
-	got.Amount = 1500000
+	got.Amount = money.New(1500000, "UZS")
 	got.Period = entities.BudgetWeekly
 	require.NoError(t, repo.Update(ctx, got))
 	got, _ = repo.Get(ctx, b.ID)
-	assert.Equal(t, int64(1500000), got.Amount)
+	assert.Equal(t, int64(1500000), got.Amount.Minor())
 	assert.Equal(t, entities.BudgetWeekly, got.Period)
 
 	require.NoError(t, repo.Delete(ctx, b.ID))
@@ -47,11 +50,11 @@ func TestBudget_UniqueAndCascade(t *testing.T) {
 	repo := budgetRepo()
 
 	food := mustCategory(t, entities.Category{Name: "Food", Type: entities.CategoryExpense})
-	b1 := entities.Budget{CategoryID: food.ID, Period: entities.BudgetMonthly, Amount: 1000}
+	b1 := entities.Budget{CategoryID: food.ID, Period: entities.BudgetMonthly, Amount: money.New(1000, "UZS")}
 	require.NoError(t, repo.Create(ctx, &b1))
 
 	// one budget per category
-	b2 := entities.Budget{CategoryID: food.ID, Period: entities.BudgetMonthly, Amount: 2000}
+	b2 := entities.Budget{CategoryID: food.ID, Period: entities.BudgetMonthly, Amount: money.New(2000, "UZS")}
 	require.Error(t, repo.Create(ctx, &b2))
 
 	// deleting the category cascades to its budget
@@ -92,5 +95,5 @@ func TestBudget_SpentCoversSubcategories(t *testing.T) {
 	start, end := entities.PeriodWindow(entities.BudgetMonthly, now)
 	spent, err := repo.Spent(ctx, food.ID, start, end)
 	require.NoError(t, err)
-	assert.Equal(t, int64(500000), spent, "Food + Groceries within the month, excluding Rent and last month")
+	assert.Equal(t, int64(500000), spent.Minor(), "Food + Groceries within the month, excluding Rent and last month")
 }

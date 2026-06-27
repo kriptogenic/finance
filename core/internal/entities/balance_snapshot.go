@@ -1,6 +1,10 @@
 package entities
 
-import "time"
+import (
+	"time"
+
+	"finance/pkg/money"
+)
 
 // BalanceSnapshot is the latest balance an external source reported for a card.
 // It is matched to an account via CardLast4 for reconciliation; the bank-derived
@@ -8,8 +12,7 @@ import "time"
 type BalanceSnapshot struct {
 	CardLast4  string
 	Bank       *string
-	Amount     int64 // minor units, in Currency
-	Currency   string
+	Amount     money.Money // the reported balance, in its own currency
 	Source     *string
 	ReportedAt time.Time
 }

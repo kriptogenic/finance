@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"finance/pkg/money"
 )
 
 // BudgetPeriod is the window a budget's limit applies to.
@@ -21,7 +23,7 @@ type Budget struct {
 	ID          uuid.UUID
 	CategoryID  uuid.UUID
 	Period      BudgetPeriod
-	Amount      int64
+	Amount      money.Money // base-currency limit
 	Rollover    bool
 	StartPeriod *time.Time
 	CreatedAt   time.Time

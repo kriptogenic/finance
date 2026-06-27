@@ -49,18 +49,19 @@ func (s Server) CreateAccount(ctx context.Context, request api.CreateAccountRequ
 		Kind:           entities.AccountKind(body.Kind),
 		Type:           entities.AccountType(body.Type),
 		Currency:       body.Currency,
+		OpeningBalance: money.New(0, body.Currency),
 		InterestRate:   floatPtr(body.InterestRate),
 		TermMonths:     body.TermMonths,
 		MaturityDate:   datePtr(body.MaturityDate),
 		Capitalization: body.Capitalization,
-		CreditLimit:    body.CreditLimit,
-		Principal:      body.Principal,
+		CreditLimit:    optMoney(body.CreditLimit, body.Currency),
+		Principal:      optMoney(body.Principal, body.Currency),
 		StartDate:      datePtr(body.StartDate),
 		PaymentDay:     body.PaymentDay,
 		CardLast4:      body.CardLast4,
 	}
 	if body.OpeningBalance != nil {
-		acc.OpeningBalance = *body.OpeningBalance
+		acc.OpeningBalance = money.New(*body.OpeningBalance, body.Currency)
 	}
 	// default included; only an explicit false excludes it
 	acc.ExcludedFromNetWorth = body.IncludeInNetWorth != nil && !*body.IncludeInNetWorth
@@ -135,10 +136,10 @@ func (s Server) UpdateAccount(ctx context.Context, request api.UpdateAccountRequ
 		acc.Capitalization = body.Capitalization
 	}
 	if body.CreditLimit != nil {
-		acc.CreditLimit = body.CreditLimit
+		acc.CreditLimit = optMoney(body.CreditLimit, acc.Currency)
 	}
 	if body.Principal != nil {
-		acc.Principal = body.Principal
+		acc.Principal = optMoney(body.Principal, acc.Currency)
 	}
 	if body.StartDate != nil {
 		acc.StartDate = datePtr(body.StartDate)
@@ -213,27 +214,27 @@ func toAmortization(currency string, sched ledger.AmortizationSchedule) api.Amor
 		rows[i] = api.AmortizationRow{
 			Period:    r.Period,
 			Date:      openapi_types.Date{Time: r.Date},
-			Payment:   money.New(r.Payment, currency),
-			Principal: money.New(r.Principal, currency),
-			Interest:  money.New(r.Interest, currency),
-			Balance:   money.New(r.Balance, currency),
+			Payment:   r.Payment,
+			Principal: r.Principal,
+			Interest:  r.Interest,
+			Balance:   r.Balance,
 		}
 	}
 
 	return api.AmortizationSchedule{
 		Currency:       currency,
-		MonthlyPayment: money.New(sched.MonthlyPayment, currency),
-		TotalPayment:   money.New(sched.TotalPayment, currency),
-		TotalInterest:  money.New(sched.TotalInterest, currency),
+		MonthlyPayment: sched.MonthlyPayment,
+		TotalPayment:   sched.TotalPayment,
+		TotalInterest:  sched.TotalInterest,
 		Rows:           rows,
 	}
 }
 
 // accountBalance fetches the single account's derived balance.
-func (s Server) accountBalance(ctx context.Context, id uuid.UUID, acc entities.Account) (int64, error) {
+func (s Server) accountBalance(ctx context.Context, id uuid.UUID, acc entities.Account) (money.Money, error) {
 	balances, err := s.accounts.Balances(ctx)
 	if err != nil {
-		return 0, err
+		return money.Money{}, err
 	}
 
 	if b, ok := balances[id]; ok {
@@ -243,20 +244,29 @@ func (s Server) accountBalance(ctx context.Context, id uuid.UUID, acc entities.A
 	return ledgerOpening(acc), nil
 }
 
-func ledgerOpening(acc entities.Account) int64 {
+func ledgerOpening(acc entities.Account) money.Money {
 	// no transactions → balance equals opening balance for both kinds
 	return acc.OpeningBalance
 }
 
-func toAccount(acc entities.Account, balance int64) api.Account {
+func optMoney(v *int64, currency string) *money.Money {
+	if v == nil {
+		return nil
+	}
+	m := money.New(*v, currency)
+
+	return &m
+}
+
+func toAccount(acc entities.Account, balance money.Money) api.Account {
 	a := api.Account{
 		Id:                acc.ID,
 		Name:              acc.Name,
 		Kind:              api.AccountKind(acc.Kind),
 		Type:              api.AccountType(acc.Type),
 		Currency:          acc.Currency,
-		OpeningBalance:    acc.OpeningBalance,
-		Balance:           money.New(balance, acc.Currency),
+		OpeningBalance:    acc.OpeningBalance.Minor(),
+		Balance:           balance,
 		Archived:          acc.Archived,
 		IncludeInNetWorth: !acc.ExcludedFromNetWorth,
 		CreatedAt:         acc.CreatedAt,
@@ -275,10 +285,10 @@ func toAccount(acc entities.Account, balance int64) api.Account {
 		a.Capitalization = nullable.NewNullableWithValue(*acc.Capitalization)
 	}
 	if acc.CreditLimit != nil {
-		a.CreditLimit = nullable.NewNullableWithValue(*acc.CreditLimit)
+		a.CreditLimit = nullable.NewNullableWithValue(acc.CreditLimit.Minor())
 	}
 	if acc.Principal != nil {
-		a.Principal = nullable.NewNullableWithValue(*acc.Principal)
+		a.Principal = nullable.NewNullableWithValue(acc.Principal.Minor())
 	}
 	if acc.StartDate != nil {
 		a.StartDate = nullable.NewNullableWithValue(openapi_types.Date{Time: *acc.StartDate})

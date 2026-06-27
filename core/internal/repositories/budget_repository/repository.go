@@ -9,8 +9,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"finance/config"
 	"finance/internal/entities"
 	"finance/pkg/database"
+	"finance/pkg/money"
 )
 
 var ErrNotFound = errors.New("budget not found")
@@ -23,22 +25,27 @@ type Repository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	// Spent sums expense base_amount for the category and its subcategories
 	// within [from, to). Income and transfers are excluded (App. A).
-	Spent(ctx context.Context, categoryID uuid.UUID, from, to time.Time) (int64, error)
+	Spent(ctx context.Context, categoryID uuid.UUID, from, to time.Time) (money.Money, error)
 }
 
 type repository struct {
-	db *database.DB
+	db   *database.DB
+	base string
 }
 
-func NewRepository(db *database.DB) Repository {
-	return &repository{db: db}
+func NewRepository(db *database.DB, finance *config.Finance) Repository {
+	return &repository{db: db, base: finance.BaseCurrency}
 }
 
 const columns = `id, category_id, period, amount, rollover, start_period, created_at`
 
-func scanBudget(row pgx.Row) (entities.Budget, error) {
-	var b entities.Budget
-	err := row.Scan(&b.ID, &b.CategoryID, &b.Period, &b.Amount, &b.Rollover, &b.StartPeriod, &b.CreatedAt)
+func (r repository) scanBudget(row pgx.Row) (entities.Budget, error) {
+	var (
+		b      entities.Budget
+		amount int64
+	)
+	err := row.Scan(&b.ID, &b.CategoryID, &b.Period, &amount, &b.Rollover, &b.StartPeriod, &b.CreatedAt)
+	b.Amount = money.New(amount, r.base)
 
 	return b, err
 }
@@ -49,7 +56,7 @@ func (r repository) Create(ctx context.Context, b *entities.Budget) error {
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at`
 
-	err := r.db.Pool.QueryRow(ctx, query, b.CategoryID, b.Period, b.Amount, b.Rollover, b.StartPeriod).
+	err := r.db.Pool.QueryRow(ctx, query, b.CategoryID, b.Period, b.Amount.Minor(), b.Rollover, b.StartPeriod).
 		Scan(&b.ID, &b.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create budget: %w", err)
@@ -67,7 +74,7 @@ func (r repository) List(ctx context.Context) ([]entities.Budget, error) {
 
 	var budgets []entities.Budget
 	for rows.Next() {
-		b, scanErr := scanBudget(rows)
+		b, scanErr := r.scanBudget(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("list budgets: %w", scanErr)
 		}
@@ -82,7 +89,7 @@ func (r repository) List(ctx context.Context) ([]entities.Budget, error) {
 }
 
 func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Budget, error) {
-	b, err := scanBudget(r.db.Pool.QueryRow(ctx, `SELECT `+columns+` FROM budgets WHERE id = $1`, id))
+	b, err := r.scanBudget(r.db.Pool.QueryRow(ctx, `SELECT `+columns+` FROM budgets WHERE id = $1`, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -98,7 +105,7 @@ func (r repository) Update(ctx context.Context, b *entities.Budget) error {
 		UPDATE budgets SET period = $2, amount = $3, rollover = $4, start_period = $5
 		WHERE id = $1`
 
-	res, err := r.db.Pool.Exec(ctx, query, b.ID, b.Period, b.Amount, b.Rollover, b.StartPeriod)
+	res, err := r.db.Pool.Exec(ctx, query, b.ID, b.Period, b.Amount.Minor(), b.Rollover, b.StartPeriod)
 	if err != nil {
 		return fmt.Errorf("update budget: %w", err)
 	}
@@ -121,7 +128,7 @@ func (r repository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (r repository) Spent(ctx context.Context, categoryID uuid.UUID, from, to time.Time) (int64, error) {
+func (r repository) Spent(ctx context.Context, categoryID uuid.UUID, from, to time.Time) (money.Money, error) {
 	const query = `
 		SELECT COALESCE(SUM(COALESCE(t.base_amount, t.amount)), 0)::bigint
 		FROM transactions t
@@ -132,8 +139,8 @@ func (r repository) Spent(ctx context.Context, categoryID uuid.UUID, from, to ti
 
 	var spent int64
 	if err := r.db.Pool.QueryRow(ctx, query, categoryID, from, to).Scan(&spent); err != nil {
-		return 0, fmt.Errorf("budget spent: %w", err)
+		return money.Money{}, fmt.Errorf("budget spent: %w", err)
 	}
 
-	return spent, nil
+	return money.New(spent, r.base), nil
 }

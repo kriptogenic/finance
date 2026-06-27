@@ -150,7 +150,7 @@ func (s *Service) process(ctx context.Context, id uuid.UUID, qrURL string, photo
 		return
 	}
 
-	s.autoLink(ctx, id, parsed.TotalAmount, parsed.ReceivedAt)
+	s.autoLink(ctx, id, parsed.TotalAmount.Minor(), parsed.ReceivedAt)
 }
 
 // autoLinkWindow is how far around the receipt time we look for a matching

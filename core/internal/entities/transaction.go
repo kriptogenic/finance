@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"finance/pkg/fx"
+	"finance/pkg/money"
 )
 
 // TransactionType is the kind of money move. Per the bucket model (§2) every
@@ -28,16 +29,14 @@ type Transaction struct {
 	ToAccountID   *uuid.UUID
 	CategoryID    *uuid.UUID
 
-	Amount   int64  // primary leg, in its account's currency (minor units)
-	Currency string // ISO 4217
+	Amount money.Money // primary leg, in its account's currency
 
 	// transfers only: the credited leg, in the to_account's currency
-	ToAmount   *int64
-	ToCurrency *string
+	ToAmount *money.Money
 
-	// frozen at transaction time; required when Currency != base (§3)
+	// frozen at transaction time; required when the currency != base (§3)
 	RateToBase *fx.Rate
-	BaseAmount *int64 // derived: Amount × RateToBase
+	BaseAmount *money.Money // derived: Amount × RateToBase, in base currency
 
 	Note      *string
 	Tags      []string
@@ -58,7 +57,7 @@ type Transaction struct {
 // CreditAmount is the value credited to the receiving account, in that
 // account's currency. For a cross-currency transfer that is the second leg;
 // otherwise the primary amount.
-func (t Transaction) CreditAmount() int64 {
+func (t Transaction) CreditAmount() money.Money {
 	if t.Type == TxTransfer && t.ToAmount != nil {
 		return *t.ToAmount
 	}

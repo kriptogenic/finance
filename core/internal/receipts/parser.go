@@ -12,7 +12,10 @@ import (
 	"golang.org/x/net/html"
 
 	"finance/internal/entities"
+	"finance/pkg/money"
 )
+
+func uzs(v int64) money.Money { return money.New(v, entities.ReceiptCurrency) }
 
 // placemarkRe pulls merchant coordinates out of the inline Yandex Maps script.
 var placemarkRe = regexp.MustCompile(`new ymaps\.Placemark\(\[([0-9.]+),\s*([0-9.]+)\]`)
@@ -108,11 +111,11 @@ func ParseHTML(html string) (entities.Receipt, error) {
 		}
 	}
 
-	r.PaidCash = rowAmount(doc, "Naqd pul")
-	r.PaidCard = rowAmount(doc, "Bank kartalari")
+	r.PaidCash = uzs(rowAmount(doc, "Naqd pul"))
+	r.PaidCard = uzs(rowAmount(doc, "Bank kartalari"))
 	r.CardType = strPtr(rowText(doc, "Bank kartasi turi"))
-	r.TotalAmount = rowAmount(doc, "Jami to'lov")
-	r.TotalVAT = rowAmount(doc, "Umumiy QQS qiymati")
+	r.TotalAmount = uzs(rowAmount(doc, "Jami to'lov"))
+	r.TotalVAT = uzs(rowAmount(doc, "Umumiy QQS qiymati"))
 
 	if m := placemarkRe.FindStringSubmatch(html); m != nil {
 		r.MerchantLat = strPtr(m[1])
@@ -149,16 +152,20 @@ func parseItems(doc *goquery.Document) []entities.ReceiptItem {
 			Quantity: strings.TrimSpace(tds.Eq(1).Text()),
 		}
 
-		item.Price, _ = parseAmount(group.Find(".price-sum").First().Text())
+		price, _ := parseAmount(group.Find(".price-sum").First().Text())
+		item.Price = uzs(price)
 
 		nds := group.Find(".nds-sum")
-		item.VATAmount, _ = parseAmount(nds.Eq(0).Text())
+		vat, _ := parseAmount(nds.Eq(0).Text())
+		item.VATAmount = uzs(vat)
 		item.VATRate = parseVATRate(nds.Eq(1).Text())
 
 		if cb := rowValueIn(group, "Chegirma/Boshqa"); cb != "" {
 			left, right, _ := strings.Cut(cb, "/")
-			item.Discount, _ = parseAmount(left)
-			item.Other, _ = parseAmount(right)
+			discount, _ := parseAmount(left)
+			other, _ := parseAmount(right)
+			item.Discount = uzs(discount)
+			item.Other = uzs(other)
 		}
 
 		item.Barcode = strPtr(rowValueIn(group, "Shtrix kodi"))

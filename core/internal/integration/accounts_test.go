@@ -11,6 +11,7 @@ import (
 	"finance/internal/entities"
 	"finance/internal/ledger"
 	accountrepository "finance/internal/repositories/account_repository"
+	"finance/pkg/money"
 )
 
 func TestAccount_CRUD(t *testing.T) {
@@ -20,7 +21,7 @@ func TestAccount_CRUD(t *testing.T) {
 
 	acc := entities.Account{
 		Name: "Cash", Kind: entities.KindAsset, Type: entities.TypeCash,
-		Currency: "UZS", OpeningBalance: 500000,
+		Currency: "UZS", OpeningBalance: money.New(500000, "UZS"),
 	}
 	require.NoError(t, repo.Create(ctx, &acc))
 	require.NotEqual(t, uuid.Nil, acc.ID)
@@ -29,7 +30,7 @@ func TestAccount_CRUD(t *testing.T) {
 	got, err := repo.Get(ctx, acc.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Cash", got.Name)
-	assert.Equal(t, int64(500000), got.OpeningBalance)
+	assert.Equal(t, int64(500000), got.OpeningBalance.Minor())
 
 	// update mutable fields
 	got.Name = "Wallet"
@@ -132,16 +133,18 @@ func TestAccount_BalancesDerived(t *testing.T) {
 	require.NoError(t, err)
 
 	// cash = 1,000,000 + 500,000 - 120,000 - 125,000
-	assert.Equal(t, int64(1255000), balances[cash.ID])
+	assert.Equal(t, int64(1255000), balances[cash.ID].Minor())
 	// card owed = spent 80,000
-	assert.Equal(t, int64(80000), balances[card.ID])
+	assert.Equal(t, int64(80000), balances[card.ID].Minor())
 	// usd credited the second leg
-	assert.Equal(t, int64(1000), balances[usd.ID])
+	assert.Equal(t, int64(1000), balances[usd.ID].Minor())
 
 	// cross-check against the pure ledger derivation
 	accs, _ := accountRepo().List(ctx, true)
 	txns, _ := repo.List(ctx, allFilter())
 	for _, a := range accs {
-		assert.Equal(t, ledger.DeriveBalance(a, txns), balances[a.ID], "account %s", a.Name)
+		derived, derr := ledger.DeriveBalance(a, txns)
+		require.NoError(t, derr)
+		assert.Equal(t, derived.Minor(), balances[a.ID].Minor(), "account %s", a.Name)
 	}
 }

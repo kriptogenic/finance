@@ -6,6 +6,7 @@ import (
 
 	"finance/internal/entities"
 	"finance/internal/ledger"
+	"finance/pkg/money"
 )
 
 func cardAccount(id uuid.UUID, currency, last4 string) entities.Account {
@@ -16,7 +17,7 @@ func cardAccount(id uuid.UUID, currency, last4 string) entities.Account {
 }
 
 func snapshot(last4, currency string, amount int64) entities.BalanceSnapshot {
-	return entities.BalanceSnapshot{CardLast4: last4, Currency: currency, Amount: amount}
+	return entities.BalanceSnapshot{CardLast4: last4, Amount: money.New(amount, currency)}
 }
 
 func (s *LedgerSuite) TestReconcile_InSync() {
@@ -24,13 +25,13 @@ func (s *LedgerSuite) TestReconcile_InSync() {
 	rows := ledger.Reconcile(
 		[]entities.BalanceSnapshot{snapshot("8400", "UZS", 692446)},
 		[]entities.Account{acc},
-		map[uuid.UUID]int64{acc.ID: 692446},
+		map[uuid.UUID]money.Money{acc.ID: money.New(692446, "UZS")},
 	)
 
 	require.Len(s.T(), rows, 1)
 	require.True(s.T(), rows[0].CurrencyMatch)
 	require.True(s.T(), rows[0].InSync)
-	require.EqualValues(s.T(), 0, rows[0].Delta)
+	require.EqualValues(s.T(), 0, rows[0].Delta.Minor())
 }
 
 func (s *LedgerSuite) TestReconcile_OffByDelta() {
@@ -38,13 +39,13 @@ func (s *LedgerSuite) TestReconcile_OffByDelta() {
 	rows := ledger.Reconcile(
 		[]entities.BalanceSnapshot{snapshot("7351", "UZS", 96020)},
 		[]entities.Account{acc},
-		map[uuid.UUID]int64{acc.ID: 90000},
+		map[uuid.UUID]money.Money{acc.ID: money.New(90000, "UZS")},
 	)
 
 	require.Len(s.T(), rows, 1)
 	require.True(s.T(), rows[0].CurrencyMatch)
 	require.False(s.T(), rows[0].InSync)
-	require.EqualValues(s.T(), 6020, rows[0].Delta) // reported − derived
+	require.EqualValues(s.T(), 6020, rows[0].Delta.Minor()) // reported − derived
 }
 
 func (s *LedgerSuite) TestReconcile_CurrencyMismatch() {
@@ -52,13 +53,13 @@ func (s *LedgerSuite) TestReconcile_CurrencyMismatch() {
 	rows := ledger.Reconcile(
 		[]entities.BalanceSnapshot{snapshot("4853", "UZS", 6986)},
 		[]entities.Account{acc},
-		map[uuid.UUID]int64{acc.ID: 6986},
+		map[uuid.UUID]money.Money{acc.ID: money.New(6986, "USD")},
 	)
 
 	require.Len(s.T(), rows, 1)
 	require.False(s.T(), rows[0].CurrencyMatch)
 	require.False(s.T(), rows[0].InSync)
-	require.EqualValues(s.T(), 0, rows[0].Delta) // not meaningful, left zero
+	require.True(s.T(), rows[0].Delta.IsZeroValue()) // not meaningful, left zero
 }
 
 func (s *LedgerSuite) TestReconcile_OnlyMatchedPairs() {
@@ -70,7 +71,7 @@ func (s *LedgerSuite) TestReconcile_OnlyMatchedPairs() {
 			snapshot("9999", "UZS", 100), // no matching account → dropped
 		},
 		[]entities.Account{withCard, noCard},
-		map[uuid.UUID]int64{withCard.ID: 0},
+		map[uuid.UUID]money.Money{withCard.ID: money.New(0, "UZS")},
 	)
 
 	require.Len(s.T(), rows, 1)

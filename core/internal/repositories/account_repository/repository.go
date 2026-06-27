@@ -11,6 +11,7 @@ import (
 	"finance/internal/entities"
 	"finance/internal/ledger"
 	"finance/pkg/database"
+	"finance/pkg/money"
 )
 
 var (
@@ -26,9 +27,9 @@ type Repository interface {
 	ByCardLast4(ctx context.Context, last4 string) (*entities.Account, error)
 	Update(ctx context.Context, acc *entities.Account) error
 	Delete(ctx context.Context, id uuid.UUID) error
-	// Balances returns the derived balance (account currency, minor units) for
+	// Balances returns the derived balance (in the account's currency) for
 	// every account, keyed by id.
-	Balances(ctx context.Context) (map[uuid.UUID]int64, error)
+	Balances(ctx context.Context) (map[uuid.UUID]money.Money, error)
 	// SettleReceivables archives every receivable (person) account whose derived
 	// balance is back to zero — i.e. the friend has fully repaid you.
 	SettleReceivables(ctx context.Context) error
@@ -49,17 +50,50 @@ const accountColumns = `id, name, kind, type, currency, opening_balance, archive
 
 func scanAccount(row pgx.Row) (entities.Account, error) {
 	var (
-		a       entities.Account
-		include bool
+		a           entities.Account
+		include     bool
+		opening     int64
+		creditLimit *int64
+		principal   *int64
 	)
 	err := row.Scan(
-		&a.ID, &a.Name, &a.Kind, &a.Type, &a.Currency, &a.OpeningBalance, &a.Archived, &a.CreatedAt,
+		&a.ID, &a.Name, &a.Kind, &a.Type, &a.Currency, &opening, &a.Archived, &a.CreatedAt,
 		&a.InterestRate, &a.TermMonths, &a.MaturityDate, &a.Capitalization,
-		&a.CreditLimit, &a.Principal, &a.StartDate, &a.PaymentDay, &a.CardLast4, &include,
+		&creditLimit, &principal, &a.StartDate, &a.PaymentDay, &a.CardLast4, &include,
 	)
-	a.ExcludedFromNetWorth = !include
+	if err != nil {
+		return entities.Account{}, err
+	}
 
-	return a, err
+	a.ExcludedFromNetWorth = !include
+	a.OpeningBalance = money.New(opening, a.Currency)
+	if creditLimit != nil {
+		m := money.New(*creditLimit, a.Currency)
+		a.CreditLimit = &m
+	}
+	if principal != nil {
+		m := money.New(*principal, a.Currency)
+		a.Principal = &m
+	}
+
+	return a, nil
+}
+
+func accountMinor(m *money.Money) *int64 {
+	if m == nil || m.IsZeroValue() {
+		return nil
+	}
+	v := m.Minor()
+
+	return &v
+}
+
+func minorOrZero(m money.Money) int64 {
+	if m.IsZeroValue() {
+		return 0
+	}
+
+	return m.Minor()
 }
 
 func (r repository) Create(ctx context.Context, acc *entities.Account) error {
@@ -72,9 +106,9 @@ func (r repository) Create(ctx context.Context, acc *entities.Account) error {
 		RETURNING id, created_at`
 
 	err := r.db.Pool.QueryRow(ctx, query,
-		acc.Name, acc.Kind, acc.Type, acc.Currency, acc.OpeningBalance, acc.Archived,
+		acc.Name, acc.Kind, acc.Type, acc.Currency, minorOrZero(acc.OpeningBalance), acc.Archived,
 		acc.InterestRate, acc.TermMonths, acc.MaturityDate, acc.Capitalization,
-		acc.CreditLimit, acc.Principal, acc.StartDate, acc.PaymentDay, acc.CardLast4, !acc.ExcludedFromNetWorth,
+		accountMinor(acc.CreditLimit), accountMinor(acc.Principal), acc.StartDate, acc.PaymentDay, acc.CardLast4, !acc.ExcludedFromNetWorth,
 	).Scan(&acc.ID, &acc.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create account: %w", err)
@@ -151,8 +185,8 @@ func (r repository) Update(ctx context.Context, acc *entities.Account) error {
 
 	res, err := r.db.Pool.Exec(ctx, query,
 		acc.ID, acc.Name, acc.Archived, acc.InterestRate, acc.TermMonths,
-		acc.MaturityDate, acc.Capitalization, acc.CreditLimit,
-		acc.Principal, acc.StartDate, acc.PaymentDay, acc.CardLast4, !acc.ExcludedFromNetWorth,
+		acc.MaturityDate, acc.Capitalization, accountMinor(acc.CreditLimit),
+		accountMinor(acc.Principal), acc.StartDate, acc.PaymentDay, acc.CardLast4, !acc.ExcludedFromNetWorth,
 	)
 	if err != nil {
 		return fmt.Errorf("update account: %w", err)
@@ -215,11 +249,11 @@ func (r repository) SettleReceivables(ctx context.Context) error {
 	return nil
 }
 
-func (r repository) Balances(ctx context.Context) (map[uuid.UUID]int64, error) {
+func (r repository) Balances(ctx context.Context) (map[uuid.UUID]money.Money, error) {
 	// One pass: aggregate credited (inflow) and debited (outflow) amounts per
 	// account, then apply the asset/liability formula in Go via ledger.Balance.
 	const query = `
-		SELECT a.id, a.kind, a.opening_balance,
+		SELECT a.id, a.kind, a.currency, a.opening_balance,
 		       COALESCE(inq.s, 0) AS inflow,
 		       COALESCE(outq.s, 0) AS outflow
 		FROM accounts a
@@ -244,18 +278,24 @@ func (r repository) Balances(ctx context.Context) (map[uuid.UUID]int64, error) {
 	}
 	defer rows.Close()
 
-	balances := make(map[uuid.UUID]int64)
+	balances := make(map[uuid.UUID]money.Money)
 	for rows.Next() {
 		var (
 			id               uuid.UUID
 			kind             entities.AccountKind
+			currency         string
 			opening, in, out int64
 		)
-		if err = rows.Scan(&id, &kind, &opening, &in, &out); err != nil {
+		if err = rows.Scan(&id, &kind, &currency, &opening, &in, &out); err != nil {
 			return nil, fmt.Errorf("balances: %w", err)
 		}
 
-		balances[id] = ledger.Balance(kind, opening, in, out)
+		bal, balErr := ledger.Balance(kind,
+			money.New(opening, currency), money.New(in, currency), money.New(out, currency))
+		if balErr != nil {
+			return nil, fmt.Errorf("balances: %w", balErr)
+		}
+		balances[id] = bal
 	}
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("balances: %w", err)

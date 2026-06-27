@@ -1,15 +1,18 @@
 package ledger
 
-import "finance/pkg/fx"
+import (
+	"finance/pkg/fx"
+	"finance/pkg/money"
+)
 
 // CurrencyExposure is the asset/liability/net position held in one currency,
 // plus its base-currency conversion when a rate is known (§6 currency exposure).
 type CurrencyExposure struct {
 	Currency    string
-	Assets      int64 // minor units, in Currency
-	Liabilities int64
-	Net         int64
-	NetInBase   int64 // 0 when RateKnown is false
+	Assets      money.Money // in Currency
+	Liabilities money.Money
+	Net         money.Money
+	NetInBase   money.Money // zero when RateKnown is false
 	RateKnown   bool
 }
 
@@ -18,9 +21,9 @@ type CurrencyExposure struct {
 // out of the base totals.
 type NetWorthBreakdown struct {
 	Base         string
-	Assets       int64 // minor units, in Base
-	Liabilities  int64
-	Net          int64
+	Assets       money.Money // in Base
+	Liabilities  money.Money
+	Net          money.Money
 	ByCurrency   []CurrencyExposure
 	MissingRates []string
 }
@@ -45,29 +48,31 @@ func ComputeNetWorth(base string, balances []AccountBalance, rates map[string]fx
 		}
 
 		if ab.Account.IsLiability() {
-			p.liabilities += ab.Balance
+			p.liabilities += ab.Balance.Minor()
 		} else {
-			p.assets += ab.Balance
+			p.assets += ab.Balance.Minor()
 		}
 	}
 
 	out := NetWorthBreakdown{Base: base}
+	assets, liabilities := int64(0), int64(0)
 
 	for _, cur := range order {
 		p := positions[cur]
 		exposure := CurrencyExposure{
 			Currency:    cur,
-			Assets:      p.assets,
-			Liabilities: p.liabilities,
-			Net:         p.assets - p.liabilities,
+			Assets:      money.New(p.assets, cur),
+			Liabilities: money.New(p.liabilities, cur),
+			Net:         money.New(p.assets-p.liabilities, cur),
+			NetInBase:   money.Zero(base),
 		}
 
 		rate, known := rateToBase(cur, base, rates)
 		if known {
 			exposure.RateKnown = true
-			exposure.NetInBase = rate.Convert(exposure.Net)
-			out.Assets += rate.Convert(p.assets)
-			out.Liabilities += rate.Convert(p.liabilities)
+			exposure.NetInBase = money.New(rate.Convert(p.assets-p.liabilities), base)
+			assets += rate.Convert(p.assets)
+			liabilities += rate.Convert(p.liabilities)
 		} else {
 			out.MissingRates = append(out.MissingRates, cur)
 		}
@@ -75,7 +80,9 @@ func ComputeNetWorth(base string, balances []AccountBalance, rates map[string]fx
 		out.ByCurrency = append(out.ByCurrency, exposure)
 	}
 
-	out.Net = out.Assets - out.Liabilities
+	out.Assets = money.New(assets, base)
+	out.Liabilities = money.New(liabilities, base)
+	out.Net = money.New(assets-liabilities, base)
 
 	return out
 }

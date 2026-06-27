@@ -12,7 +12,10 @@ import (
 
 	"finance/internal/entities"
 	"finance/pkg/database"
+	"finance/pkg/money"
 )
+
+func uzs(v int64) money.Money { return money.New(v, entities.ReceiptCurrency) }
 
 var (
 	ErrNotFound = errors.New("receipt not found")
@@ -118,7 +121,7 @@ func (r repository) SaveParsed(ctx context.Context, rec *entities.Receipt) (err 
 	if _, err = tx.Exec(ctx, header,
 		rec.ID, rec.ReceiptType, rec.MerchantName, rec.MerchantTIN, rec.MerchantAddress,
 		rec.DeviceName, rec.SerialNumber, rec.CardType, rec.MerchantLat, rec.MerchantLng,
-		rec.PaidCash, rec.PaidCard, rec.TotalAmount, rec.TotalVAT, rec.ReceivedAt,
+		rec.PaidCash.Minor(), rec.PaidCard.Minor(), rec.TotalAmount.Minor(), rec.TotalVAT.Minor(), rec.ReceivedAt,
 	); err != nil {
 		return fmt.Errorf("save parsed header: %w", err)
 	}
@@ -135,7 +138,7 @@ func (r repository) SaveParsed(ctx context.Context, rec *entities.Receipt) (err 
 
 	for _, it := range rec.Items {
 		if _, err = tx.Exec(ctx, item,
-			rec.ID, it.Name, it.Quantity, it.Price, it.VATAmount, it.VATRate, it.Discount, it.Other,
+			rec.ID, it.Name, it.Quantity, it.Price.Minor(), it.VATAmount.Minor(), it.VATRate, it.Discount.Minor(), it.Other.Minor(),
 			it.Barcode, it.IKPUCode, it.IKPUName, it.Unit, it.MarkingCode, it.ConsignorTIN,
 		); err != nil {
 			return fmt.Errorf("save parsed item: %w", err)
@@ -156,12 +159,20 @@ const headerCols = `
 	photo_key, scraped_at, created_at, transaction_id`
 
 func scanHeader(row pgx.Row, rec *entities.Receipt) error {
-	return row.Scan(
+	var paidCash, paidCard, totalAmount, totalVAT int64
+	err := row.Scan(
 		&rec.ID, &rec.QRURL, &rec.Status, &rec.Error, &rec.TerminalID, &rec.ReceiptSeq, &rec.FiscalSign, &rec.ReceivedAt,
 		&rec.ReceiptType, &rec.MerchantName, &rec.MerchantTIN, &rec.MerchantAddress, &rec.DeviceName, &rec.SerialNumber,
-		&rec.CardType, &rec.MerchantLat, &rec.MerchantLng, &rec.PaidCash, &rec.PaidCard, &rec.TotalAmount, &rec.TotalVAT,
+		&rec.CardType, &rec.MerchantLat, &rec.MerchantLng, &paidCash, &paidCard, &totalAmount, &totalVAT,
 		&rec.PhotoKey, &rec.ScrapedAt, &rec.CreatedAt, &rec.TransactionID,
 	)
+	if err != nil {
+		return err
+	}
+	rec.PaidCash, rec.PaidCard = uzs(paidCash), uzs(paidCard)
+	rec.TotalAmount, rec.TotalVAT = uzs(totalAmount), uzs(totalVAT)
+
+	return nil
 }
 
 func (r repository) SetTransaction(ctx context.Context, id uuid.UUID, txID *uuid.UUID) error {
@@ -260,13 +271,17 @@ func (r repository) items(ctx context.Context, id uuid.UUID) ([]entities.Receipt
 
 	var items []entities.ReceiptItem
 	for rows.Next() {
-		var it entities.ReceiptItem
+		var (
+			it                            entities.ReceiptItem
+			price, vatAmount, disc, other int64
+		)
 		if err = rows.Scan(
-			&it.Name, &it.Quantity, &it.Price, &it.VATAmount, &it.VATRate, &it.Discount, &it.Other,
+			&it.Name, &it.Quantity, &price, &vatAmount, &it.VATRate, &disc, &other,
 			&it.Barcode, &it.IKPUCode, &it.IKPUName, &it.Unit, &it.MarkingCode, &it.ConsignorTIN,
 		); err != nil {
 			return nil, fmt.Errorf("scan receipt item: %w", err)
 		}
+		it.Price, it.VATAmount, it.Discount, it.Other = uzs(price), uzs(vatAmount), uzs(disc), uzs(other)
 		items = append(items, it)
 	}
 	if err = rows.Err(); err != nil {

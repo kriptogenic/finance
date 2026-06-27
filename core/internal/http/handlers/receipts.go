@@ -215,8 +215,8 @@ func toAPIReceipt(r entities.Receipt) api.Receipt {
 		out.Items = append(out.Items, api.ReceiptItem{
 			Name:         it.Name,
 			Quantity:     it.Quantity,
-			Price:        money.New(it.Price, entities.ReceiptCurrency),
-			VatAmount:    money.New(it.VATAmount, entities.ReceiptCurrency),
+			Price:        it.Price,
+			VatAmount:    it.VATAmount,
 			VatRate:      it.VATRate,
 			Discount:     moneyPtr(it.Discount),
 			Other:        moneyPtr(it.Other),
@@ -232,9 +232,7 @@ func toAPIReceipt(r entities.Receipt) api.Receipt {
 	return out
 }
 
-func moneyPtr(amount int64) *money.Money {
-	m := money.New(amount, entities.ReceiptCurrency)
-
+func moneyPtr(m money.Money) *money.Money {
 	return &m
 }
 

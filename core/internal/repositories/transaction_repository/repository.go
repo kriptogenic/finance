@@ -9,9 +9,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"finance/config"
 	"finance/internal/entities"
 	"finance/pkg/database"
 	"finance/pkg/fx"
+	"finance/pkg/money"
 )
 
 var ErrNotFound = errors.New("transaction not found")
@@ -52,11 +54,12 @@ const uncategorizedBuckets = `SELECT id FROM categories
 	WHERE system_key IN ('uncategorized_expense', 'uncategorized_income')`
 
 type repository struct {
-	db *database.DB
+	db   *database.DB
+	base string
 }
 
-func NewRepository(db *database.DB) Repository {
-	return &repository{db: db}
+func NewRepository(db *database.DB, finance *config.Finance) Repository {
+	return &repository{db: db, base: finance.BaseCurrency}
 }
 
 // rate_to_base is cast to text so it can be parsed into fx.Rate without relying
@@ -66,19 +69,34 @@ const txColumns = `id, date, type, from_account_id, to_account_id, category_id,
 	note, tags, created_at, external_id, transfer_group_id, split_group_id,
 	(SELECT id FROM receipts WHERE receipts.transaction_id = transactions.id) AS receipt_id`
 
-func scanTransaction(row pgx.Row) (entities.Transaction, error) {
+func (r repository) scanTransaction(row pgx.Row) (entities.Transaction, error) {
 	var (
-		t        entities.Transaction
-		rateText *string
+		t          entities.Transaction
+		amount     int64
+		currency   string
+		toAmount   *int64
+		toCurrency *string
+		baseAmount *int64
+		rateText   *string
 	)
 	err := row.Scan(
 		&t.ID, &t.Date, &t.Type, &t.FromAccountID, &t.ToAccountID, &t.CategoryID,
-		&t.Amount, &t.Currency, &t.ToAmount, &t.ToCurrency, &rateText, &t.BaseAmount,
+		&amount, &currency, &toAmount, &toCurrency, &rateText, &baseAmount,
 		&t.Note, &t.Tags, &t.CreatedAt, &t.ExternalID, &t.TransferGroupID, &t.SplitGroupID,
 		&t.ReceiptID,
 	)
 	if err != nil {
 		return entities.Transaction{}, err
+	}
+
+	t.Amount = money.New(amount, currency)
+	if toAmount != nil && toCurrency != nil {
+		m := money.New(*toAmount, *toCurrency)
+		t.ToAmount = &m
+	}
+	if baseAmount != nil {
+		m := money.New(*baseAmount, r.base)
+		t.BaseAmount = &m
 	}
 
 	if rateText != nil {
@@ -92,12 +110,28 @@ func scanTransaction(row pgx.Row) (entities.Transaction, error) {
 	return t, nil
 }
 
+func writeCols(tx *entities.Transaction) (amount int64, currency string, toAmount *int64, toCurrency *string, baseAmount *int64) {
+	amount = tx.Amount.Minor()
+	currency = tx.Amount.Code()
+	if tx.ToAmount != nil {
+		a, c := tx.ToAmount.Minor(), tx.ToAmount.Code()
+		toAmount, toCurrency = &a, &c
+	}
+	if tx.BaseAmount != nil {
+		a := tx.BaseAmount.Minor()
+		baseAmount = &a
+	}
+
+	return amount, currency, toAmount, toCurrency, baseAmount
+}
+
 func (r repository) Create(ctx context.Context, tx *entities.Transaction) error {
 	var rateText *string
 	if tx.RateToBase != nil {
 		s := tx.RateToBase.String()
 		rateText = &s
 	}
+	amount, currency, toAmount, toCurrency, baseAmount := writeCols(tx)
 
 	const query = `
 		INSERT INTO transactions
@@ -108,8 +142,8 @@ func (r repository) Create(ctx context.Context, tx *entities.Transaction) error 
 		RETURNING id, created_at`
 
 	err := r.db.Pool.QueryRow(ctx, query,
-		tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID, tx.Amount, tx.Currency,
-		tx.ToAmount, tx.ToCurrency, rateText, tx.BaseAmount, tx.Note, tx.Tags,
+		tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID, amount, currency,
+		toAmount, toCurrency, rateText, baseAmount, tx.Note, tx.Tags,
 		tx.ExternalID, tx.TransferGroupID, tx.SplitGroupID,
 	).Scan(&tx.ID, &tx.CreatedAt)
 	if err != nil {
@@ -132,6 +166,7 @@ func (r repository) Ingest(ctx context.Context, tx *entities.Transaction) (creat
 		s := tx.RateToBase.String()
 		rateText = &s
 	}
+	amount, currency, toAmount, toCurrency, baseAmount := writeCols(tx)
 
 	const query = `
 		INSERT INTO transactions
@@ -143,8 +178,8 @@ func (r repository) Ingest(ctx context.Context, tx *entities.Transaction) (creat
 		RETURNING id, created_at`
 
 	err = r.db.Pool.QueryRow(ctx, query,
-		tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID, tx.Amount, tx.Currency,
-		tx.ToAmount, tx.ToCurrency, rateText, tx.BaseAmount, tx.Note, tx.Tags,
+		tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID, amount, currency,
+		toAmount, toCurrency, rateText, baseAmount, tx.Note, tx.Tags,
 		tx.ExternalID, tx.TransferGroupID, tx.SplitGroupID,
 	).Scan(&tx.ID, &tx.CreatedAt)
 
@@ -156,7 +191,7 @@ func (r repository) Ingest(ctx context.Context, tx *entities.Transaction) (creat
 	}
 
 	// conflict: the external_id already exists — return the stored transaction
-	existing, getErr := scanTransaction(r.db.Pool.QueryRow(ctx,
+	existing, getErr := r.scanTransaction(r.db.Pool.QueryRow(ctx,
 		`SELECT `+txColumns+` FROM transactions WHERE external_id = $1`, *tx.ExternalID))
 	if getErr != nil {
 		return false, fmt.Errorf("ingest lookup: %w", getErr)
@@ -224,7 +259,7 @@ func (r repository) List(ctx context.Context, filter Filter) ([]entities.Transac
 
 	var txns []entities.Transaction
 	for rows.Next() {
-		t, scanErr := scanTransaction(rows)
+		t, scanErr := r.scanTransaction(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("list transactions: %w", scanErr)
 		}
@@ -252,7 +287,7 @@ func (r repository) ListBySplitGroup(ctx context.Context, group uuid.UUID) ([]en
 
 	var txns []entities.Transaction
 	for rows.Next() {
-		t, scanErr := scanTransaction(rows)
+		t, scanErr := r.scanTransaction(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("list split group: %w", scanErr)
 		}
@@ -269,7 +304,7 @@ func (r repository) ListBySplitGroup(ctx context.Context, group uuid.UUID) ([]en
 func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Transaction, error) {
 	query := `SELECT ` + txColumns + ` FROM transactions WHERE id = $1`
 
-	t, err := scanTransaction(r.db.Pool.QueryRow(ctx, query, id))
+	t, err := r.scanTransaction(r.db.Pool.QueryRow(ctx, query, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -286,6 +321,7 @@ func (r repository) Update(ctx context.Context, tx *entities.Transaction) error 
 		s := tx.RateToBase.String()
 		rateText = &s
 	}
+	amount, currency, toAmount, toCurrency, baseAmount := writeCols(tx)
 
 	const query = `
 		UPDATE transactions SET
@@ -296,7 +332,7 @@ func (r repository) Update(ctx context.Context, tx *entities.Transaction) error 
 
 	res, err := r.db.Pool.Exec(ctx, query,
 		tx.ID, tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID,
-		tx.Amount, tx.Currency, tx.ToAmount, tx.ToCurrency, rateText, tx.BaseAmount,
+		amount, currency, toAmount, toCurrency, rateText, baseAmount,
 		tx.Note, tx.Tags,
 	)
 	if err != nil {

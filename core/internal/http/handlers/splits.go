@@ -59,26 +59,27 @@ func (s Server) SetTransactionSplit(ctx context.Context, request api.SetTransact
 		return api.SetTransactionSplit400JSONResponse{BadRequestJSONResponse: badRequest(msg)}, nil
 	}
 
+	myShare := money.New(request.Body.MyShare, paying.Currency)
 	participants := make([]ledger.SplitParticipant, len(request.Body.Participants))
 	for i, p := range request.Body.Participants {
-		participants[i] = ledger.SplitParticipant{Name: p.Name, Amount: p.Amount}
+		participants[i] = ledger.SplitParticipant{Name: p.Name, Amount: money.New(p.Amount, paying.Currency)}
 	}
 
-	if err = ledger.ValidateSplit(request.Body.MyShare, participants); err != nil {
+	if err = ledger.ValidateSplit(myShare, participants); err != nil {
 		return api.SetTransactionSplit400JSONResponse{BadRequestJSONResponse: badRequest(err.Error())}, nil
 	}
 
 	// re-freeze base_amount for the reduced expense (no-op when in base currency)
-	var myShareBase *int64
+	var myShareBase *money.Money
 	if tx.RateToBase != nil {
-		b := ledger.FreezeBase(request.Body.MyShare, *tx.RateToBase)
+		b := ledger.FreezeBase(myShare, *tx.RateToBase, s.base)
 		myShareBase = &b
 	}
 
 	if _, err = s.splits.Apply(ctx, splitrepository.ApplyParams{
 		MainTxID:      tx.ID,
 		PayingAccount: *paying,
-		MyShare:       request.Body.MyShare,
+		MyShare:       myShare,
 		MyShareBase:   myShareBase,
 		Participants:  participants,
 	}); err != nil {
@@ -127,7 +128,7 @@ func (s Server) resolveSplitMain(ctx context.Context, tx *entities.Transaction) 
 // plus each person's share and what they still owe you.
 func (s Server) splitResponse(ctx context.Context, main *entities.Transaction) (api.TransactionSplit, error) {
 	out := api.TransactionSplit{
-		MyShare:      money.New(main.Amount, main.Currency),
+		MyShare:      main.Amount,
 		Participants: []api.SplitParticipant{},
 	}
 	if main.SplitGroupID == nil {
@@ -155,8 +156,8 @@ func (s Server) splitResponse(ctx context.Context, main *entities.Transaction) (
 		out.Participants = append(out.Participants, api.SplitParticipant{
 			AccountId: acc.ID,
 			Name:      acc.Name,
-			Amount:    money.New(leg.Amount, leg.Currency),
-			Owed:      money.New(balances[acc.ID], acc.Currency),
+			Amount:    leg.Amount,
+			Owed:      balances[acc.ID],
 		})
 	}
 

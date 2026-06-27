@@ -15,6 +15,7 @@ import (
 	"finance/internal/entities"
 	"finance/internal/ledger"
 	"finance/pkg/database"
+	"finance/pkg/money"
 )
 
 var ErrNotFound = errors.New("transaction not found")
@@ -23,8 +24,8 @@ var ErrNotFound = errors.New("transaction not found")
 type ApplyParams struct {
 	MainTxID      uuid.UUID
 	PayingAccount entities.Account // friend legs and receivable accounts use its currency
-	MyShare       int64
-	MyShareBase   *int64 // frozen base amount for MyShare; nil when the expense is in base currency
+	MyShare       money.Money
+	MyShareBase   *money.Money // frozen base amount for MyShare; nil when the expense is in base currency
 	Participants  []ledger.SplitParticipant
 }
 
@@ -73,7 +74,7 @@ func (r repository) Apply(ctx context.Context, p ApplyParams) (group *uuid.UUID,
 	if len(p.Participants) == 0 {
 		if _, err = tx.Exec(ctx,
 			`UPDATE transactions SET amount = $2, base_amount = $3, split_group_id = NULL WHERE id = $1`,
-			p.MainTxID, p.MyShare, p.MyShareBase); err != nil {
+			p.MainTxID, p.MyShare.Minor(), splitMinor(p.MyShareBase)); err != nil {
 			return nil, fmt.Errorf("split unsplit: %w", err)
 		}
 
@@ -83,7 +84,7 @@ func (r repository) Apply(ctx context.Context, p ApplyParams) (group *uuid.UUID,
 	newGroup := uuid.New()
 	if _, err = tx.Exec(ctx,
 		`UPDATE transactions SET amount = $2, base_amount = $3, split_group_id = $4 WHERE id = $1`,
-		p.MainTxID, p.MyShare, p.MyShareBase, newGroup); err != nil {
+		p.MainTxID, p.MyShare.Minor(), splitMinor(p.MyShareBase), newGroup); err != nil {
 		return nil, fmt.Errorf("split main update: %w", err)
 	}
 
@@ -101,7 +102,7 @@ func (r repository) Apply(ctx context.Context, p ApplyParams) (group *uuid.UUID,
 			`INSERT INTO transactions
 			   (date, type, from_account_id, to_account_id, amount, currency, split_group_id)
 			 VALUES ($1, 'transfer', $2, $3, $4, $5, $6)`,
-			date, p.PayingAccount.ID, accID, part.Amount, cur, newGroup); err != nil {
+			date, p.PayingAccount.ID, accID, part.Amount.Minor(), cur, newGroup); err != nil {
 			return nil, fmt.Errorf("split create leg: %w", err)
 		}
 	}
@@ -160,6 +161,15 @@ func clearGroup(ctx context.Context, tx pgx.Tx, mainID uuid.UUID, group *uuid.UU
 	}
 
 	return nil
+}
+
+func splitMinor(m *money.Money) *int64 {
+	if m == nil {
+		return nil
+	}
+	v := m.Minor()
+
+	return &v
 }
 
 func commit(ctx context.Context, tx pgx.Tx) error {

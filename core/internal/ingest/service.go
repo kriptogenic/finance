@@ -77,12 +77,10 @@ func (s *Service) Ingest(ctx context.Context, cmd Command) (Result, error) {
 	}
 
 	in := ledger.NewTransaction{
-		Date:     date,
-		Type:     cmd.Type,
-		Amount:   cmd.Amount,
-		ToAmount: cmd.ToAmount,
-		Note:     cmd.Merchant,
-		Tags:     cmd.Tags,
+		Date: date,
+		Type: cmd.Type,
+		Note: cmd.Merchant,
+		Tags: cmd.Tags,
 	}
 
 	if cmd.FromCardLast4 != nil {
@@ -98,6 +96,25 @@ func (s *Service) Ingest(ctx context.Context, cmd Command) (Result, error) {
 			return Result{}, err
 		}
 		in.To = acc
+	}
+
+	// the amount's currency comes from the resolved account (the engine re-derives
+	// it too); income credits the to account, everything else debits from.
+	cur := s.base
+	switch {
+	case in.From != nil:
+		cur = in.From.Currency
+	case in.To != nil:
+		cur = in.To.Currency
+	}
+	in.Amount = money.New(cmd.Amount, cur)
+	if cmd.ToAmount != nil {
+		toCur := s.base
+		if in.To != nil {
+			toCur = in.To.Currency
+		}
+		m := money.New(*cmd.ToAmount, toCur)
+		in.ToAmount = &m
 	}
 
 	var catID *uuid.UUID
@@ -183,6 +200,6 @@ func (s *Service) notify(tx entities.Transaction, catID uuid.UUID) {
 	s.notifier.OnIngestedCategory(pushnotify.Ingested{
 		CategoryID: catID,
 		Merchant:   merchant,
-		Amount:     money.New(tx.Amount, tx.Currency).Display(),
+		Amount:     tx.Amount.Display(),
 	})
 }

@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"finance/pkg/money"
 )
 
 // ReceiptStatus is the lifecycle of an async receipt scrape+parse.
@@ -45,11 +47,11 @@ type Receipt struct {
 	MerchantLat     *string
 	MerchantLng     *string
 
-	// Parsed totals (tiyin).
-	PaidCash    int64
-	PaidCard    int64
-	TotalAmount int64
-	TotalVAT    int64
+	// Parsed totals (UZS).
+	PaidCash    money.Money
+	PaidCard    money.Money
+	TotalAmount money.Money
+	TotalVAT    money.Money
 
 	PhotoKey  *string
 	RawHTML   *string
@@ -62,15 +64,15 @@ type Receipt struct {
 	Items []ReceiptItem
 }
 
-// ReceiptItem is one line of a receipt. Monetary fields are tiyin (UZS).
+// ReceiptItem is one line of a receipt. Monetary fields are UZS.
 type ReceiptItem struct {
 	Name         string
 	Quantity     string
-	Price        int64
-	VATAmount    int64
+	Price        money.Money
+	VATAmount    money.Money
 	VATRate      int
-	Discount     int64
-	Other        int64
+	Discount     money.Money
+	Other        money.Money
 	Barcode      *string
 	IKPUCode     *string
 	IKPUName     *string

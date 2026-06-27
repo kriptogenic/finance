@@ -60,7 +60,7 @@ func (s Server) CreateBudget(ctx context.Context, request api.CreateBudgetReques
 		return api.CreateBudget400JSONResponse{BadRequestJSONResponse: badRequest("amount must be positive")}, nil
 	}
 
-	b := entities.Budget{CategoryID: body.CategoryId, Period: entities.BudgetMonthly, Amount: body.Amount}
+	b := entities.Budget{CategoryID: body.CategoryId, Period: entities.BudgetMonthly, Amount: money.New(body.Amount, s.base)}
 	applyBudgetFields(&b, body.Period, body.Rollover, body.StartPeriod)
 
 	if err = s.budgets.Create(ctx, &b); err != nil {
@@ -95,10 +95,10 @@ func (s Server) UpdateBudget(ctx context.Context, request api.UpdateBudgetReques
 		return api.UpdateBudget400JSONResponse{BadRequestJSONResponse: badRequest("empty body")}, nil
 	}
 	if body.Amount != nil {
-		b.Amount = *body.Amount
+		b.Amount = money.New(*body.Amount, s.base)
 	}
 	applyBudgetFields(b, body.Period, body.Rollover, body.StartPeriod)
-	if b.Amount <= 0 {
+	if b.Amount.Minor() <= 0 {
 		return api.UpdateBudget400JSONResponse{BadRequestJSONResponse: badRequest("amount must be positive")}, nil
 	}
 
@@ -154,8 +154,13 @@ func (s Server) budgetResponse(ctx context.Context, b entities.Budget, categoryN
 	}
 
 	var percent float32
-	if b.Amount > 0 {
-		percent = float32(float64(spent) / float64(b.Amount) * 100)
+	if b.Amount.Minor() > 0 {
+		percent = float32(float64(spent.Minor()) / float64(b.Amount.Minor()) * 100)
+	}
+
+	remaining, err := b.Amount.Minus(spent)
+	if err != nil {
+		return api.Budget{}, err
 	}
 
 	out := api.Budget{
@@ -163,9 +168,9 @@ func (s Server) budgetResponse(ctx context.Context, b entities.Budget, categoryN
 		CategoryId:   b.CategoryID,
 		CategoryName: categoryName,
 		Period:       api.BudgetPeriod(b.Period),
-		Amount:       money.New(b.Amount, s.base),
-		Spent:        money.New(spent, s.base),
-		Remaining:    money.New(b.Amount-spent, s.base),
+		Amount:       b.Amount,
+		Spent:        spent,
+		Remaining:    remaining,
 		Percent:      percent,
 		Rollover:     b.Rollover,
 		PeriodStart:  openapi_types.Date{Time: start},

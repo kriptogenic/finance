@@ -805,6 +805,11 @@ export interface components {
             transfer_group_id?: string | null;
             /** @description Ties a split expense to its per-person receivable transfer legs. */
             split_group_id?: string | null;
+            /**
+             * Format: uuid
+             * @description The scanned fiscal receipt linked to this transaction, if any.
+             */
+            receipt_id?: string | null;
         };
         SplitParticipantInput: {
             /** @description The person who owes you this share. */

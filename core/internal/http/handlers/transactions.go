@@ -473,6 +473,9 @@ func (s Server) toTransaction(tx entities.Transaction) api.Transaction {
 	if tx.SplitGroupID != nil {
 		out.SplitGroupId = nullable.NewNullableWithValue(tx.SplitGroupID.String())
 	}
+	if tx.ReceiptID != nil {
+		out.ReceiptId = nullable.NewNullableWithValue(*tx.ReceiptID)
+	}
 
 	return out
 }

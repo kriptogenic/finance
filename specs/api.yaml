@@ -1544,6 +1544,11 @@ components:
           type: string
           nullable: true
           description: Ties a split expense to its per-person receivable transfer legs.
+        receipt_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The scanned fiscal receipt linked to this transaction, if any.
 
     SplitParticipantInput:
       type: object

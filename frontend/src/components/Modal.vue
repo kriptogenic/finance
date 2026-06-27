@@ -1,8 +1,13 @@
 <script setup lang="ts">
+import { useModalBackClose } from '../lib/modalHistory'
+
 withDefaults(defineProps<{ title?: string; size?: 'md' | 'lg' | 'xl' }>(), { title: '', size: 'md' })
-defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: [] }>()
 
 const sizeClass: Record<string, string> = { md: 'sm:max-w-md', lg: 'sm:max-w-lg', xl: 'sm:max-w-3xl' }
+
+// Browser/device back closes the modal instead of leaving the page.
+useModalBackClose(() => emit('close'))
 </script>
 
 <template>

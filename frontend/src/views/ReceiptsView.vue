@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { receiptsApi } from '../api/receipts'
 import { errMessage } from '../api/client'
 import { formatDateTime } from '../lib/format'
+import ReceiptDetail from '../components/ReceiptDetail.vue'
 import type { Receipt, ReceiptStatus } from '../api/types'
 
 const receipts = ref<Receipt[]>([])
@@ -11,6 +12,7 @@ const limit = 20
 const hasMore = ref(false)
 const loading = ref(true)
 const error = ref('')
+const viewingId = ref<string | null>(null)
 
 const statusStyle: Record<ReceiptStatus, { label: string; cls: string }> = {
   pending: { label: 'Pending', cls: 'bg-amber-50 text-amber-700 ring-amber-200' },
@@ -58,11 +60,11 @@ onUnmounted(() => window.removeEventListener('data:refresh', () => load(page.val
 
     <template v-else>
       <div class="card divide-y divide-slate-100">
-        <RouterLink
+        <button
           v-for="r in receipts"
           :key="r.id"
-          :to="`/receipts/${r.id}`"
-          class="flex items-center gap-3 px-4 py-3 transition hover:bg-slate-50"
+          class="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
+          @click="viewingId = r.id"
         >
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500">
             <i class="ti ti-receipt text-xl" />
@@ -85,7 +87,7 @@ onUnmounted(() => window.removeEventListener('data:refresh', () => load(page.val
               >{{ statusStyle[r.status].label }}</span>
             </span>
           </div>
-        </RouterLink>
+        </button>
       </div>
 
       <div v-if="page > 1 || hasMore" class="flex items-center justify-center gap-3">
@@ -94,5 +96,12 @@ onUnmounted(() => window.removeEventListener('data:refresh', () => load(page.val
         <button class="btn" :disabled="!hasMore" @click="load(page + 1)">Next</button>
       </div>
     </template>
+
+    <ReceiptDetail
+      v-if="viewingId"
+      :id="viewingId"
+      @close="viewingId = null"
+      @changed="load(page)"
+    />
   </div>
 </template>

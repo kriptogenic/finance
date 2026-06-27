@@ -10,6 +10,7 @@ import type { Account, Category, Transaction, TransactionType } from '../api/typ
 import { formatDateTime } from '../lib/format'
 import TransactionForm from '../components/TransactionForm.vue'
 import TransactionDetail from '../components/TransactionDetail.vue'
+import ReceiptDetail from '../components/ReceiptDetail.vue'
 import CategoryIcon from '../components/CategoryIcon.vue'
 import SwipeRow from '../components/SwipeRow.vue'
 
@@ -24,9 +25,16 @@ const error = ref('')
 const formOpen = ref(false)
 const editing = ref<Transaction | null>(null)
 const viewing = ref<Transaction | null>(null)
+const receiptViewingId = ref<string | null>(null)
 
 function openDetail(t: Transaction) {
   viewing.value = t
+}
+
+// Open the linked receipt from the transaction detail modal (swap modals).
+function viewReceipt(id: string) {
+  viewing.value = null
+  receiptViewingId.value = id
 }
 
 const filters = reactive({
@@ -281,7 +289,10 @@ onMounted(async () => {
               </span>
               <span v-else class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg" :class="meta[t.type].ring"><i :class="`ti ti-${meta[t.type].icon}`" /></span>
               <div class="min-w-0">
-                <p class="truncate font-medium text-slate-800">{{ title(t) }}</p>
+                <p class="flex items-center gap-1.5 font-medium text-slate-800">
+                  <span class="truncate">{{ title(t) }}</span>
+                  <i v-if="t.receipt_id" class="ti ti-qrcode shrink-0 text-sm text-emerald-500" title="Has a linked receipt" />
+                </p>
                 <p class="truncate text-xs text-slate-400">{{ subtitle(t) }}<span v-if="t.note"> · {{ t.note }}</span></p>
               </div>
               <div class="ml-auto shrink-0 text-right">
@@ -311,6 +322,14 @@ onMounted(async () => {
       @close="viewing = null"
       @edit="detailEdit"
       @remove="detailRemove"
+      @view-receipt="viewReceipt"
+    />
+
+    <ReceiptDetail
+      v-if="receiptViewingId"
+      :id="receiptViewingId"
+      @close="receiptViewingId = null"
+      @changed="loadTransactions"
     />
 
     <TransactionForm

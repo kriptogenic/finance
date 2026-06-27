@@ -49,6 +49,10 @@ type Transaction struct {
 
 	// ties a split expense to its per-person receivable transfer legs
 	SplitGroupID *uuid.UUID
+
+	// the fiscal receipt linked to this transaction, if any (read-only; the FK
+	// lives on receipts). Populated on read via a correlated subquery.
+	ReceiptID *uuid.UUID
 }
 
 // CreditAmount is the value credited to the receiving account, in that

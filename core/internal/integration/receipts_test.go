@@ -103,3 +103,29 @@ func TestReceiptSetTransactionConflict(t *testing.T) {
 	require.NotNil(t, got.TransactionID)
 	assert.Equal(t, exp.ID, *got.TransactionID)
 }
+
+// TestTransactionCarriesReceiptID covers the reverse lookup: once a receipt is
+// linked, the transaction read exposes the receipt id (correlated subquery).
+func TestTransactionCarriesReceiptID(t *testing.T) {
+	reset(t)
+	ctx := context.Background()
+
+	cash := mustAccount(t, assetAccount("UZS", 0))
+	food := mustCategory(t, entities.Category{Name: "Food", Type: entities.CategoryExpense})
+	exp := buildExpense(t, cash, food, 50000, "UZS")
+	require.NoError(t, transactionRepo().Create(ctx, &exp))
+
+	// before linking: no receipt
+	got, err := transactionRepo().Get(ctx, exp.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.ReceiptID)
+
+	rec := mustReceipt(t)
+	require.NoError(t, receiptRepo().SetTransaction(ctx, rec.ID, &exp.ID))
+
+	// after linking: the transaction points back at the receipt
+	got, err = transactionRepo().Get(ctx, exp.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.ReceiptID)
+	assert.Equal(t, rec.ID, *got.ReceiptID)
+}

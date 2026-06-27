@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
 import { receiptsApi } from '../api/receipts'
 import { transactionsApi } from '../api/transactions'
 import { categoriesApi } from '../api/categories'
 import { errMessage } from '../api/client'
 import { confirm } from '../lib/confirm'
 import { formatDateTime } from '../lib/format'
+import Modal from './Modal.vue'
 import type { Receipt, ReceiptStatus, Transaction, Category } from '../api/types'
 
-const route = useRoute()
-const id = route.params.id as string
+const props = defineProps<{ id: string }>()
+// `changed` fires whenever the link state changes, so callers can refresh lists.
+const emit = defineEmits<{ close: []; changed: [] }>()
 
 const receipt = ref<Receipt | null>(null)
 const linked = ref<Transaction | null>(null)
@@ -31,7 +32,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [rec, cats] = await Promise.all([receiptsApi.get(id), categoriesApi.list().catch(() => [])])
+    const [rec, cats] = await Promise.all([receiptsApi.get(props.id), categoriesApi.list().catch(() => [])])
     receipt.value = rec
     categories.value = cats
     linked.value = rec.transaction_id ? await transactionsApi.get(rec.transaction_id).catch(() => null) : null
@@ -80,9 +81,10 @@ const isMatch = (t: Transaction) => receipt.value?.total_amount?.amount === t.am
 async function link(t: Transaction) {
   busy.value = true
   try {
-    receipt.value = await receiptsApi.linkTransaction(id, t.id)
+    receipt.value = await receiptsApi.linkTransaction(props.id, t.id)
     linked.value = t
     picking.value = false
+    emit('changed')
   } catch (e) {
     alert(errMessage(e))
   } finally {
@@ -94,8 +96,9 @@ async function unlink() {
   if (!(await confirm({ title: 'Unlink transaction?', message: 'This receipt will no longer be tied to a transaction.' }))) return
   busy.value = true
   try {
-    receipt.value = await receiptsApi.unlinkTransaction(id)
+    receipt.value = await receiptsApi.unlinkTransaction(props.id)
     linked.value = null
+    emit('changed')
   } catch (e) {
     alert(errMessage(e))
   } finally {
@@ -107,19 +110,14 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="space-y-6">
-    <RouterLink to="/receipts" class="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700">
-      <i class="ti ti-chevron-left" /> Receipts
-    </RouterLink>
-
+  <Modal :title="receipt?.merchant_name || 'Receipt'" size="xl" @close="emit('close')">
     <p v-if="error" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</p>
-    <p v-else-if="loading" class="text-slate-500">Loading…</p>
+    <p v-else-if="loading" class="py-6 text-center text-slate-500">Loading…</p>
 
-    <template v-else-if="receipt">
-      <!-- header -->
+    <div v-else-if="receipt" class="space-y-5">
+      <!-- header meta -->
       <div class="flex items-start justify-between gap-3">
-        <div>
-          <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ receipt.merchant_name || 'Receipt' }}</h1>
+        <div class="min-w-0">
           <p class="text-sm text-slate-500">{{ formatDateTime(receipt.received_at ?? receipt.created_at) }}</p>
           <p v-if="receipt.merchant_address" class="text-xs text-slate-400">{{ receipt.merchant_address }}</p>
         </div>
@@ -134,7 +132,7 @@ onMounted(load)
       </p>
 
       <!-- totals -->
-      <section class="card grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
+      <div class="grid grid-cols-2 gap-4 rounded-2xl bg-slate-50 p-4 sm:grid-cols-4">
         <div>
           <p class="text-xs text-slate-400">Total</p>
           <p class="tabular text-lg font-bold text-slate-900">{{ receipt.total_amount?.format() }}</p>
@@ -151,22 +149,22 @@ onMounted(load)
           <p class="text-xs text-slate-400">VAT</p>
           <p class="tabular font-semibold text-slate-700">{{ receipt.total_vat?.format() }}</p>
         </div>
-      </section>
+      </div>
 
       <!-- linked transaction -->
-      <section class="card p-5">
-        <div class="mb-3 flex items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold tracking-wide text-slate-500 uppercase">Linked transaction</h2>
+      <div>
+        <div class="mb-2 flex items-center justify-between gap-3">
+          <h4 class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Linked transaction</h4>
           <button v-if="!linked && !picking" class="btn btn-primary" @click="openPicker">Link</button>
           <button v-if="picking" class="btn" @click="picking = false">Cancel</button>
         </div>
 
         <!-- linked state -->
-        <div v-if="linked" class="flex items-center justify-between gap-3">
-          <RouterLink to="/transactions" class="min-w-0">
+        <div v-if="linked" class="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+          <div class="min-w-0">
             <p class="font-medium text-slate-800">{{ catName(linked.category_id) }}</p>
             <p class="truncate text-sm text-slate-500">{{ linked.note || formatDateTime(linked.date) }}</p>
-          </RouterLink>
+          </div>
           <div class="flex shrink-0 items-center gap-3">
             <span class="tabular font-semibold text-slate-900">{{ linked.amount.format() }}</span>
             <button class="btn" :disabled="busy" @click="unlink">Unlink</button>
@@ -176,7 +174,7 @@ onMounted(load)
         <!-- picker -->
         <div v-else-if="picking" class="space-y-3">
           <input v-model="search" type="text" placeholder="Search by note or category…" class="field text-sm" />
-          <div class="max-h-80 divide-y divide-slate-100 overflow-y-auto rounded-xl ring-1 ring-slate-100">
+          <div class="max-h-72 divide-y divide-slate-100 overflow-y-auto rounded-xl ring-1 ring-slate-100">
             <button
               v-for="t in filtered"
               :key="t.id"
@@ -199,10 +197,10 @@ onMounted(load)
 
         <!-- empty -->
         <p v-else class="text-sm text-slate-500">Not linked to any transaction yet.</p>
-      </section>
+      </div>
 
       <!-- items -->
-      <section v-if="receipt.items.length" class="card overflow-hidden">
+      <div v-if="receipt.items.length" class="overflow-hidden rounded-xl ring-1 ring-slate-100">
         <table class="w-full text-sm">
           <thead class="bg-slate-50 text-left text-xs text-slate-400">
             <tr>
@@ -219,7 +217,7 @@ onMounted(load)
             </tr>
           </tbody>
         </table>
-      </section>
-    </template>
-  </div>
+      </div>
+    </div>
+  </Modal>
 </template>

@@ -6,7 +6,7 @@ const props = withDefaults(
   defineProps<{ transaction: Transaction; names?: Record<string, string>; base?: string }>(),
   { names: () => ({}), base: 'UZS' },
 )
-const emit = defineEmits<{ close: []; edit: []; remove: [] }>()
+const emit = defineEmits<{ close: []; edit: []; remove: []; 'view-receipt': [id: string] }>()
 
 const meta = {
   expense: { icon: 'arrow-up-right', ring: 'bg-rose-50 text-rose-600', sign: '−', amount: 'text-rose-600', label: 'Expense' },
@@ -41,6 +41,17 @@ const showBase = !!t.base_amount && t.base_amount.currency !== t.amount.currency
         <div v-if="t.type !== 'transfer'" class="flex justify-between gap-4 py-2.5">
           <dt class="shrink-0 text-slate-400">Category</dt>
           <dd class="text-right font-medium text-slate-800">{{ nameOf(t.category_id) }}</dd>
+        </div>
+        <div v-if="t.receipt_id" class="flex justify-between gap-4 py-2.5">
+          <dt class="shrink-0 text-slate-400">Receipt</dt>
+          <dd class="text-right">
+            <button
+              class="inline-flex items-center gap-1.5 font-medium text-emerald-600 hover:text-emerald-700"
+              @click="emit('view-receipt', t.receipt_id!)"
+            >
+              <i class="ti ti-qrcode" /> View receipt
+            </button>
+          </dd>
         </div>
         <div v-if="t.from_account_id" class="flex justify-between gap-4 py-2.5">
           <dt class="shrink-0 text-slate-400">From</dt>

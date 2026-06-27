@@ -63,7 +63,8 @@ func NewRepository(db *database.DB) Repository {
 // on pgx numeric decoding.
 const txColumns = `id, date, type, from_account_id, to_account_id, category_id,
 	amount, currency, to_amount, to_currency, rate_to_base::text, base_amount,
-	note, tags, created_at, external_id, transfer_group_id, split_group_id`
+	note, tags, created_at, external_id, transfer_group_id, split_group_id,
+	(SELECT id FROM receipts WHERE receipts.transaction_id = transactions.id) AS receipt_id`
 
 func scanTransaction(row pgx.Row) (entities.Transaction, error) {
 	var (
@@ -74,6 +75,7 @@ func scanTransaction(row pgx.Row) (entities.Transaction, error) {
 		&t.ID, &t.Date, &t.Type, &t.FromAccountID, &t.ToAccountID, &t.CategoryID,
 		&t.Amount, &t.Currency, &t.ToAmount, &t.ToCurrency, &rateText, &t.BaseAmount,
 		&t.Note, &t.Tags, &t.CreatedAt, &t.ExternalID, &t.TransferGroupID, &t.SplitGroupID,
+		&t.ReceiptID,
 	)
 	if err != nil {
 		return entities.Transaction{}, err

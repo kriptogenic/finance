@@ -106,6 +106,19 @@ async function unlink() {
   }
 }
 
+// Re-run the (possibly fixed) parser over the receipt's stored HTML.
+async function reparse() {
+  busy.value = true
+  try {
+    receipt.value = await receiptsApi.reparse(props.id)
+    emit('changed')
+  } catch (e) {
+    alert(errMessage(e))
+  } finally {
+    busy.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -121,10 +134,20 @@ onMounted(load)
           <p class="text-sm text-slate-500">{{ formatDateTime(receipt.received_at ?? receipt.created_at) }}</p>
           <p v-if="receipt.merchant_address" class="text-xs text-slate-400">{{ receipt.merchant_address }}</p>
         </div>
-        <span
-          class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ring-1"
-          :class="statusStyle[receipt.status].cls"
-        >{{ statusStyle[receipt.status].label }}</span>
+        <div class="flex shrink-0 items-center gap-2">
+          <button
+            class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+            :disabled="busy"
+            title="Re-parse from saved data"
+            @click="reparse"
+          >
+            <i class="ti" :class="busy ? 'ti-loader-2 animate-spin' : 'ti-refresh'" />
+          </button>
+          <span
+            class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1"
+            :class="statusStyle[receipt.status].cls"
+          >{{ statusStyle[receipt.status].label }}</span>
+        </div>
       </div>
 
       <p v-if="receipt.status === 'failed' && receipt.error" class="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-100">

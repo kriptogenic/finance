@@ -78,6 +78,44 @@ func (s *Service) Create(ctx context.Context, qrURL string, photo []byte, conten
 	return rec.ID, nil
 }
 
+// Reparse re-runs the parser over a receipt's stored HTML and saves the result.
+// When no HTML was stored it re-fetches via the proxy first. It returns the
+// refreshed receipt. Used to backfill receipts scanned before a parser fix.
+func (s *Service) Reparse(ctx context.Context, id uuid.UUID) (*entities.Receipt, error) {
+	rec, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	rawHTML, err := s.repo.GetRawHTML(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if rawHTML == "" {
+		if !s.proxy.Enabled() {
+			return nil, ValidationError{"no stored receipt HTML to reparse"}
+		}
+		rawHTML, err = s.proxy.Fetch(ctx, rec.QRURL)
+		if err != nil {
+			return nil, ValidationError{"refetch receipt: " + err.Error()}
+		}
+		if err = s.repo.SetRawHTML(ctx, id, rawHTML); err != nil {
+			s.logger.Error("store receipt html", zap.Error(err))
+		}
+	}
+
+	parsed, err := ParseHTML(rawHTML)
+	if err != nil {
+		return nil, ValidationError{"parse receipt: " + err.Error()}
+	}
+	parsed.ID = id
+	if err = s.repo.SaveParsed(ctx, &parsed); err != nil {
+		return nil, err
+	}
+
+	return s.repo.Get(ctx, id)
+}
+
 func (s *Service) process(ctx context.Context, id uuid.UUID, qrURL string, photo []byte, contentType string) {
 	key := photoKey(id, time.Now().UTC())
 	if err := s.storage.Upload(ctx, key, contentType, bytes.NewReader(photo)); err != nil {

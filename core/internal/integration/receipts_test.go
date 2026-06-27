@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -102,6 +103,27 @@ func TestReceiptSetTransactionConflict(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got.TransactionID)
 	assert.Equal(t, exp.ID, *got.TransactionID)
+}
+
+func TestReceiptRawHTML(t *testing.T) {
+	reset(t)
+	ctx := context.Background()
+	repo := receiptRepo()
+
+	rec := mustReceipt(t)
+
+	// nothing stored yet
+	html, err := repo.GetRawHTML(ctx, rec.ID)
+	require.NoError(t, err)
+	assert.Empty(t, html)
+
+	require.NoError(t, repo.SetRawHTML(ctx, rec.ID, "<html>hi</html>"))
+	html, err = repo.GetRawHTML(ctx, rec.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "<html>hi</html>", html)
+
+	_, err = repo.GetRawHTML(ctx, uuid.New())
+	assert.ErrorIs(t, err, receiptrepository.ErrNotFound)
 }
 
 // TestTransactionCarriesReceiptID covers the reverse lookup: once a receipt is

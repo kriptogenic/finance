@@ -113,6 +113,24 @@ func (s Server) ListReceipts(ctx context.Context, request api.ListReceiptsReques
 	return api.ListReceipts200JSONResponse{Receipts: out}, nil
 }
 
+func (s Server) ReparseReceipt(ctx context.Context, request api.ReparseReceiptRequestObject) (api.ReparseReceiptResponseObject, error) {
+	rec, err := s.receiptSvc.Reparse(ctx, request.Id)
+	if errors.Is(err, receiptrepository.ErrNotFound) {
+		return api.ReparseReceipt404JSONResponse{NotFoundJSONResponse: notFound("receipt not found")}, nil
+	}
+	var ve receipts.ValidationError
+	if errors.As(err, &ve) {
+		return api.ReparseReceipt400JSONResponse{BadRequestJSONResponse: badRequest(ve.Error())}, nil
+	}
+	if err != nil {
+		s.logger.Error("reparse receipt", zap.Error(err))
+
+		return nil, err
+	}
+
+	return api.ReparseReceipt200JSONResponse(toAPIReceipt(*rec)), nil
+}
+
 func (s Server) LinkReceiptTransaction(ctx context.Context, request api.LinkReceiptTransactionRequestObject) (api.LinkReceiptTransactionResponseObject, error) {
 	if request.Body == nil {
 		return api.LinkReceiptTransaction400JSONResponse{BadRequestJSONResponse: badRequest("empty body")}, nil

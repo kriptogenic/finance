@@ -105,3 +105,38 @@ func TestParseHTML(t *testing.T) {
 	require.NotNil(t, sut.IKPUCode)
 	assert.Equal(t, "07654321", *sut.IKPUCode)
 }
+
+// TestParseHTMLReal guards against the totals/card-type regression: a real
+// ofd.soliq.uz receipt wraps the whole ticket in an outer table row and uses a
+// backtick in "Jami to`lov:". Earlier substring matching read the document's
+// last cell (the VAT total) into paid_cash/paid_card/card_type.
+func TestParseHTMLReal(t *testing.T) {
+	raw, err := os.ReadFile("testdata/receipt-2.html")
+	require.NoError(t, err)
+
+	r, err := ParseHTML(string(raw))
+	require.NoError(t, err)
+
+	require.NotNil(t, r.MerchantName)
+	assert.Contains(t, *r.MerchantName, "ANGLESEY FOOD")
+	require.NotNil(t, r.MerchantTIN)
+	assert.Equal(t, "202099756", *r.MerchantTIN)
+
+	// totals: the bug put 1,968.23 (VAT) into cash/card/card_type and 0 into total
+	assert.Equal(t, int64(0), r.PaidCash)
+	assert.Equal(t, int64(1837000), r.PaidCard)    // 18,370.00
+	assert.Equal(t, int64(1837000), r.TotalAmount) // 18,370.00
+	assert.Equal(t, int64(196823), r.TotalVAT)     // 1,968.23
+	require.NotNil(t, r.CardType)
+	assert.Equal(t, "Shaxsiy", *r.CardType)
+
+	require.Len(t, r.Items, 4)
+	first := r.Items[0]
+	assert.Equal(t, "Logotipli paket Bio poelitilen 4 k gacha", first.Name)
+	assert.Equal(t, "1", first.Quantity)
+	assert.Equal(t, int64(40000), first.Price)    // 400.00
+	assert.Equal(t, int64(4286), first.VATAmount) // 42.86
+	assert.Equal(t, 12, first.VATRate)
+	require.NotNil(t, first.Barcode)
+	assert.Equal(t, "21005602", *first.Barcode)
+}

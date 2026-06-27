@@ -38,6 +38,7 @@ type Repository interface {
 	// matching amount within [from, to]; nil when none or ambiguous.
 	FindAutoLinkCandidate(ctx context.Context, amount int64, from, to time.Time) (*uuid.UUID, error)
 	Get(ctx context.Context, id uuid.UUID) (*entities.Receipt, error)
+	GetRawHTML(ctx context.Context, id uuid.UUID) (string, error)
 	List(ctx context.Context, page, limit int) ([]entities.Receipt, error)
 }
 
@@ -227,6 +228,22 @@ func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Receipt, e
 	rec.Items = items
 
 	return &rec, nil
+}
+
+func (r repository) GetRawHTML(ctx context.Context, id uuid.UUID) (string, error) {
+	var html *string
+	err := r.db.Pool.QueryRow(ctx, `SELECT raw_html FROM receipts WHERE id = $1`, id).Scan(&html)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("get receipt html: %w", err)
+	}
+	if html == nil {
+		return "", nil
+	}
+
+	return *html, nil
 }
 
 func (r repository) items(ctx context.Context, id uuid.UUID) ([]entities.ReceiptItem, error) {

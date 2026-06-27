@@ -212,10 +212,18 @@ func rowAmount(doc *goquery.Document, label string) int64 {
 	return v
 }
 
-// rowValueIn finds, among the given rows, the first <tr> whose first <td>
-// contains label and returns the trailing value (last <td>, or the remainder of
-// a single-cell row).
+// quoteNormalizer unifies the apostrophe variants receipts mix into labels
+// (straight ', backtick `, curly ’/‘) — e.g. "Jami to`lov:" vs "Jami to'lov".
+var quoteNormalizer = strings.NewReplacer("`", "'", "’", "'", "‘", "'")
+
+// rowValueIn finds, among the given rows, the first <tr> whose first cell *starts
+// with* label and returns the trailing value (last <td>, or the remainder of a
+// single-cell row). Prefix (not substring) matching is deliberate: real receipts
+// wrap the whole ticket in an outer <tr><td>…</td></tr>, whose concatenated text
+// contains every label — a substring match would wrongly hit that wrapper.
 func rowValueIn(rows *goquery.Selection, label string) string {
+	label = quoteNormalizer.Replace(label)
+
 	var val string
 	rows.EachWithBreak(func(_ int, tr *goquery.Selection) bool {
 		tds := tr.Find("td")
@@ -223,13 +231,13 @@ func rowValueIn(rows *goquery.Selection, label string) string {
 			return true
 		}
 		first := strings.TrimSpace(tds.First().Text())
-		if !strings.Contains(first, label) {
+		if !strings.HasPrefix(quoteNormalizer.Replace(first), label) {
 			return true
 		}
 		if tds.Length() >= 2 {
 			val = strings.TrimSpace(tds.Last().Text())
 		} else {
-			val = strings.TrimSpace(strings.TrimPrefix(first, label))
+			val = strings.TrimSpace(quoteNormalizer.Replace(first)[len(label):])
 		}
 
 		return false

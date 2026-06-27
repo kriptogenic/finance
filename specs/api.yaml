@@ -985,6 +985,24 @@ paths:
         404:
           $ref: '#/components/responses/NotFound'
 
+  /receipts/{id}/reparse:
+    parameters:
+      - $ref: '#/components/parameters/ReceiptId'
+    post:
+      operationId: reparseReceipt
+      summary: Re-run the parser over the receipt's stored HTML
+      responses:
+        200:
+          description: Re-parsed receipt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
     BudgetId:

@@ -93,3 +93,5 @@ Monorepo with three deployables — `core`, `frontend`, `lookout` — that integ
 - Services integrate **only through `specs/`** — never import types across `core` / `frontend` / `lookout`. To change behavior, edit `specs/*.yaml`, then `make generate` in each affected service.
 - `generated/` (Go) and `src/api/schema.d.ts` (TS) are codegen output — never hand-edit.
 - Backend request flow: `specs` → `generated/api` (StrictServerInterface) → `internal/http/handlers` → `internal/repositories` → Postgres. Money logic lives in `internal/ledger`, not handlers.
+
+## Don't write much comments

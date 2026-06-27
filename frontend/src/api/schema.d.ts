@@ -578,6 +578,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/receipts/{id}/transaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ReceiptId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Link the receipt to a transaction (one transaction per receipt) */
+        put: operations["linkReceiptTransaction"];
+        post?: never;
+        /** Remove the receipt's transaction link */
+        delete: operations["unlinkReceiptTransaction"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1181,7 +1201,16 @@ export interface components {
             scraped_at?: string | null;
             /** Format: date-time */
             created_at: string;
+            /**
+             * Format: uuid
+             * @description Linked transaction, if any.
+             */
+            transaction_id?: string | null;
             items: components["schemas"]["ReceiptItem"][];
+        };
+        ReceiptLinkRequest: {
+            /** Format: uuid */
+            transaction_id: string;
         };
         ReceiptItem: {
             name: string;
@@ -2535,6 +2564,66 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Receipt */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    linkReceiptTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ReceiptId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptLinkRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated receipt */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description That transaction is already linked to another receipt */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    unlinkReceiptTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ReceiptId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated receipt */
             200: {
                 headers: {
                     [name: string]: unknown;

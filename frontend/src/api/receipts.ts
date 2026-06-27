@@ -34,4 +34,10 @@ export const receiptsApi = {
 
   list: (page = 1, limit = 20): Promise<Receipt[]> =>
     call(api.GET('/receipts', { params: { query: { page, limit } } })).then((d) => d.receipts),
+
+  linkTransaction: (id: string, transaction_id: string): Promise<Receipt> =>
+    call(api.PUT('/receipts/{id}/transaction', { params: { path: { id } }, body: { transaction_id } })),
+
+  unlinkTransaction: (id: string): Promise<Receipt> =>
+    call(api.DELETE('/receipts/{id}/transaction', { params: { path: { id } } })),
 }

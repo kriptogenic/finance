@@ -5,6 +5,8 @@ import TransactionsView from '../views/TransactionsView.vue'
 import CategoriesView from '../views/CategoriesView.vue'
 import BudgetsView from '../views/BudgetsView.vue'
 import ScheduledTransactionsView from '../views/ScheduledTransactionsView.vue'
+import ReceiptsView from '../views/ReceiptsView.vue'
+import ReceiptDetailView from '../views/ReceiptDetailView.vue'
 import LoginView from '../views/LoginView.vue'
 import { isAuthenticated } from '../api/auth'
 
@@ -18,6 +20,8 @@ const router = createRouter({
     { path: '/scheduled', name: 'scheduled', component: ScheduledTransactionsView },
     { path: '/budgets', name: 'budgets', component: BudgetsView },
     { path: '/categories', name: 'categories', component: CategoriesView },
+    { path: '/receipts', name: 'receipts', component: ReceiptsView },
+    { path: '/receipts/:id', name: 'receipt', component: ReceiptDetailView },
   ],
 })
 

@@ -108,6 +108,42 @@ func (s *Service) process(ctx context.Context, id uuid.UUID, qrURL string, photo
 	parsed.ID = id
 	if err = s.repo.SaveParsed(ctx, &parsed); err != nil {
 		s.fail(id, "save parsed", err)
+
+		return
+	}
+
+	s.autoLink(ctx, id, parsed.TotalAmount, parsed.ReceivedAt)
+}
+
+// autoLinkWindow is how far around the receipt time we look for a matching
+// expense, to absorb clock/timezone skew between the receipt and the bank feed.
+const autoLinkWindow = 3 * 24 * time.Hour
+
+// autoLink best-effort links the receipt to a single unlinked UZS expense of
+// the same amount near its time. Ambiguous (multiple) or missing matches are
+// skipped; failures are logged, never fatal to the pipeline.
+func (s *Service) autoLink(ctx context.Context, id uuid.UUID, total int64, receivedAt *time.Time) {
+	if total == 0 {
+		return
+	}
+
+	center := time.Now().UTC()
+	if receivedAt != nil {
+		center = *receivedAt
+	}
+
+	txID, err := s.repo.FindAutoLinkCandidate(ctx, total, center.Add(-autoLinkWindow), center.Add(autoLinkWindow))
+	if err != nil {
+		s.logger.Error("receipt auto-link lookup", zap.String("id", id.String()), zap.Error(err))
+
+		return
+	}
+	if txID == nil {
+		return
+	}
+
+	if err = s.repo.SetTransaction(ctx, id, txID); err != nil {
+		s.logger.Warn("receipt auto-link", zap.String("id", id.String()), zap.Error(err))
 	}
 }
 

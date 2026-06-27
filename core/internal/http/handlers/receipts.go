@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/oapi-codegen/nullable"
 	"go.uber.org/zap"
 
@@ -112,6 +113,56 @@ func (s Server) ListReceipts(ctx context.Context, request api.ListReceiptsReques
 	return api.ListReceipts200JSONResponse{Receipts: out}, nil
 }
 
+func (s Server) LinkReceiptTransaction(ctx context.Context, request api.LinkReceiptTransactionRequestObject) (api.LinkReceiptTransactionResponseObject, error) {
+	if request.Body == nil {
+		return api.LinkReceiptTransaction400JSONResponse{BadRequestJSONResponse: badRequest("empty body")}, nil
+	}
+
+	txID := uuid.UUID(request.Body.TransactionId)
+	if err := s.receipts.SetTransaction(ctx, request.Id, &txID); err != nil {
+		if errors.Is(err, receiptrepository.ErrAlreadyLinked) {
+			return api.LinkReceiptTransaction409JSONResponse{Error: err.Error()}, nil
+		}
+
+		return nil, err
+	}
+
+	return receiptResponse(ctx, s, request.Id, func(rec entities.Receipt) api.LinkReceiptTransactionResponseObject {
+		return api.LinkReceiptTransaction200JSONResponse(toAPIReceipt(rec))
+	}, func() api.LinkReceiptTransactionResponseObject {
+		return api.LinkReceiptTransaction404JSONResponse{NotFoundJSONResponse: notFound("receipt not found")}
+	})
+}
+
+func (s Server) UnlinkReceiptTransaction(ctx context.Context, request api.UnlinkReceiptTransactionRequestObject) (api.UnlinkReceiptTransactionResponseObject, error) {
+	if err := s.receipts.SetTransaction(ctx, request.Id, nil); err != nil {
+		return nil, err
+	}
+
+	return receiptResponse(ctx, s, request.Id, func(rec entities.Receipt) api.UnlinkReceiptTransactionResponseObject {
+		return api.UnlinkReceiptTransaction200JSONResponse(toAPIReceipt(rec))
+	}, func() api.UnlinkReceiptTransactionResponseObject {
+		return api.UnlinkReceiptTransaction404JSONResponse{NotFoundJSONResponse: notFound("receipt not found")}
+	})
+}
+
+// receiptResponse reloads the receipt and maps it to a 200 or 404 response.
+func receiptResponse[T any](
+	ctx context.Context, s Server, id uuid.UUID, ok func(entities.Receipt) T, missing func() T,
+) (T, error) {
+	rec, err := s.receipts.Get(ctx, id)
+	if errors.Is(err, receiptrepository.ErrNotFound) {
+		return missing(), nil
+	}
+	if err != nil {
+		var zero T
+
+		return zero, err
+	}
+
+	return ok(*rec), nil
+}
+
 func toAPIReceipt(r entities.Receipt) api.Receipt {
 	out := api.Receipt{
 		Id:              r.ID,
@@ -138,6 +189,7 @@ func toAPIReceipt(r entities.Receipt) api.Receipt {
 		PhotoKey:        nstr(r.PhotoKey),
 		ScrapedAt:       ntime(r.ScrapedAt),
 		CreatedAt:       r.CreatedAt,
+		TransactionId:   nuuid(r.TransactionID),
 		Items:           make([]api.ReceiptItem, 0, len(r.Items)),
 	}
 
@@ -187,6 +239,14 @@ func nint(p *int) nullable.Nullable[int] {
 func ntime(p *time.Time) nullable.Nullable[time.Time] {
 	if p == nil {
 		return nullable.Nullable[time.Time]{}
+	}
+
+	return nullable.NewNullableWithValue(*p)
+}
+
+func nuuid(p *uuid.UUID) nullable.Nullable[uuid.UUID] {
+	if p == nil {
+		return nullable.Nullable[uuid.UUID]{}
 	}
 
 	return nullable.NewNullableWithValue(*p)

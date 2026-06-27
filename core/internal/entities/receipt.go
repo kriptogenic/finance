@@ -56,6 +56,9 @@ type Receipt struct {
 	ScrapedAt *time.Time
 	CreatedAt time.Time
 
+	// linked expense transaction, if any (1:1)
+	TransactionID *uuid.UUID
+
 	Items []ReceiptItem
 }
 

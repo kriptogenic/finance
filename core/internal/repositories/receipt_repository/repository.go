@@ -4,15 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"finance/internal/entities"
 	"finance/pkg/database"
 )
 
-var ErrNotFound = errors.New("receipt not found")
+var (
+	ErrNotFound = errors.New("receipt not found")
+	// ErrAlreadyLinked means the target transaction is linked to another receipt.
+	ErrAlreadyLinked = errors.New("transaction already linked to a receipt")
+)
 
 type Repository interface {
 	// Create inserts a new receipt header (typically in the pending state).
@@ -25,6 +31,12 @@ type Repository interface {
 	SetRawHTML(ctx context.Context, id uuid.UUID, html string) error
 	// SaveParsed writes all parsed header fields + items and marks success.
 	SaveParsed(ctx context.Context, r *entities.Receipt) error
+	// SetTransaction links (txID non-nil) or unlinks (txID nil) the receipt's
+	// transaction. Returns ErrAlreadyLinked if txID is taken by another receipt.
+	SetTransaction(ctx context.Context, id uuid.UUID, txID *uuid.UUID) error
+	// FindAutoLinkCandidate returns the id of the single unlinked UZS expense
+	// matching amount within [from, to]; nil when none or ambiguous.
+	FindAutoLinkCandidate(ctx context.Context, amount int64, from, to time.Time) (*uuid.UUID, error)
 	Get(ctx context.Context, id uuid.UUID) (*entities.Receipt, error)
 	List(ctx context.Context, page, limit int) ([]entities.Receipt, error)
 }
@@ -140,15 +152,62 @@ const headerCols = `
 	id, qr_url, status, error, terminal_id, receipt_seq, fiscal_sign, received_at,
 	receipt_type, merchant_name, merchant_tin, merchant_address, device_name, serial_number,
 	card_type, merchant_lat, merchant_lng, paid_cash, paid_card, total_amount, total_vat,
-	photo_key, scraped_at, created_at`
+	photo_key, scraped_at, created_at, transaction_id`
 
 func scanHeader(row pgx.Row, rec *entities.Receipt) error {
 	return row.Scan(
 		&rec.ID, &rec.QRURL, &rec.Status, &rec.Error, &rec.TerminalID, &rec.ReceiptSeq, &rec.FiscalSign, &rec.ReceivedAt,
 		&rec.ReceiptType, &rec.MerchantName, &rec.MerchantTIN, &rec.MerchantAddress, &rec.DeviceName, &rec.SerialNumber,
 		&rec.CardType, &rec.MerchantLat, &rec.MerchantLng, &rec.PaidCash, &rec.PaidCard, &rec.TotalAmount, &rec.TotalVAT,
-		&rec.PhotoKey, &rec.ScrapedAt, &rec.CreatedAt,
+		&rec.PhotoKey, &rec.ScrapedAt, &rec.CreatedAt, &rec.TransactionID,
 	)
+}
+
+func (r repository) SetTransaction(ctx context.Context, id uuid.UUID, txID *uuid.UUID) error {
+	_, err := r.db.Pool.Exec(ctx, `UPDATE receipts SET transaction_id = $2 WHERE id = $1`, id, txID)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrAlreadyLinked
+		}
+
+		return fmt.Errorf("set receipt transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (r repository) FindAutoLinkCandidate(ctx context.Context, amount int64, from, to time.Time) (*uuid.UUID, error) {
+	const query = `
+		SELECT t.id FROM transactions t
+		LEFT JOIN receipts r ON r.transaction_id = t.id
+		WHERE t.type = 'expense' AND t.currency = $1 AND t.amount = $2
+		  AND t.date BETWEEN $3 AND $4 AND r.id IS NULL
+		LIMIT 2`
+
+	rows, err := r.db.Pool.Query(ctx, query, entities.ReceiptCurrency, amount, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("find auto-link candidate: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err = rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan auto-link candidate: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("find auto-link candidate: %w", err)
+	}
+
+	if len(ids) != 1 { // none or ambiguous
+		return nil, nil
+	}
+
+	return &ids[0], nil
 }
 
 func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Receipt, error) {

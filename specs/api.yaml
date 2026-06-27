@@ -943,6 +943,48 @@ paths:
         404:
           $ref: '#/components/responses/NotFound'
 
+  /receipts/{id}/transaction:
+    parameters:
+      - $ref: '#/components/parameters/ReceiptId'
+    put:
+      operationId: linkReceiptTransaction
+      summary: Link the receipt to a transaction (one transaction per receipt)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptLinkRequest'
+      responses:
+        200:
+          description: Updated receipt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          description: That transaction is already linked to another receipt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      operationId: unlinkReceiptTransaction
+      summary: Remove the receipt's transaction link
+      responses:
+        200:
+          description: Updated receipt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
+        404:
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
     BudgetId:
@@ -2385,10 +2427,25 @@ components:
         created_at:
           type: string
           format: date-time
+        transaction_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Linked transaction, if any.
         items:
           type: array
           items:
             $ref: '#/components/schemas/ReceiptItem'
+
+    ReceiptLinkRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - transaction_id
+      properties:
+        transaction_id:
+          type: string
+          format: uuid
 
     ReceiptItem:
       type: object

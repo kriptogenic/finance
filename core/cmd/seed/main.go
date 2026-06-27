@@ -26,6 +26,7 @@ import (
 	balancesnapshotrepository "finance/internal/repositories/balance_snapshot_repository"
 	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
+	receiptrepository "finance/internal/repositories/receipt_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
 	"finance/pkg/database"
 	"finance/pkg/fx"
@@ -67,6 +68,7 @@ func main() {
 		txns:       transactionrepository.NewRepository(db),
 		budgets:    budgetrepository.NewRepository(db),
 		snapshots:  balancesnapshotrepository.NewRepository(db),
+		receipts:   receiptrepository.NewRepository(db),
 		logger:     logger,
 	}
 
@@ -82,6 +84,7 @@ type seeder struct {
 	txns       transactionrepository.Repository
 	budgets    budgetrepository.Repository
 	snapshots  balancesnapshotrepository.Repository
+	receipts   receiptrepository.Repository
 	logger     *zap.Logger
 }
 
@@ -97,7 +100,7 @@ func (s *seeder) run(ctx context.Context, db *database.DB, reset bool) error {
 			return nil
 		}
 		if _, err = db.Pool.Exec(ctx,
-			`TRUNCATE transactions, categories, accounts, balance_snapshots RESTART IDENTITY CASCADE`); err != nil {
+			`TRUNCATE transactions, categories, accounts, balance_snapshots, receipts RESTART IDENTITY CASCADE`); err != nil {
 			return fmt.Errorf("truncate: %w", err)
 		}
 		s.logger.Info("existing data wiped")
@@ -113,7 +116,12 @@ func (s *seeder) run(ctx context.Context, db *database.DB, reset bool) error {
 		return err
 	}
 
-	if err = s.seedTransactions(ctx, accounts, cats); err != nil {
+	txns, err := s.seedTransactions(ctx, accounts, cats)
+	if err != nil {
+		return err
+	}
+
+	if err = s.seedReceipts(ctx, txns); err != nil {
 		return err
 	}
 
@@ -276,45 +284,174 @@ func (s *seeder) createSystemCategory(ctx context.Context, out map[string]entiti
 	return nil
 }
 
-func (s *seeder) seedTransactions(ctx context.Context, acc map[string]entities.Account, cat map[string]entities.Category) error {
+// seedTransactions creates the dev transactions and returns the ones tagged with
+// a label, so later steps (e.g. receipts) can link to a specific transaction.
+func (s *seeder) seedTransactions(ctx context.Context, acc map[string]entities.Account, cat map[string]entities.Category) (map[string]entities.Transaction, error) {
 	day := func(d int, month time.Month) time.Time {
 		return time.Date(2026, month, d, 12, 0, 0, 0, time.UTC)
 	}
 	usdRate := fx.MustParseRate("12500")
 
 	type spec struct {
-		date time.Time
-		in   ledger.NewTransaction
+		label string // non-empty labels are returned for cross-referencing
+		date  time.Time
+		in    ledger.NewTransaction
 	}
 
 	from := func(name string) *entities.Account { a := acc[name]; return &a }
 	category := func(name string) *entities.Category { c := cat[name]; return &c }
 
 	specs := []spec{
-		{day(1, time.May), ledger.NewTransaction{Type: entities.TxIncome, To: from("Cash"), Category: category("Salary"), Amount: 5_000_000_00}},
-		{day(3, time.May), ledger.NewTransaction{Type: entities.TxExpense, From: from("Cash"), Category: category("Rent"), Amount: 1_500_000_00}},
-		{day(10, time.May), ledger.NewTransaction{Type: entities.TxExpense, From: from("Cash"), Category: category("Groceries"), Amount: 300_000_00, Tags: []string{"weekly"}}},
-		{day(15, time.May), ledger.NewTransaction{Type: entities.TxExpense, From: from("Cash"), Category: category("Transport"), Amount: 50_000_00}},
-		{day(1, time.June), ledger.NewTransaction{Type: entities.TxIncome, To: from("Cash"), Category: category("Salary"), Amount: 5_000_000_00}},
-		{day(5, time.June), ledger.NewTransaction{Type: entities.TxExpense, From: from("Visa Card"), Category: category("Restaurants"), Amount: 120_000_00, Note: ptr("dinner")}},
+		{"", day(1, time.May), ledger.NewTransaction{Type: entities.TxIncome, To: from("Cash"), Category: category("Salary"), Amount: 5_000_000_00}},
+		{"", day(3, time.May), ledger.NewTransaction{Type: entities.TxExpense, From: from("Cash"), Category: category("Rent"), Amount: 1_500_000_00}},
+		{"groceries", day(10, time.May), ledger.NewTransaction{Type: entities.TxExpense, From: from("Cash"), Category: category("Groceries"), Amount: 300_000_00, Tags: []string{"weekly"}}},
+		{"", day(15, time.May), ledger.NewTransaction{Type: entities.TxExpense, From: from("Cash"), Category: category("Transport"), Amount: 50_000_00}},
+		{"", day(1, time.June), ledger.NewTransaction{Type: entities.TxIncome, To: from("Cash"), Category: category("Salary"), Amount: 5_000_000_00}},
+		{"dinner", day(5, time.June), ledger.NewTransaction{Type: entities.TxExpense, From: from("Visa Card"), Category: category("Restaurants"), Amount: 120_000_00, Note: ptr("dinner")}},
 		// cross-currency transfer: 125,000.00 UZS -> 10.00 USD
-		{day(6, time.June), ledger.NewTransaction{Type: entities.TxTransfer, From: from("Cash"), To: from("USD Wallet"), Amount: 125_000_00, ToAmount: ptr(int64(10_00))}},
+		{"", day(6, time.June), ledger.NewTransaction{Type: entities.TxTransfer, From: from("Cash"), To: from("USD Wallet"), Amount: 125_000_00, ToAmount: ptr(int64(10_00))}},
 		// USD expense with a frozen rate to base (UZS)
-		{day(7, time.June), ledger.NewTransaction{Type: entities.TxExpense, From: from("USD Wallet"), Category: category("Food"), Amount: 5_00, RateToBase: &usdRate}},
+		{"", day(7, time.June), ledger.NewTransaction{Type: entities.TxExpense, From: from("USD Wallet"), Category: category("Food"), Amount: 5_00, RateToBase: &usdRate}},
 		// repay part of the card bill
-		{day(10, time.June), ledger.NewTransaction{Type: entities.TxTransfer, From: from("Cash"), To: from("Visa Card"), Amount: 200_000_00}},
+		{"", day(10, time.June), ledger.NewTransaction{Type: entities.TxTransfer, From: from("Cash"), To: from("Visa Card"), Amount: 200_000_00}},
 	}
 
+	out := make(map[string]entities.Transaction)
 	for _, sp := range specs {
 		in := sp.in
 		in.Date = sp.date
 
 		tx, err := ledger.BuildTransaction(in, s.base)
 		if err != nil {
-			return fmt.Errorf("build seed transaction (%s): %w", in.Type, err)
+			return nil, fmt.Errorf("build seed transaction (%s): %w", in.Type, err)
 		}
 		if err = s.txns.Create(ctx, &tx); err != nil {
-			return fmt.Errorf("create seed transaction (%s): %w", in.Type, err)
+			return nil, fmt.Errorf("create seed transaction (%s): %w", in.Type, err)
+		}
+		if sp.label != "" {
+			out[sp.label] = tx
+		}
+	}
+
+	return out, nil
+}
+
+// seedReceipt describes a fully-parsed fiscal receipt to seed. total is derived
+// from paidCard+paidCash; linkLabel ties it to a labeled seed transaction.
+type seedReceipt struct {
+	qrURL      string
+	terminal   string
+	seq        int
+	sign       string
+	merchant   string
+	tin        string
+	address    string
+	cardType   string
+	receivedAt time.Time
+	paidCard   int64
+	paidCash   int64
+	items      []entities.ReceiptItem
+	linkLabel  string
+}
+
+func (s *seeder) seedReceipts(ctx context.Context, txns map[string]entities.Transaction) error {
+	// item builds a line with 12% VAT extracted from the (VAT-inclusive) price.
+	item := func(name, qty string, price int64) entities.ReceiptItem {
+		return entities.ReceiptItem{Name: name, Quantity: qty, Price: price, VATAmount: price * 12 / 112, VATRate: 12}
+	}
+
+	defs := []seedReceipt{
+		{
+			qrURL: "https://ofd.soliq.uz/check?t=UZ123456789&r=000123&s=987654321098", linkLabel: "groceries",
+			terminal: "UZ123456789", seq: 123, sign: "987654321098",
+			merchant: "Korzinka Yunusobod", tin: "302345678", address: "Toshkent, Yunusobod 19",
+			cardType: "UZCARD", receivedAt: txns["groceries"].Date, paidCard: 300_000_00,
+			items: []entities.ReceiptItem{
+				item("Sut 2.5% 1L", "2", 30_000_00),
+				item("Non", "4", 20_000_00),
+				item("Tovuq filesi", "1.2", 150_000_00),
+				item("Olma", "3", 100_000_00),
+			},
+		},
+		{
+			qrURL: "https://ofd.soliq.uz/check?t=UZ555000111&r=004521&s=445566778899", linkLabel: "dinner",
+			terminal: "UZ555000111", seq: 4521, sign: "445566778899",
+			merchant: "Caffe Bon", tin: "301889900", address: "Toshkent, Amir Temur 12",
+			cardType: "HUMO", receivedAt: txns["dinner"].Date, paidCard: 120_000_00,
+			items: []entities.ReceiptItem{
+				item("Lavash", "2", 70_000_00),
+				item("Choy", "2", 20_000_00),
+				item("Shirinlik", "1", 30_000_00),
+			},
+		},
+		{
+			// not linked to any transaction — shows the unlinked state
+			qrURL:    "https://ofd.soliq.uz/check?t=UZ777222333&r=000088&s=112233445566",
+			terminal: "UZ777222333", seq: 88, sign: "112233445566",
+			merchant: "Dori-Darmon", tin: "300112233", address: "Toshkent, Chilonzor 5",
+			cardType: "CASH", receivedAt: time.Date(2026, time.June, 12, 18, 30, 0, 0, time.UTC), paidCash: 45_000_00,
+			items: []entities.ReceiptItem{
+				item("Paratsetamol", "1", 15_000_00),
+				item("Vitamin C", "2", 30_000_00),
+			},
+		},
+	}
+
+	for _, def := range defs {
+		if err := s.parsedReceipt(ctx, def, txns); err != nil {
+			return err
+		}
+	}
+
+	// a receipt whose scrape failed — exercises the failed status in the UI
+	failed := entities.Receipt{
+		QRURL: "https://ofd.soliq.uz/check?t=UZ909090909&r=000042&s=778899001122", Status: entities.ReceiptPending,
+		TerminalID: ptr("UZ909090909"), ReceiptSeq: ptr(42), FiscalSign: ptr("778899001122"),
+		ReceivedAt: ptr(time.Date(2026, time.June, 14, 9, 15, 0, 0, time.UTC)),
+	}
+	if err := s.receipts.Create(ctx, &failed); err != nil {
+		return fmt.Errorf("create failed receipt: %w", err)
+	}
+	if err := s.receipts.SetStatus(ctx, failed.ID, entities.ReceiptFailed, ptr("fetch receipt: proxy unavailable")); err != nil {
+		return fmt.Errorf("mark receipt failed: %w", err)
+	}
+
+	return nil
+}
+
+// parsedReceipt inserts a receipt header, saves its parsed fields + items, and
+// links it to a seed transaction when linkLabel is set.
+func (s *seeder) parsedReceipt(ctx context.Context, def seedReceipt, txns map[string]entities.Transaction) error {
+	rec := entities.Receipt{
+		QRURL: def.qrURL, Status: entities.ReceiptPending,
+		TerminalID: &def.terminal, ReceiptSeq: &def.seq, FiscalSign: &def.sign, ReceivedAt: &def.receivedAt,
+	}
+	if err := s.receipts.Create(ctx, &rec); err != nil {
+		return fmt.Errorf("create receipt %q: %w", def.merchant, err)
+	}
+
+	var vat int64
+	for _, it := range def.items {
+		vat += it.VATAmount
+	}
+	rec.ReceiptType = ptr("Sale")
+	rec.MerchantName = &def.merchant
+	rec.MerchantTIN = &def.tin
+	rec.MerchantAddress = &def.address
+	rec.CardType = &def.cardType
+	rec.PaidCard = def.paidCard
+	rec.PaidCash = def.paidCash
+	rec.TotalAmount = def.paidCard + def.paidCash
+	rec.TotalVAT = vat
+	rec.Items = def.items
+	if err := s.receipts.SaveParsed(ctx, &rec); err != nil {
+		return fmt.Errorf("save parsed receipt %q: %w", def.merchant, err)
+	}
+
+	if def.linkLabel != "" {
+		tx := txns[def.linkLabel]
+		if err := s.receipts.SetTransaction(ctx, rec.ID, &tx.ID); err != nil {
+			return fmt.Errorf("link receipt %q: %w", def.merchant, err)
 		}
 	}
 

@@ -9,11 +9,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"finance/config"
 	"finance/internal/entities"
 	"finance/pkg/database"
 	"finance/pkg/fx"
-	"finance/pkg/money"
 )
 
 var ErrNotFound = errors.New("transaction not found")
@@ -54,49 +52,33 @@ const uncategorizedBuckets = `SELECT id FROM categories
 	WHERE system_key IN ('uncategorized_expense', 'uncategorized_income')`
 
 type repository struct {
-	db   *database.DB
-	base string
+	db *database.DB
 }
 
-func NewRepository(db *database.DB, finance *config.Finance) Repository {
-	return &repository{db: db, base: finance.BaseCurrency}
+func NewRepository(db *database.DB) Repository {
+	return &repository{db: db}
 }
 
 // rate_to_base is cast to text so it can be parsed into fx.Rate without relying
-// on pgx numeric decoding.
+// on pgx numeric decoding. amount/to_amount/base_amount are money_t composites.
 const txColumns = `id, date, type, from_account_id, to_account_id, category_id,
-	amount, currency, to_amount, to_currency, rate_to_base::text, base_amount,
+	amount, to_amount, rate_to_base::text, base_amount,
 	note, tags, created_at, external_id, transfer_group_id, split_group_id,
 	(SELECT id FROM receipts WHERE receipts.transaction_id = transactions.id) AS receipt_id`
 
 func (r repository) scanTransaction(row pgx.Row) (entities.Transaction, error) {
 	var (
-		t          entities.Transaction
-		amount     int64
-		currency   string
-		toAmount   *int64
-		toCurrency *string
-		baseAmount *int64
-		rateText   *string
+		t        entities.Transaction
+		rateText *string
 	)
 	err := row.Scan(
 		&t.ID, &t.Date, &t.Type, &t.FromAccountID, &t.ToAccountID, &t.CategoryID,
-		&amount, &currency, &toAmount, &toCurrency, &rateText, &baseAmount,
+		&t.Amount, &t.ToAmount, &rateText, &t.BaseAmount,
 		&t.Note, &t.Tags, &t.CreatedAt, &t.ExternalID, &t.TransferGroupID, &t.SplitGroupID,
 		&t.ReceiptID,
 	)
 	if err != nil {
 		return entities.Transaction{}, err
-	}
-
-	t.Amount = money.New(amount, currency)
-	if toAmount != nil && toCurrency != nil {
-		m := money.New(*toAmount, *toCurrency)
-		t.ToAmount = &m
-	}
-	if baseAmount != nil {
-		m := money.New(*baseAmount, r.base)
-		t.BaseAmount = &m
 	}
 
 	if rateText != nil {
@@ -110,40 +92,24 @@ func (r repository) scanTransaction(row pgx.Row) (entities.Transaction, error) {
 	return t, nil
 }
 
-func writeCols(tx *entities.Transaction) (amount int64, currency string, toAmount *int64, toCurrency *string, baseAmount *int64) {
-	amount = tx.Amount.Minor()
-	currency = tx.Amount.Code()
-	if tx.ToAmount != nil {
-		a, c := tx.ToAmount.Minor(), tx.ToAmount.Code()
-		toAmount, toCurrency = &a, &c
-	}
-	if tx.BaseAmount != nil {
-		a := tx.BaseAmount.Minor()
-		baseAmount = &a
-	}
-
-	return amount, currency, toAmount, toCurrency, baseAmount
-}
-
 func (r repository) Create(ctx context.Context, tx *entities.Transaction) error {
 	var rateText *string
 	if tx.RateToBase != nil {
 		s := tx.RateToBase.String()
 		rateText = &s
 	}
-	amount, currency, toAmount, toCurrency, baseAmount := writeCols(tx)
 
 	const query = `
 		INSERT INTO transactions
-			(date, type, from_account_id, to_account_id, category_id, amount, currency,
-			 to_amount, to_currency, rate_to_base, base_amount, note, tags,
+			(date, type, from_account_id, to_account_id, category_id, amount,
+			 to_amount, rate_to_base, base_amount, note, tags,
 			 external_id, transfer_group_id, split_group_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric, $11, $12, $13, $14, $15, $16)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8::numeric, $9, $10, $11, $12, $13, $14)
 		RETURNING id, created_at`
 
 	err := r.db.Pool.QueryRow(ctx, query,
-		tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID, amount, currency,
-		toAmount, toCurrency, rateText, baseAmount, tx.Note, tx.Tags,
+		tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID, tx.Amount,
+		tx.ToAmount, rateText, tx.BaseAmount, tx.Note, tx.Tags,
 		tx.ExternalID, tx.TransferGroupID, tx.SplitGroupID,
 	).Scan(&tx.ID, &tx.CreatedAt)
 	if err != nil {
@@ -166,20 +132,19 @@ func (r repository) Ingest(ctx context.Context, tx *entities.Transaction) (creat
 		s := tx.RateToBase.String()
 		rateText = &s
 	}
-	amount, currency, toAmount, toCurrency, baseAmount := writeCols(tx)
 
 	const query = `
 		INSERT INTO transactions
-			(date, type, from_account_id, to_account_id, category_id, amount, currency,
-			 to_amount, to_currency, rate_to_base, base_amount, note, tags,
+			(date, type, from_account_id, to_account_id, category_id, amount,
+			 to_amount, rate_to_base, base_amount, note, tags,
 			 external_id, transfer_group_id, split_group_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric, $11, $12, $13, $14, $15, $16)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8::numeric, $9, $10, $11, $12, $13, $14)
 		ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING
 		RETURNING id, created_at`
 
 	err = r.db.Pool.QueryRow(ctx, query,
-		tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID, amount, currency,
-		toAmount, toCurrency, rateText, baseAmount, tx.Note, tx.Tags,
+		tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID, tx.Amount,
+		tx.ToAmount, rateText, tx.BaseAmount, tx.Note, tx.Tags,
 		tx.ExternalID, tx.TransferGroupID, tx.SplitGroupID,
 	).Scan(&tx.ID, &tx.CreatedAt)
 
@@ -321,18 +286,17 @@ func (r repository) Update(ctx context.Context, tx *entities.Transaction) error 
 		s := tx.RateToBase.String()
 		rateText = &s
 	}
-	amount, currency, toAmount, toCurrency, baseAmount := writeCols(tx)
 
 	const query = `
 		UPDATE transactions SET
 			date = $2, type = $3, from_account_id = $4, to_account_id = $5, category_id = $6,
-			amount = $7, currency = $8, to_amount = $9, to_currency = $10,
-			rate_to_base = $11::numeric, base_amount = $12, note = $13, tags = $14
+			amount = $7, to_amount = $8,
+			rate_to_base = $9::numeric, base_amount = $10, note = $11, tags = $12
 		WHERE id = $1`
 
 	res, err := r.db.Pool.Exec(ctx, query,
 		tx.ID, tx.Date, tx.Type, tx.FromAccountID, tx.ToAccountID, tx.CategoryID,
-		amount, currency, toAmount, toCurrency, rateText, baseAmount,
+		tx.Amount, tx.ToAmount, rateText, tx.BaseAmount,
 		tx.Note, tx.Tags,
 	)
 	if err != nil {

@@ -81,14 +81,9 @@ func startPostgres(ctx context.Context) (*database.DB, func(), error) {
 	}
 
 	logger := zap.NewNop()
-	db, err := database.New(cfg, logger)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err = db.Connect(ctx); err != nil {
-		return nil, nil, err
-	}
 
+	// migrate first: connecting registers the money_t composite codec, which
+	// requires the type to already exist.
 	mg, err := migrator.New(cfg.MigrationsPath, cfg.MigrationDSN(), logger)
 	if err != nil {
 		return nil, nil, err
@@ -99,6 +94,14 @@ func startPostgres(ctx context.Context) (*database.DB, func(), error) {
 		return nil, nil, err
 	}
 	mg.Close()
+
+	db, err := database.New(cfg, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err = db.Connect(ctx); err != nil {
+		return nil, nil, err
+	}
 
 	terminate := func() {
 		_ = db.Close()
@@ -129,7 +132,7 @@ func financeCfg() *config.Finance { return &config.Finance{BaseCurrency: "UZS"} 
 func accountRepo() accountrepository.Repository   { return accountrepository.NewRepository(testDB) }
 func categoryRepo() categoryrepository.Repository { return categoryrepository.NewRepository(testDB) }
 func transactionRepo() transactionrepository.Repository {
-	return transactionrepository.NewRepository(testDB, financeCfg())
+	return transactionrepository.NewRepository(testDB)
 }
 
 func ptr[T any](v T) *T { return &v }

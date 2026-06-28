@@ -74,7 +74,7 @@ func (r repository) Apply(ctx context.Context, p ApplyParams) (group *uuid.UUID,
 	if len(p.Participants) == 0 {
 		if _, err = tx.Exec(ctx,
 			`UPDATE transactions SET amount = $2, base_amount = $3, split_group_id = NULL WHERE id = $1`,
-			p.MainTxID, p.MyShare.Minor(), splitMinor(p.MyShareBase)); err != nil {
+			p.MainTxID, p.MyShare, p.MyShareBase); err != nil {
 			return nil, fmt.Errorf("split unsplit: %w", err)
 		}
 
@@ -84,25 +84,24 @@ func (r repository) Apply(ctx context.Context, p ApplyParams) (group *uuid.UUID,
 	newGroup := uuid.New()
 	if _, err = tx.Exec(ctx,
 		`UPDATE transactions SET amount = $2, base_amount = $3, split_group_id = $4 WHERE id = $1`,
-		p.MainTxID, p.MyShare.Minor(), splitMinor(p.MyShareBase), newGroup); err != nil {
+		p.MainTxID, p.MyShare, p.MyShareBase, newGroup); err != nil {
 		return nil, fmt.Errorf("split main update: %w", err)
 	}
 
-	cur := p.PayingAccount.Currency
 	for _, part := range p.Participants {
 		var accID uuid.UUID
 		if err = tx.QueryRow(ctx,
-			`INSERT INTO accounts (name, kind, type, currency)
-			 VALUES ($1, 'asset', 'receivable', $2) RETURNING id`,
-			part.Name, cur).Scan(&accID); err != nil {
+			`INSERT INTO accounts (name, kind, type, currency, opening_balance)
+			 VALUES ($1, 'asset', 'receivable', $2, $3) RETURNING id`,
+			part.Name, p.PayingAccount.Currency, money.New(0, p.PayingAccount.Currency)).Scan(&accID); err != nil {
 			return nil, fmt.Errorf("split create person: %w", err)
 		}
 
 		if _, err = tx.Exec(ctx,
 			`INSERT INTO transactions
-			   (date, type, from_account_id, to_account_id, amount, currency, split_group_id)
-			 VALUES ($1, 'transfer', $2, $3, $4, $5, $6)`,
-			date, p.PayingAccount.ID, accID, part.Amount.Minor(), cur, newGroup); err != nil {
+			   (date, type, from_account_id, to_account_id, amount, split_group_id)
+			 VALUES ($1, 'transfer', $2, $3, $4, $5)`,
+			date, p.PayingAccount.ID, accID, part.Amount, newGroup); err != nil {
 			return nil, fmt.Errorf("split create leg: %w", err)
 		}
 	}
@@ -161,15 +160,6 @@ func clearGroup(ctx context.Context, tx pgx.Tx, mainID uuid.UUID, group *uuid.UU
 	}
 
 	return nil
-}
-
-func splitMinor(m *money.Money) *int64 {
-	if m == nil {
-		return nil
-	}
-	v := m.Minor()
-
-	return &v
 }
 
 func commit(ctx context.Context, tx pgx.Tx) error {

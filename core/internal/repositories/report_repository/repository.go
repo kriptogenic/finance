@@ -47,10 +47,10 @@ func NewRepository(db *database.DB, finance *config.Finance) Repository {
 
 func (r repository) LatestRates(ctx context.Context) (map[string]fx.Rate, error) {
 	const query = `
-		SELECT DISTINCT ON (currency) currency, rate_to_base::text
+		SELECT DISTINCT ON ((amount).currency) (amount).currency, rate_to_base::text
 		FROM transactions
 		WHERE rate_to_base IS NOT NULL
-		ORDER BY currency, date DESC, created_at DESC`
+		ORDER BY (amount).currency, date DESC, created_at DESC`
 
 	rows, err := r.db.Pool.Query(ctx, query)
 	if err != nil {
@@ -84,7 +84,7 @@ func (r repository) SpendingByCategory(ctx context.Context, from, to time.Time) 
 	// already base, in which case amount is the base value — hence COALESCE.
 	// Subcategory spend rolls up to its top-level parent.
 	const query = `
-		SELECT top.id, top.name, SUM(COALESCE(t.base_amount, t.amount))::bigint AS spent
+		SELECT top.id, top.name, SUM(COALESCE((t.base_amount).amount, (t.amount).amount))::bigint AS spent
 		FROM transactions t
 		JOIN categories child ON child.id = t.category_id
 		JOIN categories top   ON top.id = COALESCE(child.parent_id, child.id)
@@ -121,8 +121,8 @@ func (r repository) SpendingByCategory(ctx context.Context, from, to time.Time) 
 func (r repository) CashFlow(ctx context.Context, from, to time.Time) ([]MonthFlow, error) {
 	const query = `
 		SELECT to_char(date_trunc('month', date), 'YYYY-MM') AS month,
-		       SUM(CASE WHEN type = 'income'  THEN COALESCE(base_amount, amount) ELSE 0 END)::bigint AS income,
-		       SUM(CASE WHEN type = 'expense' THEN COALESCE(base_amount, amount) ELSE 0 END)::bigint AS expense
+		       SUM(CASE WHEN type = 'income'  THEN COALESCE((base_amount).amount, (amount).amount) ELSE 0 END)::bigint AS income,
+		       SUM(CASE WHEN type = 'expense' THEN COALESCE((base_amount).amount, (amount).amount) ELSE 0 END)::bigint AS expense
 		FROM transactions
 		WHERE type IN ('income', 'expense') AND date >= $1 AND date <= $2
 		GROUP BY 1

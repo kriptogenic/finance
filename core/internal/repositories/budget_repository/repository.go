@@ -40,12 +40,8 @@ func NewRepository(db *database.DB, finance *config.Finance) Repository {
 const columns = `id, category_id, period, amount, rollover, start_period, created_at`
 
 func (r repository) scanBudget(row pgx.Row) (entities.Budget, error) {
-	var (
-		b      entities.Budget
-		amount int64
-	)
-	err := row.Scan(&b.ID, &b.CategoryID, &b.Period, &amount, &b.Rollover, &b.StartPeriod, &b.CreatedAt)
-	b.Amount = money.New(amount, r.base)
+	var b entities.Budget
+	err := row.Scan(&b.ID, &b.CategoryID, &b.Period, &b.Amount, &b.Rollover, &b.StartPeriod, &b.CreatedAt)
 
 	return b, err
 }
@@ -56,7 +52,7 @@ func (r repository) Create(ctx context.Context, b *entities.Budget) error {
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at`
 
-	err := r.db.Pool.QueryRow(ctx, query, b.CategoryID, b.Period, b.Amount.Minor(), b.Rollover, b.StartPeriod).
+	err := r.db.Pool.QueryRow(ctx, query, b.CategoryID, b.Period, b.Amount, b.Rollover, b.StartPeriod).
 		Scan(&b.ID, &b.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create budget: %w", err)
@@ -105,7 +101,7 @@ func (r repository) Update(ctx context.Context, b *entities.Budget) error {
 		UPDATE budgets SET period = $2, amount = $3, rollover = $4, start_period = $5
 		WHERE id = $1`
 
-	res, err := r.db.Pool.Exec(ctx, query, b.ID, b.Period, b.Amount.Minor(), b.Rollover, b.StartPeriod)
+	res, err := r.db.Pool.Exec(ctx, query, b.ID, b.Period, b.Amount, b.Rollover, b.StartPeriod)
 	if err != nil {
 		return fmt.Errorf("update budget: %w", err)
 	}
@@ -130,7 +126,7 @@ func (r repository) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (r repository) Spent(ctx context.Context, categoryID uuid.UUID, from, to time.Time) (money.Money, error) {
 	const query = `
-		SELECT COALESCE(SUM(COALESCE(t.base_amount, t.amount)), 0)::bigint
+		SELECT COALESCE(SUM(COALESCE((t.base_amount).amount, (t.amount).amount)), 0)::bigint
 		FROM transactions t
 		JOIN categories c ON c.id = t.category_id
 		WHERE t.type = 'expense'

@@ -50,50 +50,31 @@ const accountColumns = `id, name, kind, type, currency, opening_balance, archive
 
 func scanAccount(row pgx.Row) (entities.Account, error) {
 	var (
-		a           entities.Account
-		include     bool
-		opening     int64
-		creditLimit *int64
-		principal   *int64
+		a       entities.Account
+		include bool
 	)
 	err := row.Scan(
-		&a.ID, &a.Name, &a.Kind, &a.Type, &a.Currency, &opening, &a.Archived, &a.CreatedAt,
+		&a.ID, &a.Name, &a.Kind, &a.Type, &a.Currency, &a.OpeningBalance, &a.Archived, &a.CreatedAt,
 		&a.InterestRate, &a.TermMonths, &a.MaturityDate, &a.Capitalization,
-		&creditLimit, &principal, &a.StartDate, &a.PaymentDay, &a.CardLast4, &include,
+		&a.CreditLimit, &a.Principal, &a.StartDate, &a.PaymentDay, &a.CardLast4, &include,
 	)
 	if err != nil {
 		return entities.Account{}, err
 	}
 
 	a.ExcludedFromNetWorth = !include
-	a.OpeningBalance = money.New(opening, a.Currency)
-	if creditLimit != nil {
-		m := money.New(*creditLimit, a.Currency)
-		a.CreditLimit = &m
-	}
-	if principal != nil {
-		m := money.New(*principal, a.Currency)
-		a.Principal = &m
-	}
 
 	return a, nil
 }
 
-func accountMinor(m *money.Money) *int64 {
-	if m == nil || m.IsZeroValue() {
-		return nil
-	}
-	v := m.Minor()
-
-	return &v
-}
-
-func minorOrZero(m money.Money) int64 {
-	if m.IsZeroValue() {
-		return 0
+// openingBalance defaults a bare account's opening balance to zero in its own
+// currency so the NOT NULL money_t column is never sent a null.
+func openingBalance(acc *entities.Account) money.Money {
+	if acc.OpeningBalance.IsZeroValue() {
+		return money.New(0, acc.Currency)
 	}
 
-	return m.Minor()
+	return acc.OpeningBalance
 }
 
 func (r repository) Create(ctx context.Context, acc *entities.Account) error {
@@ -106,9 +87,9 @@ func (r repository) Create(ctx context.Context, acc *entities.Account) error {
 		RETURNING id, created_at`
 
 	err := r.db.Pool.QueryRow(ctx, query,
-		acc.Name, acc.Kind, acc.Type, acc.Currency, minorOrZero(acc.OpeningBalance), acc.Archived,
+		acc.Name, acc.Kind, acc.Type, acc.Currency, openingBalance(acc), acc.Archived,
 		acc.InterestRate, acc.TermMonths, acc.MaturityDate, acc.Capitalization,
-		accountMinor(acc.CreditLimit), accountMinor(acc.Principal), acc.StartDate, acc.PaymentDay, acc.CardLast4, !acc.ExcludedFromNetWorth,
+		acc.CreditLimit, acc.Principal, acc.StartDate, acc.PaymentDay, acc.CardLast4, !acc.ExcludedFromNetWorth,
 	).Scan(&acc.ID, &acc.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create account: %w", err)
@@ -185,8 +166,8 @@ func (r repository) Update(ctx context.Context, acc *entities.Account) error {
 
 	res, err := r.db.Pool.Exec(ctx, query,
 		acc.ID, acc.Name, acc.Archived, acc.InterestRate, acc.TermMonths,
-		acc.MaturityDate, acc.Capitalization, accountMinor(acc.CreditLimit),
-		accountMinor(acc.Principal), acc.StartDate, acc.PaymentDay, acc.CardLast4, !acc.ExcludedFromNetWorth,
+		acc.MaturityDate, acc.Capitalization, acc.CreditLimit,
+		acc.Principal, acc.StartDate, acc.PaymentDay, acc.CardLast4, !acc.ExcludedFromNetWorth,
 	)
 	if err != nil {
 		return fmt.Errorf("update account: %w", err)
@@ -231,15 +212,15 @@ func (r repository) SettleReceivables(ctx context.Context) error {
 			LEFT JOIN (
 				SELECT to_account_id AS aid,
 				       SUM(CASE WHEN type = 'transfer' AND to_amount IS NOT NULL
-				                THEN to_amount ELSE amount END) AS s
+				                THEN (to_amount).amount ELSE (amount).amount END) AS s
 				FROM transactions WHERE to_account_id IS NOT NULL GROUP BY to_account_id
 			) inq ON inq.aid = a.id
 			LEFT JOIN (
-				SELECT from_account_id AS aid, SUM(amount) AS s
+				SELECT from_account_id AS aid, SUM((amount).amount) AS s
 				FROM transactions WHERE from_account_id IS NOT NULL GROUP BY from_account_id
 			) outq ON outq.aid = a.id
 			WHERE a.type = 'receivable'
-			  AND a.opening_balance + COALESCE(inq.s, 0) - COALESCE(outq.s, 0) = 0
+			  AND (a.opening_balance).amount + COALESCE(inq.s, 0) - COALESCE(outq.s, 0) = 0
 		)`
 
 	if _, err := r.db.Pool.Exec(ctx, query); err != nil {
@@ -253,20 +234,20 @@ func (r repository) Balances(ctx context.Context) (map[uuid.UUID]money.Money, er
 	// One pass: aggregate credited (inflow) and debited (outflow) amounts per
 	// account, then apply the asset/liability formula in Go via ledger.Balance.
 	const query = `
-		SELECT a.id, a.kind, a.currency, a.opening_balance,
+		SELECT a.id, a.kind, a.currency, (a.opening_balance).amount,
 		       COALESCE(inq.s, 0) AS inflow,
 		       COALESCE(outq.s, 0) AS outflow
 		FROM accounts a
 		LEFT JOIN (
 			SELECT to_account_id AS aid,
 			       SUM(CASE WHEN type = 'transfer' AND to_amount IS NOT NULL
-			                THEN to_amount ELSE amount END) AS s
+			                THEN (to_amount).amount ELSE (amount).amount END) AS s
 			FROM transactions
 			WHERE to_account_id IS NOT NULL
 			GROUP BY to_account_id
 		) inq ON inq.aid = a.id
 		LEFT JOIN (
-			SELECT from_account_id AS aid, SUM(amount) AS s
+			SELECT from_account_id AS aid, SUM((amount).amount) AS s
 			FROM transactions
 			WHERE from_account_id IS NOT NULL
 			GROUP BY from_account_id

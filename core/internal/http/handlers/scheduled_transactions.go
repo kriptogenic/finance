@@ -194,6 +194,17 @@ func (s Server) buildSchedule(ctx context.Context, body *api.CreateScheduledTran
 		sc.RateToBase = &rate
 	}
 
+	// store amounts in their account's currency so the composite is accurate
+	if primary, toCur, ccyErr := s.scheduleCurrencies(ctx, sc); ccyErr == nil {
+		if primary != "" {
+			sc.Amount = money.New(body.Amount, primary)
+		}
+		if sc.ToAmount != nil && toCur != "" {
+			m := money.New(*body.ToAmount, toCur)
+			sc.ToAmount = &m
+		}
+	}
+
 	// dry-run the template through the ledger so bad shapes/currencies/rates are
 	// rejected at create time, not silently at the first worker tick.
 	if err := s.materializer.Validate(ctx, sc); err != nil {
@@ -203,12 +214,7 @@ func (s Server) buildSchedule(ctx context.Context, body *api.CreateScheduledTran
 	return sc, ""
 }
 
-func (s Server) scheduleResponse(ctx context.Context, sc entities.ScheduledTransaction) (api.ScheduledTransaction, error) {
-	currency, toCurrency, err := s.scheduleCurrencies(ctx, sc)
-	if err != nil {
-		return api.ScheduledTransaction{}, err
-	}
-
+func (s Server) scheduleResponse(_ context.Context, sc entities.ScheduledTransaction) (api.ScheduledTransaction, error) {
 	tags := sc.Tags
 	if tags == nil {
 		tags = []string{}
@@ -217,7 +223,7 @@ func (s Server) scheduleResponse(ctx context.Context, sc entities.ScheduledTrans
 	out := api.ScheduledTransaction{
 		Id:        sc.ID,
 		Type:      api.TransactionType(sc.Type),
-		Amount:    money.New(sc.Amount.Minor(), currency),
+		Amount:    sc.Amount,
 		Tags:      tags,
 		Frequency: api.ScheduleFrequency(sc.Frequency),
 		Interval:  sc.Interval,
@@ -239,8 +245,7 @@ func (s Server) scheduleResponse(ctx context.Context, sc entities.ScheduledTrans
 		out.CategoryId = nullable.NewNullableWithValue(*sc.CategoryID)
 	}
 	if sc.ToAmount != nil {
-		m := money.New(sc.ToAmount.Minor(), toCurrency)
-		out.ToAmount = &m
+		out.ToAmount = sc.ToAmount
 	}
 	if sc.RateToBase != nil {
 		out.RateToBase = nullable.NewNullableWithValue(sc.RateToBase.String())

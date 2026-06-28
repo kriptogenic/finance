@@ -12,10 +12,7 @@ import (
 
 	"finance/internal/entities"
 	"finance/pkg/database"
-	"finance/pkg/money"
 )
-
-func uzs(v int64) money.Money { return money.New(v, entities.ReceiptCurrency) }
 
 var (
 	ErrNotFound = errors.New("receipt not found")
@@ -121,7 +118,7 @@ func (r repository) SaveParsed(ctx context.Context, rec *entities.Receipt) (err 
 	if _, err = tx.Exec(ctx, header,
 		rec.ID, rec.ReceiptType, rec.MerchantName, rec.MerchantTIN, rec.MerchantAddress,
 		rec.DeviceName, rec.SerialNumber, rec.CardType, rec.MerchantLat, rec.MerchantLng,
-		rec.PaidCash.Minor(), rec.PaidCard.Minor(), rec.TotalAmount.Minor(), rec.TotalVAT.Minor(), rec.ReceivedAt,
+		rec.PaidCash, rec.PaidCard, rec.TotalAmount, rec.TotalVAT, rec.ReceivedAt,
 	); err != nil {
 		return fmt.Errorf("save parsed header: %w", err)
 	}
@@ -138,7 +135,7 @@ func (r repository) SaveParsed(ctx context.Context, rec *entities.Receipt) (err 
 
 	for _, it := range rec.Items {
 		if _, err = tx.Exec(ctx, item,
-			rec.ID, it.Name, it.Quantity, it.Price.Minor(), it.VATAmount.Minor(), it.VATRate, it.Discount.Minor(), it.Other.Minor(),
+			rec.ID, it.Name, it.Quantity, it.Price, it.VATAmount, it.VATRate, it.Discount, it.Other,
 			it.Barcode, it.IKPUCode, it.IKPUName, it.Unit, it.MarkingCode, it.ConsignorTIN,
 		); err != nil {
 			return fmt.Errorf("save parsed item: %w", err)
@@ -159,20 +156,12 @@ const headerCols = `
 	photo_key, scraped_at, created_at, transaction_id`
 
 func scanHeader(row pgx.Row, rec *entities.Receipt) error {
-	var paidCash, paidCard, totalAmount, totalVAT int64
-	err := row.Scan(
+	return row.Scan(
 		&rec.ID, &rec.QRURL, &rec.Status, &rec.Error, &rec.TerminalID, &rec.ReceiptSeq, &rec.FiscalSign, &rec.ReceivedAt,
 		&rec.ReceiptType, &rec.MerchantName, &rec.MerchantTIN, &rec.MerchantAddress, &rec.DeviceName, &rec.SerialNumber,
-		&rec.CardType, &rec.MerchantLat, &rec.MerchantLng, &paidCash, &paidCard, &totalAmount, &totalVAT,
+		&rec.CardType, &rec.MerchantLat, &rec.MerchantLng, &rec.PaidCash, &rec.PaidCard, &rec.TotalAmount, &rec.TotalVAT,
 		&rec.PhotoKey, &rec.ScrapedAt, &rec.CreatedAt, &rec.TransactionID,
 	)
-	if err != nil {
-		return err
-	}
-	rec.PaidCash, rec.PaidCard = uzs(paidCash), uzs(paidCard)
-	rec.TotalAmount, rec.TotalVAT = uzs(totalAmount), uzs(totalVAT)
-
-	return nil
 }
 
 func (r repository) SetTransaction(ctx context.Context, id uuid.UUID, txID *uuid.UUID) error {
@@ -193,7 +182,7 @@ func (r repository) FindAutoLinkCandidate(ctx context.Context, amount int64, fro
 	const query = `
 		SELECT t.id FROM transactions t
 		LEFT JOIN receipts r ON r.transaction_id = t.id
-		WHERE t.type = 'expense' AND t.currency = $1 AND t.amount = $2
+		WHERE t.type = 'expense' AND (t.amount).currency = $1 AND (t.amount).amount = $2
 		  AND t.date BETWEEN $3 AND $4 AND r.id IS NULL
 		LIMIT 2`
 
@@ -271,17 +260,13 @@ func (r repository) items(ctx context.Context, id uuid.UUID) ([]entities.Receipt
 
 	var items []entities.ReceiptItem
 	for rows.Next() {
-		var (
-			it                            entities.ReceiptItem
-			price, vatAmount, disc, other int64
-		)
+		var it entities.ReceiptItem
 		if err = rows.Scan(
-			&it.Name, &it.Quantity, &price, &vatAmount, &it.VATRate, &disc, &other,
+			&it.Name, &it.Quantity, &it.Price, &it.VATAmount, &it.VATRate, &it.Discount, &it.Other,
 			&it.Barcode, &it.IKPUCode, &it.IKPUName, &it.Unit, &it.MarkingCode, &it.ConsignorTIN,
 		); err != nil {
 			return nil, fmt.Errorf("scan receipt item: %w", err)
 		}
-		it.Price, it.VATAmount, it.Discount, it.Other = uzs(price), uzs(vatAmount), uzs(disc), uzs(other)
 		items = append(items, it)
 	}
 	if err = rows.Err(); err != nil {

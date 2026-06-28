@@ -2,6 +2,7 @@ package money
 
 import (
 	"bytes"
+	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
@@ -10,22 +11,25 @@ import (
 	"strings"
 
 	gomoney "github.com/Rhymond/go-money"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Money struct {
 	*gomoney.Money
+	scan *scanState // non-nil only mid composite decode
 }
 
 func New(amount int64, code string) Money {
-	return Money{gomoney.New(amount, code)}
+	return Money{Money: gomoney.New(amount, code)}
 }
 
 func Wrap(m *gomoney.Money) Money {
-	return Money{m}
+	return Money{Money: m}
 }
 
 func Zero(code string) Money {
-	return Money{gomoney.New(0, code)}
+	return Money{Money: gomoney.New(0, code)}
 }
 
 func (m Money) IsZeroValue() bool {
@@ -55,6 +59,77 @@ func (m Money) Minus(o Money) (Money, error) {
 }
 
 func (m Money) Neg() Money { return Wrap(m.Negative()) }
+
+// CompositeTypeName is the PostgreSQL composite type Money maps to: (amount bigint, currency text).
+const CompositeTypeName = "money_t"
+
+// RegisterType loads money_t and registers it on the connection so pgx can
+// encode/scan Money values. Wire it into pgxpool's AfterConnect.
+func RegisterType(ctx context.Context, conn *pgx.Conn) error {
+	t, err := conn.LoadType(ctx, CompositeTypeName)
+	if err != nil {
+		return fmt.Errorf("money: load %s: %w", CompositeTypeName, err)
+	}
+	conn.TypeMap().RegisterType(t)
+
+	return nil
+}
+
+// --- pgx composite codec (pgtype.CompositeIndexGetter / CompositeIndexScanner) ---
+
+type scanState struct{ amount int64 }
+
+// IsNull implements pgtype.CompositeIndexGetter.
+func (m Money) IsNull() bool { return m.Money == nil }
+
+// Index implements pgtype.CompositeIndexGetter: field 0 = amount, 1 = currency.
+func (m Money) Index(i int) any {
+	switch i {
+	case 0:
+		return m.Amount()
+	case 1:
+		return m.Currency().Code
+	}
+
+	return nil
+}
+
+// ScanNull implements pgtype.CompositeIndexScanner.
+func (m *Money) ScanNull() error {
+	m.Money = nil
+	m.scan = nil
+
+	return nil
+}
+
+// ScanIndex implements pgtype.CompositeIndexScanner. The amount (field 0) is
+// buffered until the currency (field 1) arrives, then the value is assembled.
+func (m *Money) ScanIndex(i int) any {
+	if m.scan == nil {
+		m.scan = &scanState{}
+	}
+	switch i {
+	case 0:
+		return &m.scan.amount
+	case 1:
+		return &codeScanner{m: m}
+	}
+
+	return nil
+}
+
+type codeScanner struct{ m *Money }
+
+// ScanText implements pgtype.TextScanner for the currency field.
+func (s *codeScanner) ScanText(v pgtype.Text) error {
+	if !v.Valid {
+		return errors.New("money: null currency in composite")
+	}
+	s.m.Money = gomoney.New(s.m.scan.amount, v.String)
+	s.m.scan = nil
+
+	return nil
+}
 
 type payload struct {
 	Amount   *int64 `json:"amount"`

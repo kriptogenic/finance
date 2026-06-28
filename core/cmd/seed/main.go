@@ -69,7 +69,7 @@ func main() {
 		base:       cfg.BaseCurrency,
 		accounts:   accountrepository.NewRepository(db),
 		categories: categoryrepository.NewRepository(db),
-		txns:       transactionrepository.NewRepository(db, &cfg.Finance),
+		txns:       transactionrepository.NewRepository(db),
 		budgets:    budgetrepository.NewRepository(db, &cfg.Finance),
 		snapshots:  balancesnapshotrepository.NewRepository(db),
 		receipts:   receiptrepository.NewRepository(db),

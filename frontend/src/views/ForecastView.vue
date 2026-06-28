@@ -27,6 +27,9 @@ const categoryName = computed(() => Object.fromEntries(categories.value.map((c) 
 const lineBySchedule = computed(() =>
   Object.fromEntries((forecast.value?.lines ?? []).map((l) => [l.schedule_id, l])),
 )
+const budgetLines = computed(() => forecast.value?.budget_lines ?? [])
+
+const periodLabel: Record<string, string> = { weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' }
 
 const unit: Record<string, string> = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }
 function cadence(s: ScheduledTransaction): string {
@@ -162,13 +165,13 @@ onMounted(async () => {
         No exchange rate for {{ forecast.missing_rates.join(', ') }} — those plans are excluded from the totals.
       </p>
 
-      <div v-if="!schedules.length" class="card p-10 text-center text-sm text-slate-400">
+      <div v-if="!schedules.length && !budgetLines.length" class="card p-10 text-center text-sm text-slate-400">
         No planned transactions yet. Add your salary, rent, loan and card payments to forecast the month.
       </div>
 
       <!-- grouped plan items -->
       <div v-for="g in groups" v-else :key="g.type" class="space-y-2">
-        <template v-if="itemsFor(g.type).length">
+        <template v-if="itemsFor(g.type).length || (g.type === 'expense' && budgetLines.length)">
           <div class="flex items-center gap-2 px-1">
             <span class="h-2 w-2 rounded-full" :class="g.dot" />
             <h2 class="text-sm font-semibold text-slate-700">{{ g.label }}</h2>
@@ -196,6 +199,23 @@ onMounted(async () => {
                 </div>
               </div>
             </div>
+
+            <!-- budgeted spending (managed on the Budgets tab) -->
+            <RouterLink
+              v-for="b in (g.type === 'expense' ? budgetLines : [])"
+              :key="b.budget_id"
+              to="/budgets"
+              class="card flex items-center justify-between p-4 ring-1 ring-dashed ring-slate-200 hover:ring-slate-300"
+            >
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <p class="truncate font-semibold text-slate-800">{{ categoryName[b.category_id] ?? 'Budget' }}</p>
+                  <span class="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600">Budget</span>
+                </div>
+                <p class="mt-0.5 truncate text-xs text-slate-400">{{ periodLabel[b.period] ?? b.period }} limit</p>
+              </div>
+              <p class="tabular font-semibold text-slate-800">{{ b.amount.format() }}</p>
+            </RouterLink>
           </div>
         </template>
       </div>

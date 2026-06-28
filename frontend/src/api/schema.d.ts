@@ -1013,7 +1013,7 @@ export interface components {
             expense: components["schemas"]["Money"];
             net: components["schemas"]["Money"];
         };
-        /** @description Projected cash flow for a month from scheduled transactions. Transfers count as planned outflow; net = income − expense − transfers. */
+        /** @description Projected cash flow for a month from scheduled transactions and budgets. Transfers count as planned outflow and budgets fold into expense; net = income − expense − transfers. */
         ForecastReport: {
             base: components["schemas"]["Currency"];
             /** @description YYYY-MM */
@@ -1023,6 +1023,8 @@ export interface components {
             transfers: components["schemas"]["Money"];
             net: components["schemas"]["Money"];
             lines: components["schemas"]["ForecastLine"][];
+            /** @description Budget limits normalized to a monthly equivalent; also summed into expense. */
+            budget_lines: components["schemas"]["ForecastBudgetLine"][];
             /** @description Currencies with no known rate; their schedules are omitted from totals. */
             missing_rates: string[];
         };
@@ -1040,6 +1042,14 @@ export interface components {
             amount: components["schemas"]["Money"];
             /** @description Number of times this schedule occurs in the month. */
             occurrences: number;
+        };
+        ForecastBudgetLine: {
+            /** Format: uuid */
+            budget_id: string;
+            /** Format: uuid */
+            category_id: string;
+            period: components["schemas"]["BudgetPeriod"];
+            amount: components["schemas"]["Money"];
         };
         AmortizationSchedule: {
             currency: components["schemas"]["Currency"];

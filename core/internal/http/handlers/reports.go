@@ -102,12 +102,17 @@ func (s Server) GetForecast(ctx context.Context, request api.GetForecastRequestO
 		return nil, err
 	}
 
+	budgets, err := s.budgets.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	rates, err := s.reports.LatestRates(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	f := ledger.ForecastMonth(s.base, schedules, start, end, rates)
+	f := ledger.ForecastMonth(s.base, schedules, budgets, start, end, rates)
 
 	missing := f.MissingRates
 	if missing == nil {
@@ -137,6 +142,16 @@ func (s Server) GetForecast(ctx context.Context, request api.GetForecastRequestO
 		lines[i] = line
 	}
 
+	budgetLines := make([]api.ForecastBudgetLine, len(f.BudgetLines))
+	for i, b := range f.BudgetLines {
+		budgetLines[i] = api.ForecastBudgetLine{
+			BudgetId:   b.Budget.ID,
+			CategoryId: b.Budget.CategoryID,
+			Period:     api.BudgetPeriod(b.Budget.Period),
+			Amount:     b.Amount,
+		}
+	}
+
 	return api.GetForecast200JSONResponse{
 		Base:         s.base,
 		Month:        start.Format("2006-01"),
@@ -145,6 +160,7 @@ func (s Server) GetForecast(ctx context.Context, request api.GetForecastRequestO
 		Transfers:    f.Transfers,
 		Net:          f.Net,
 		Lines:        lines,
+		BudgetLines:  budgetLines,
 		MissingRates: missing,
 	}, nil
 }

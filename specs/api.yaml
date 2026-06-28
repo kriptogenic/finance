@@ -2001,7 +2001,7 @@ components:
     ForecastReport:
       type: object
       additionalProperties: false
-      description: Projected cash flow for a month from scheduled transactions. Transfers count as planned outflow; net = income − expense − transfers.
+      description: Projected cash flow for a month from scheduled transactions and budgets. Transfers count as planned outflow and budgets fold into expense; net = income − expense − transfers.
       required:
         - base
         - month
@@ -2010,6 +2010,7 @@ components:
         - transfers
         - net
         - lines
+        - budget_lines
         - missing_rates
       properties:
         base:
@@ -2029,6 +2030,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ForecastLine'
+        budget_lines:
+          type: array
+          description: Budget limits normalized to a monthly equivalent; also summed into expense.
+          items:
+            $ref: '#/components/schemas/ForecastBudgetLine'
         missing_rates:
           type: array
           description: Currencies with no known rate; their schedules are omitted from totals.
@@ -2069,6 +2075,26 @@ components:
         occurrences:
           type: integer
           description: Number of times this schedule occurs in the month.
+
+    ForecastBudgetLine:
+      type: object
+      additionalProperties: false
+      required:
+        - budget_id
+        - category_id
+        - period
+        - amount
+      properties:
+        budget_id:
+          type: string
+          format: uuid
+        category_id:
+          type: string
+          format: uuid
+        period:
+          $ref: './definitions.yaml#/components/schemas/BudgetPeriod'
+        amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
 
     AmortizationSchedule:
       type: object

@@ -59,7 +59,7 @@ func (s *LedgerSuite) TestForecastMonth_AggregatesAndConverts() {
 	eurRent.RateToBase = ptr(fx.MustParseRate("2"))
 
 	f := ledger.ForecastMonth("USD",
-		[]entities.ScheduledTransaction{salary, rent, topUp, eurRent},
+		[]entities.ScheduledTransaction{salary, rent, topUp, eurRent}, nil,
 		start, end, map[string]fx.Rate{})
 
 	s.Equal(int64(500000), f.Income.Minor())
@@ -69,13 +69,48 @@ func (s *LedgerSuite) TestForecastMonth_AggregatesAndConverts() {
 	s.Empty(f.MissingRates)
 }
 
+func (s *LedgerSuite) TestForecastMonth_FoldsBudgets() {
+	start := day(2026, time.June, 1)
+	end := start.AddDate(0, 1, 0)
+
+	salary := monthly(start, 500000, "USD", entities.TxIncome)
+
+	budgets := []entities.Budget{
+		{Period: entities.BudgetMonthly, Amount: money.New(80000, "USD")},
+		{Period: entities.BudgetWeekly, Amount: money.New(3000, "USD")},   // 3000*52/12 = 13000
+		{Period: entities.BudgetYearly, Amount: money.New(120000, "USD")}, // 120000/12 = 10000
+	}
+
+	f := ledger.ForecastMonth("USD", []entities.ScheduledTransaction{salary}, budgets,
+		start, end, map[string]fx.Rate{})
+
+	s.Equal(int64(103000), f.Expense.Minor()) // 80000 + 13000 + 10000
+	s.Equal(int64(397000), f.Net.Minor())     // 500000 - 103000
+	s.Len(f.BudgetLines, 3)
+}
+
+func (s *LedgerSuite) TestForecastMonth_SkipsFutureBudget() {
+	start := day(2026, time.June, 1)
+	end := start.AddDate(0, 1, 0)
+
+	future := entities.Budget{
+		Period: entities.BudgetMonthly, Amount: money.New(80000, "USD"),
+		StartPeriod: ptr(day(2026, time.August, 1)),
+	}
+
+	f := ledger.ForecastMonth("USD", nil, []entities.Budget{future}, start, end, map[string]fx.Rate{})
+
+	s.Equal(int64(0), f.Expense.Minor())
+	s.Empty(f.BudgetLines)
+}
+
 func (s *LedgerSuite) TestForecastMonth_MissingRateSkipsLine() {
 	start := day(2026, time.June, 1)
 	end := start.AddDate(0, 1, 0)
 
 	eur := monthly(start, 30000, "EUR", entities.TxExpense) // no frozen rate, none in map
 
-	f := ledger.ForecastMonth("USD", []entities.ScheduledTransaction{eur}, start, end, map[string]fx.Rate{})
+	f := ledger.ForecastMonth("USD", []entities.ScheduledTransaction{eur}, nil, start, end, map[string]fx.Rate{})
 
 	s.Equal(int64(0), f.Expense.Minor())
 	s.Empty(f.Lines)

@@ -17,16 +17,25 @@ type ForecastLine struct {
 	Amount      money.Money
 }
 
+// BudgetLine is a budget's contribution to the forecast month: its limit
+// normalized to a monthly equivalent, in base currency.
+type BudgetLine struct {
+	Budget entities.Budget
+	Amount money.Money
+}
+
 // Forecast is the projected cash flow for a single month, in base currency.
-// Transfers count as planned outflow (loan / credit-card payments), so
-// Net = Income − Expense − Transfers.
+// Transfers count as planned outflow (loan / credit-card payments) and budgets
+// count as planned spending on top of scheduled expenses, so
+// Net = Income − Expense − Transfers and Expense already includes the budgets.
 type Forecast struct {
 	Income       money.Money
-	Expense      money.Money
+	Expense      money.Money // scheduled expenses + budgets
 	Transfers    money.Money
 	Net          money.Money
-	Lines        []ForecastLine
-	MissingRates []string // currencies with no frozen/known rate; their lines are skipped
+	Lines        []ForecastLine // schedule-derived
+	BudgetLines  []BudgetLine   // budget-derived (also summed into Expense)
+	MissingRates []string       // currencies with no frozen/known rate; their lines are skipped
 }
 
 // Occurrences counts how many times s falls within the half-open window
@@ -55,7 +64,7 @@ func Occurrences(s entities.ScheduledTransaction, start, end time.Time) int {
 // an amount already in base is taken as-is, otherwise the schedule's frozen
 // RateToBase wins, then the latest known rate; a currency with no rate is
 // recorded in MissingRates and its line dropped.
-func ForecastMonth(base string, schedules []entities.ScheduledTransaction, start, end time.Time, rates map[string]fx.Rate) Forecast {
+func ForecastMonth(base string, schedules []entities.ScheduledTransaction, budgets []entities.Budget, start, end time.Time, rates map[string]fx.Rate) Forecast {
 	var income, expense, transfers int64
 	var lines []ForecastLine
 	missing := map[string]bool{}
@@ -86,12 +95,24 @@ func ForecastMonth(base string, schedules []entities.ScheduledTransaction, start
 		}
 	}
 
+	var budgetLines []BudgetLine
+	for _, b := range budgets {
+		// a budget that hasn't started by the month's end doesn't apply yet
+		if b.StartPeriod != nil && !b.StartPeriod.Before(end) {
+			continue
+		}
+		monthly := budgetMonthlyMinor(b)
+		expense += monthly
+		budgetLines = append(budgetLines, BudgetLine{Budget: b, Amount: money.New(monthly, base)})
+	}
+
 	f := Forecast{
-		Income:    money.New(income, base),
-		Expense:   money.New(expense, base),
-		Transfers: money.New(transfers, base),
-		Net:       money.New(income-expense-transfers, base),
-		Lines:     lines,
+		Income:      money.New(income, base),
+		Expense:     money.New(expense, base),
+		Transfers:   money.New(transfers, base),
+		Net:         money.New(income-expense-transfers, base),
+		Lines:       lines,
+		BudgetLines: budgetLines,
 	}
 	for c := range missing {
 		f.MissingRates = append(f.MissingRates, c)
@@ -99,6 +120,20 @@ func ForecastMonth(base string, schedules []entities.ScheduledTransaction, start
 	sort.Strings(f.MissingRates)
 
 	return f
+}
+
+// budgetMonthlyMinor normalizes a budget limit (already in base) to a monthly
+// equivalent: weekly annualized then /12, yearly /12, monthly as-is.
+func budgetMonthlyMinor(b entities.Budget) int64 {
+	a := b.Amount.Minor()
+	switch b.Period {
+	case entities.BudgetWeekly:
+		return a * 52 / 12
+	case entities.BudgetYearly:
+		return a / 12
+	default: // monthly
+		return a
+	}
 }
 
 // toBaseMinor converts amount to base minor units. Returns false when a

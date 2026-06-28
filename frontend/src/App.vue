@@ -285,7 +285,7 @@ onMounted(refreshPushState)
       </label>
 
       <label v-if="pushSupported" class="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white">
-        <span>Badge alerts</span>
+        <span>Push notifications</span>
         <span class="relative inline-flex h-5 w-9 shrink-0">
           <input type="checkbox" class="peer sr-only" :checked="pushEnabled" :disabled="pushBusy" @change="togglePush" />
           <span class="absolute inset-0 rounded-full bg-slate-600 transition peer-checked:bg-amber-400" />
@@ -314,14 +314,6 @@ onMounted(refreshPushState)
           <img src="/favicon.svg" alt="" class="h-7 w-7 rounded-lg bg-amber-400 p-0.5" />
           Mullajiring
         </span>
-        <label class="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-500">
-          <span>Hide cents</span>
-          <span class="relative inline-flex h-5 w-9 shrink-0">
-            <input v-model="hideMinorUnits" type="checkbox" class="peer sr-only" />
-            <span class="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-amber-400" />
-            <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
-          </span>
-        </label>
       </header>
 
       <main class="mx-auto max-w-6xl px-4 py-6 pb-28 sm:px-6 md:py-8 md:pb-8 lg:px-10">
@@ -407,29 +399,51 @@ onMounted(refreshPushState)
       <div v-if="moreOpen" class="fixed inset-0 z-40 md:hidden">
         <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" style="animation: fade-in 0.15s ease-out" @click="moreOpen = false" />
         <div
-          class="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl"
+          class="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white px-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl"
           style="animation: sheet-up 0.22s cubic-bezier(0.16, 1, 0.3, 1)"
         >
-          <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200" />
-          <nav class="grid grid-cols-2 gap-3">
+          <div class="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-200" />
+
+          <!-- sign-out kept at the top, away from the bottom tap zone the
+               "More" button sits in, so a double-tap can't land on it -->
+          <button
+            class="mb-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-50 px-3 py-3 text-sm font-semibold text-rose-600 transition active:bg-rose-100"
+            @click="logout"
+          >
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+            </svg>
+            Sign out
+          </button>
+
+          <!-- secondary destinations -->
+          <nav class="flex flex-col">
             <RouterLink
               v-for="item in moreItems"
               :key="item.to"
               :to="item.to"
-              class="flex flex-col items-start gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-700 ring-1 ring-slate-200/70 transition active:scale-[0.98]"
+              class="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 transition active:bg-slate-100"
+              exact-active-class="!text-slate-900"
               @click="moreOpen = false"
             >
-              <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-400 text-slate-900">
+              <span
+                class="grid h-9 w-9 shrink-0 place-items-center rounded-xl transition"
+                :class="route.path === item.to ? 'bg-amber-400 text-slate-900' : 'bg-slate-100 text-slate-500'"
+              >
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" :d="item.icon" />
                 </svg>
               </span>
-              {{ item.label }}
+              <span class="flex-1">{{ item.label }}</span>
+              <svg class="h-4 w-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
             </RouterLink>
           </nav>
 
-          <div class="mt-4 space-y-1">
-            <label class="flex cursor-pointer items-center justify-between rounded-xl px-2 py-3 text-sm font-medium text-slate-600">
+          <!-- settings + account -->
+          <div class="mt-2 border-t border-slate-100 pt-2">
+            <label class="flex cursor-pointer items-center justify-between rounded-2xl px-3 py-3 text-sm font-medium text-slate-600 active:bg-slate-100">
               <span>Hide cents</span>
               <span class="relative inline-flex h-5 w-9 shrink-0">
                 <input v-model="hideMinorUnits" type="checkbox" class="peer sr-only" />
@@ -437,21 +451,15 @@ onMounted(refreshPushState)
                 <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
               </span>
             </label>
-            <label v-if="pushSupported" class="flex cursor-pointer items-center justify-between rounded-xl px-2 py-3 text-sm font-medium text-slate-600">
-              <span>Badge alerts</span>
+            <label v-if="pushSupported" class="flex cursor-pointer items-center justify-between rounded-2xl px-3 py-3 text-sm font-medium text-slate-600 active:bg-slate-100">
+              <span>Push notifications</span>
               <span class="relative inline-flex h-5 w-9 shrink-0">
                 <input type="checkbox" class="peer sr-only" :checked="pushEnabled" :disabled="pushBusy" @change="togglePush" />
                 <span class="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-amber-400" />
                 <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
               </span>
             </label>
-            <p v-if="pushError" class="px-2 text-xs text-rose-600">{{ pushError }}</p>
-            <button class="flex w-full items-center gap-2 rounded-xl px-2 py-3 text-sm font-medium text-rose-600" @click="logout">
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
-              </svg>
-              Sign out
-            </button>
+            <p v-if="pushError" class="px-3 text-xs text-rose-600">{{ pushError }}</p>
           </div>
         </div>
       </div>

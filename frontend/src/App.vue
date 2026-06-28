@@ -56,9 +56,9 @@ const nav = [
     icon: 'M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5',
   },
   {
-    to: '/scheduled',
-    label: 'Scheduled',
-    icon: 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+    to: '/forecast',
+    label: 'Forecast',
+    icon: 'M2.25 18 9 11.25l4.306 4.307a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.28m5.94 2.28-2.28 5.94',
   },
   {
     to: '/budgets',
@@ -80,7 +80,7 @@ const nav = [
 // Mobile bottom bar shows 4 tabs + a "More" sheet; these two live behind "More".
 const mobilePrimary = computed(() => nav.filter((n) => n.to === '/' || n.to === '/accounts'))
 const mobileSecondary = computed(() => nav.filter((n) => n.to === '/transactions'))
-const moreRoutes = ['/scheduled', '/budgets', '/categories', '/receipts']
+const moreRoutes = ['/forecast', '/budgets', '/categories', '/receipts']
 const moreActive = computed(() => moreRoutes.includes(route.path))
 const moreItems = computed(() => nav.filter((n) => moreRoutes.includes(n.to)))
 

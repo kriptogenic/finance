@@ -372,6 +372,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Projected income/expense/transfer cash flow for a month (base currency) */
+        get: operations["getForecast"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/budgets": {
         parameters: {
             query?: never;
@@ -447,25 +464,6 @@ export interface paths {
         head?: never;
         /** Update a scheduled transaction (full template + recurrence) */
         patch: operations["updateScheduledTransaction"];
-        trace?: never;
-    };
-    "/scheduled-transactions/{id}/run": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["ScheduledTransactionId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Materialize one occurrence now and advance the schedule */
-        post: operations["runScheduledTransaction"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/category-rules": {
@@ -1015,6 +1013,34 @@ export interface components {
             expense: components["schemas"]["Money"];
             net: components["schemas"]["Money"];
         };
+        /** @description Projected cash flow for a month from scheduled transactions. Transfers count as planned outflow; net = income − expense − transfers. */
+        ForecastReport: {
+            base: components["schemas"]["Currency"];
+            /** @description YYYY-MM */
+            month: string;
+            income: components["schemas"]["Money"];
+            expense: components["schemas"]["Money"];
+            transfers: components["schemas"]["Money"];
+            net: components["schemas"]["Money"];
+            lines: components["schemas"]["ForecastLine"][];
+            /** @description Currencies with no known rate; their schedules are omitted from totals. */
+            missing_rates: string[];
+        };
+        ForecastLine: {
+            /** Format: uuid */
+            schedule_id: string;
+            name?: string | null;
+            type: components["schemas"]["TransactionType"];
+            /** Format: uuid */
+            category_id?: string | null;
+            /** Format: uuid */
+            from_account_id?: string | null;
+            /** Format: uuid */
+            to_account_id?: string | null;
+            amount: components["schemas"]["Money"];
+            /** @description Number of times this schedule occurs in the month. */
+            occurrences: number;
+        };
         AmortizationSchedule: {
             currency: components["schemas"]["Currency"];
             monthly_payment: components["schemas"]["Money"];
@@ -1102,17 +1128,16 @@ export interface components {
             interval: number;
             /**
              * Format: date
-             * @description Date of the next occurrence to materialize.
+             * @description Recurrence anchor; the first occurrence.
              */
-            next_run: string;
+            start_date: string;
             /**
              * Format: date
-             * @description Last date an occurrence may run; no end when omitted.
+             * @description Last date an occurrence may fall on; no end when omitted.
              */
             end_date?: string | null;
+            /** @description Excluded from the forecast while paused. */
             paused: boolean;
-            /** Format: date-time */
-            last_run_at?: string | null;
             /** Format: date-time */
             created_at: string;
         };
@@ -1143,7 +1168,7 @@ export interface components {
             /** @default 1 */
             interval: number;
             /** Format: date */
-            next_run: string;
+            start_date: string;
             /** Format: date */
             end_date?: string;
             paused?: boolean;
@@ -1169,7 +1194,7 @@ export interface components {
             /** @default 1 */
             interval: number;
             /** Format: date */
-            next_run: string;
+            start_date: string;
             /** Format: date */
             end_date?: string;
             paused?: boolean;
@@ -2115,6 +2140,29 @@ export interface operations {
             };
         };
     };
+    getForecast: {
+        parameters: {
+            query?: {
+                /** @description Target month as YYYY-MM. Defaults to the current month. */
+                month?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forecast report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastReport"];
+                };
+            };
+        };
+    };
     listBudgets: {
         parameters: {
             query?: never;
@@ -2320,30 +2368,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScheduledTransaction"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    runScheduledTransaction: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["ScheduledTransactionId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Transaction created from the schedule */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Transaction"];
                 };
             };
             400: components["responses"]["BadRequest"];

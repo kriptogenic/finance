@@ -50,7 +50,7 @@ async function del() {
 const s = props.schedule
 const defaultAccount = props.accounts.find((a) => a.currency === props.base) ?? props.accounts[0]
 
-// next_run defaults to today (YYYY-MM-DD) for a new schedule.
+// start_date defaults to today (YYYY-MM-DD) for a new schedule.
 const today = new Date().toISOString().slice(0, 10)
 
 const form = reactive({
@@ -66,7 +66,7 @@ const form = reactive({
   tags: (s?.tags ?? []).join(', '),
   frequency: (s?.frequency ?? 'monthly') as ScheduleFrequency,
   interval: s?.interval ?? 1,
-  nextRun: s?.next_run ?? today,
+  startDate: s?.start_date ?? today,
   endDate: s?.end_date ?? '',
   paused: s?.paused ?? false,
 })
@@ -126,7 +126,7 @@ async function submit() {
       amount: toMinor(form.amount, primaryCurrency.value ?? props.base),
       frequency: form.frequency,
       interval: Number(form.interval) || 1,
-      next_run: form.nextRun,
+      start_date: form.startDate,
       paused: form.paused,
     }
     if (form.name) payload.name = form.name
@@ -203,8 +203,8 @@ async function submit() {
           </div>
         </div>
         <div>
-          <label class="lbl">Next run</label>
-          <input v-model="form.nextRun" type="date" class="field" required />
+          <label class="lbl">Starts</label>
+          <input v-model="form.startDate" type="date" class="field" required />
         </div>
       </div>
 
@@ -309,7 +309,7 @@ async function submit() {
           </div>
           <label class="flex items-center gap-2">
             <input v-model="form.paused" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
-            <span class="text-sm text-slate-600">Paused (won't run automatically)</span>
+            <span class="text-sm text-slate-600">Paused (excluded from forecast)</span>
           </label>
         </div>
       </div>

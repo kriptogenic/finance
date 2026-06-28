@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/oapi-codegen/nullable"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -11,6 +10,7 @@ import (
 
 	"finance/generated/api"
 	"finance/internal/entities"
+	"finance/internal/ledger"
 	scheduledtransactionrepository "finance/internal/repositories/scheduled_transaction_repository"
 	"finance/pkg/fx"
 	"finance/pkg/money"
@@ -124,26 +124,6 @@ func (s Server) DeleteScheduledTransaction(ctx context.Context, request api.Dele
 	return api.DeleteScheduledTransaction204Response{}, nil
 }
 
-func (s Server) RunScheduledTransaction(ctx context.Context, request api.RunScheduledTransactionRequestObject) (api.RunScheduledTransactionResponseObject, error) {
-	sc, err := s.schedules.Get(ctx, request.Id)
-	if errors.Is(err, scheduledtransactionrepository.ErrNotFound) {
-		return api.RunScheduledTransaction404JSONResponse{NotFoundJSONResponse: notFound("scheduled transaction not found")}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	// manual run: post exactly one occurrence and advance a single step.
-	tx, err := s.materializer.Run(ctx, *sc, time.Now().UTC(), false)
-	if err != nil {
-		s.logger.Error("run scheduled transaction", zap.Error(err))
-
-		return api.RunScheduledTransaction400JSONResponse{BadRequestJSONResponse: badRequest(err.Error())}, nil
-	}
-
-	return api.RunScheduledTransaction201JSONResponse(s.toTransaction(tx)), nil
-}
-
 // buildSchedule validates the request and assembles the entity. It returns a
 // non-empty message describing the first client error, or "" on success.
 func (s Server) buildSchedule(ctx context.Context, body *api.CreateScheduledTransactionRequest) (entities.ScheduledTransaction, string) {
@@ -175,7 +155,7 @@ func (s Server) buildSchedule(ctx context.Context, body *api.CreateScheduledTran
 		Tags:          tags,
 		Frequency:     entities.ScheduleFrequency(body.Frequency),
 		Interval:      interval,
-		NextRun:       body.NextRun.UTC(),
+		StartDate:     body.StartDate.UTC(),
 		Paused:        body.Paused != nil && *body.Paused,
 	}
 	if body.ToAmount != nil {
@@ -206,12 +186,53 @@ func (s Server) buildSchedule(ctx context.Context, body *api.CreateScheduledTran
 	}
 
 	// dry-run the template through the ledger so bad shapes/currencies/rates are
-	// rejected at create time, not silently at the first worker tick.
-	if err := s.materializer.Validate(ctx, sc); err != nil {
+	// rejected at create time.
+	if err := s.validateSchedule(ctx, sc); err != nil {
 		return entities.ScheduledTransaction{}, err.Error()
 	}
 
 	return sc, ""
+}
+
+// validateSchedule resolves the template's buckets and runs the ledger engine,
+// dating the build at the schedule's anchor, so bad shapes/currencies/rates are
+// rejected at create/update time. The built transaction is discarded.
+func (s Server) validateSchedule(ctx context.Context, sc entities.ScheduledTransaction) error {
+	in := ledger.NewTransaction{
+		Date:       sc.StartDate,
+		Type:       sc.Type,
+		Amount:     sc.Amount,
+		ToAmount:   sc.ToAmount,
+		RateToBase: sc.RateToBase,
+		Note:       sc.Note,
+		Tags:       sc.Tags,
+	}
+
+	if sc.FromAccountID != nil {
+		acc, err := s.accounts.Get(ctx, *sc.FromAccountID)
+		if err != nil {
+			return err
+		}
+		in.From = acc
+	}
+	if sc.ToAccountID != nil {
+		acc, err := s.accounts.Get(ctx, *sc.ToAccountID)
+		if err != nil {
+			return err
+		}
+		in.To = acc
+	}
+	if sc.CategoryID != nil {
+		c, err := s.categories.Get(ctx, *sc.CategoryID)
+		if err != nil {
+			return err
+		}
+		in.Category = c
+	}
+
+	_, err := ledger.BuildTransaction(in, s.base)
+
+	return err
 }
 
 func (s Server) scheduleResponse(_ context.Context, sc entities.ScheduledTransaction) (api.ScheduledTransaction, error) {
@@ -227,7 +248,7 @@ func (s Server) scheduleResponse(_ context.Context, sc entities.ScheduledTransac
 		Tags:      tags,
 		Frequency: api.ScheduleFrequency(sc.Frequency),
 		Interval:  sc.Interval,
-		NextRun:   openapi_types.Date{Time: sc.NextRun},
+		StartDate: openapi_types.Date{Time: sc.StartDate},
 		Paused:    sc.Paused,
 		CreatedAt: sc.CreatedAt,
 	}
@@ -255,9 +276,6 @@ func (s Server) scheduleResponse(_ context.Context, sc entities.ScheduledTransac
 	}
 	if sc.EndDate != nil {
 		out.EndDate = nullable.NewNullableWithValue(openapi_types.Date{Time: *sc.EndDate})
-	}
-	if sc.LastRunAt != nil {
-		out.LastRunAt = nullable.NewNullableWithValue(*sc.LastRunAt)
 	}
 
 	return out, nil
@@ -306,7 +324,7 @@ func updateToCreate(b *api.UpdateScheduledTransactionRequest) *api.CreateSchedul
 		Tags:          b.Tags,
 		Frequency:     b.Frequency,
 		Interval:      b.Interval,
-		NextRun:       b.NextRun,
+		StartDate:     b.StartDate,
 		EndDate:       b.EndDate,
 		Paused:        b.Paused,
 	}

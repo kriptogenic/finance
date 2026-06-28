@@ -3,7 +3,6 @@ import type {
   ScheduledTransaction,
   CreateScheduledTransactionRequest,
   UpdateScheduledTransactionRequest,
-  Transaction,
 } from './types'
 
 export const scheduledTransactionsApi = {
@@ -18,7 +17,4 @@ export const scheduledTransactionsApi = {
 
   remove: (id: string): Promise<unknown> =>
     call(api.DELETE('/scheduled-transactions/{id}', { params: { path: { id } } })),
-
-  run: (id: string): Promise<Transaction> =>
-    call(api.POST('/scheduled-transactions/{id}/run', { params: { path: { id } } })),
 }

@@ -33,7 +33,6 @@ import (
 	scheduledtransactionrepository "finance/internal/repositories/scheduled_transaction_repository"
 	splitrepository "finance/internal/repositories/split_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
-	"finance/internal/scheduler"
 	"finance/pkg/database"
 	"finance/pkg/httpserver"
 	"finance/pkg/log"
@@ -58,8 +57,6 @@ func CreateApp() fx.Option {
 			pushsubscriptionrepository.NewRepository,
 			scheduledtransactionrepository.NewRepository,
 			receiptrepository.NewRepository,
-			scheduler.NewMaterializer,
-			scheduler.NewWorker,
 			newS3,
 			newProxy,
 			receipts.NewService,
@@ -73,7 +70,6 @@ func CreateApp() fx.Option {
 		fx.Invoke(
 			dbLifecycle,
 			HTTPLifecycle,
-			scheduler.Lifecycle,
 			receipts.Lifecycle,
 		),
 	)

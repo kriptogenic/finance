@@ -22,7 +22,6 @@ import (
 	scheduledtransactionrepository "finance/internal/repositories/scheduled_transaction_repository"
 	splitrepository "finance/internal/repositories/split_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
-	"finance/internal/scheduler"
 )
 
 // Server implements the generated strict OpenAPI interface. Feature handlers
@@ -41,7 +40,6 @@ type Server struct {
 	schedules      scheduledtransactionrepository.Repository
 	receipts       receiptrepository.Repository
 	receiptSvc     *receipts.Service
-	materializer   *scheduler.Materializer
 	icons          iconsuggest.Suggester
 	catSuggest     categorysuggest.Suggester
 	ingest         *ingest.Service
@@ -66,7 +64,6 @@ func NewServer(
 	schedules scheduledtransactionrepository.Repository,
 	receiptsRepo receiptrepository.Repository,
 	receiptSvc *receipts.Service,
-	materializer *scheduler.Materializer,
 	icons iconsuggest.Suggester,
 	catSuggest categorysuggest.Suggester,
 	ingestSvc *ingest.Service,
@@ -87,7 +84,6 @@ func NewServer(
 		schedules:      schedules,
 		receipts:       receiptsRepo,
 		receiptSvc:     receiptSvc,
-		materializer:   materializer,
 		icons:          icons,
 		catSuggest:     catSuggest,
 		ingest:         ingestSvc,

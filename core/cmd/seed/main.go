@@ -16,6 +16,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 
@@ -27,6 +28,7 @@ import (
 	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
 	receiptrepository "finance/internal/repositories/receipt_repository"
+	scheduledtransactionrepository "finance/internal/repositories/scheduled_transaction_repository"
 	transactionrepository "finance/internal/repositories/transaction_repository"
 	"finance/pkg/database"
 	"finance/pkg/fx"
@@ -73,6 +75,7 @@ func main() {
 		budgets:    budgetrepository.NewRepository(db, &cfg.Finance),
 		snapshots:  balancesnapshotrepository.NewRepository(db),
 		receipts:   receiptrepository.NewRepository(db),
+		schedules:  scheduledtransactionrepository.NewRepository(db),
 		logger:     logger,
 	}
 
@@ -89,6 +92,7 @@ type seeder struct {
 	budgets    budgetrepository.Repository
 	snapshots  balancesnapshotrepository.Repository
 	receipts   receiptrepository.Repository
+	schedules  scheduledtransactionrepository.Repository
 	logger     *zap.Logger
 }
 
@@ -104,7 +108,7 @@ func (s *seeder) run(ctx context.Context, db *database.DB, reset bool) error {
 			return nil
 		}
 		if _, err = db.Pool.Exec(ctx,
-			`TRUNCATE transactions, categories, accounts, balance_snapshots, receipts RESTART IDENTITY CASCADE`); err != nil {
+			`TRUNCATE transactions, scheduled_transactions, categories, accounts, balance_snapshots, receipts RESTART IDENTITY CASCADE`); err != nil {
 			return fmt.Errorf("truncate: %w", err)
 		}
 		s.logger.Info("existing data wiped")
@@ -130,6 +134,10 @@ func (s *seeder) run(ctx context.Context, db *database.DB, reset bool) error {
 	}
 
 	if err = s.seedBudgets(ctx, cats); err != nil {
+		return err
+	}
+
+	if err = s.seedSchedules(ctx, accounts, cats); err != nil {
 		return err
 	}
 
@@ -159,6 +167,44 @@ func (s *seeder) seedBudgets(ctx context.Context, cat map[string]entities.Catego
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// seedSchedules creates recurring plan items (salary in; rent, loan, card top-up
+// out) that drive the forecast. Anchored early in 2026 and monthly, so they
+// recur into the current month. Loan/card payments are transfers (planned
+// outflow); salary/rent carry a matching category.
+func (s *seeder) seedSchedules(ctx context.Context, acc map[string]entities.Account, cat map[string]entities.Category) error {
+	day := func(d int) time.Time { return time.Date(2026, time.January, d, 0, 0, 0, 0, time.UTC) }
+	accID := func(name string) *uuid.UUID { a := acc[name]; return &a.ID }
+	catID := func(name string) *uuid.UUID { c := cat[name]; return &c.ID }
+
+	defs := []entities.ScheduledTransaction{
+		{
+			Name: ptr("Salary"), Type: entities.TxIncome, ToAccountID: accID("Cash"), CategoryID: catID("Salary"),
+			Amount: uzs(5_000_000_00), Frequency: entities.FreqMonthly, Interval: 1, StartDate: day(1),
+		},
+		{
+			Name: ptr("Rent"), Type: entities.TxExpense, FromAccountID: accID("Cash"), CategoryID: catID("Rent"),
+			Amount: uzs(1_500_000_00), Frequency: entities.FreqMonthly, Interval: 1, StartDate: day(3),
+		},
+		{
+			Name: ptr("Home loan payment"), Type: entities.TxTransfer, FromAccountID: accID("Cash"), ToAccountID: accID("Home Loan"),
+			Amount: uzs(900_000_00), Frequency: entities.FreqMonthly, Interval: 1, StartDate: day(5),
+		},
+		{
+			Name: ptr("Visa Card top-up"), Type: entities.TxTransfer, FromAccountID: accID("Cash"), ToAccountID: accID("Visa Card"),
+			Amount: uzs(300_000_00), Frequency: entities.FreqMonthly, Interval: 1, StartDate: day(10),
+		},
+	}
+
+	for i := range defs {
+		sc := defs[i]
+		if err := s.schedules.Create(ctx, &sc); err != nil {
+			return fmt.Errorf("seed schedule %q: %w", *sc.Name, err)
+		}
+	}
+
+	return nil
+}
 
 // seedSnapshots seeds reported card balances for the Humo cards so the
 // reconciliation tab has data: *8400 matches its derived balance, *4853 is off.
@@ -361,7 +407,10 @@ type seedReceipt struct {
 func (s *seeder) seedReceipts(ctx context.Context, txns map[string]entities.Transaction) error {
 	// item builds a line with 12% VAT extracted from the (VAT-inclusive) price.
 	item := func(name, qty string, price int64) entities.ReceiptItem {
-		return entities.ReceiptItem{Name: name, Quantity: qty, Price: uzs(price), VATAmount: uzs(price * 12 / 112), VATRate: 12}
+		return entities.ReceiptItem{
+			Name: name, Quantity: qty, Price: uzs(price), VATAmount: uzs(price * 12 / 112), VATRate: 12,
+			Discount: uzs(0), Other: uzs(0),
+		}
 	}
 
 	defs := []seedReceipt{

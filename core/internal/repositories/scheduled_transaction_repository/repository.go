@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -22,10 +21,6 @@ type Repository interface {
 	Get(ctx context.Context, id uuid.UUID) (*entities.ScheduledTransaction, error)
 	Update(ctx context.Context, s *entities.ScheduledTransaction) error
 	Delete(ctx context.Context, id uuid.UUID) error
-	// Due returns active schedules whose next_run has arrived by asOf.
-	Due(ctx context.Context, asOf time.Time) ([]entities.ScheduledTransaction, error)
-	// Advance persists the post-run state (next_run + last_run_at).
-	Advance(ctx context.Context, id uuid.UUID, nextRun, lastRunAt time.Time) error
 }
 
 type repository struct {
@@ -41,7 +36,7 @@ func NewRepository(db *database.DB) Repository {
 // money_t composites.
 const columns = `id, name, type, from_account_id, to_account_id, category_id,
 	amount, to_amount, rate_to_base::text AS rate_to_base, note, tags,
-	frequency, interval, next_run, end_date, paused, last_run_at, created_at`
+	frequency, interval, start_date, end_date, paused, created_at`
 
 func rateText(rate *fx.Rate) *string {
 	if rate == nil {
@@ -65,13 +60,13 @@ func (r repository) Create(ctx context.Context, s *entities.ScheduledTransaction
 	const query = `
 		INSERT INTO scheduled_transactions
 			(name, type, from_account_id, to_account_id, category_id, amount, to_amount,
-			 rate_to_base, note, tags, frequency, interval, next_run, end_date, paused)
+			 rate_to_base, note, tags, frequency, interval, start_date, end_date, paused)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8::numeric, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id, created_at`
 
 	err := r.db.Pool.QueryRow(ctx, query,
 		s.Name, s.Type, s.FromAccountID, s.ToAccountID, s.CategoryID, s.Amount, s.ToAmount,
-		rateText(s.RateToBase), s.Note, tags(s.Tags), s.Frequency, s.Interval, s.NextRun, s.EndDate, s.Paused,
+		rateText(s.RateToBase), s.Note, tags(s.Tags), s.Frequency, s.Interval, s.StartDate, s.EndDate, s.Paused,
 	).Scan(&s.ID, &s.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create scheduled transaction: %w", err)
@@ -82,14 +77,6 @@ func (r repository) Create(ctx context.Context, s *entities.ScheduledTransaction
 
 func (r repository) List(ctx context.Context) ([]entities.ScheduledTransaction, error) {
 	return r.query(ctx, `SELECT `+columns+` FROM scheduled_transactions ORDER BY created_at`)
-}
-
-func (r repository) Due(ctx context.Context, asOf time.Time) ([]entities.ScheduledTransaction, error) {
-	const query = `SELECT ` + columns + ` FROM scheduled_transactions
-		WHERE paused = FALSE AND next_run <= $1 AND (end_date IS NULL OR next_run <= end_date)
-		ORDER BY next_run`
-
-	return r.query(ctx, query, asOf)
 }
 
 func (r repository) query(ctx context.Context, query string, args ...any) ([]entities.ScheduledTransaction, error) {
@@ -128,13 +115,13 @@ func (r repository) Update(ctx context.Context, s *entities.ScheduledTransaction
 		UPDATE scheduled_transactions SET
 			name = $2, type = $3, from_account_id = $4, to_account_id = $5, category_id = $6,
 			amount = $7, to_amount = $8, rate_to_base = $9::numeric, note = $10, tags = $11,
-			frequency = $12, interval = $13, next_run = $14, end_date = $15, paused = $16
+			frequency = $12, interval = $13, start_date = $14, end_date = $15, paused = $16
 		WHERE id = $1`
 
 	res, err := r.db.Pool.Exec(ctx, query,
 		s.ID, s.Name, s.Type, s.FromAccountID, s.ToAccountID, s.CategoryID,
 		s.Amount, s.ToAmount, rateText(s.RateToBase), s.Note, tags(s.Tags),
-		s.Frequency, s.Interval, s.NextRun, s.EndDate, s.Paused,
+		s.Frequency, s.Interval, s.StartDate, s.EndDate, s.Paused,
 	)
 	if err != nil {
 		return fmt.Errorf("update scheduled transaction: %w", err)
@@ -150,20 +137,6 @@ func (r repository) Delete(ctx context.Context, id uuid.UUID) error {
 	res, err := r.db.Pool.Exec(ctx, `DELETE FROM scheduled_transactions WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete scheduled transaction: %w", err)
-	}
-	if res.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-
-	return nil
-}
-
-func (r repository) Advance(ctx context.Context, id uuid.UUID, nextRun, lastRunAt time.Time) error {
-	res, err := r.db.Pool.Exec(ctx,
-		`UPDATE scheduled_transactions SET next_run = $2, last_run_at = $3 WHERE id = $1`,
-		id, nextRun, lastRunAt)
-	if err != nil {
-		return fmt.Errorf("advance scheduled transaction: %w", err)
 	}
 	if res.RowsAffected() == 0 {
 		return ErrNotFound

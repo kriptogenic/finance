@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/oapi-codegen/nullable"
+
 	"finance/generated/api"
 	"finance/internal/ledger"
 	"finance/pkg/money"
@@ -89,6 +91,75 @@ func (s Server) GetCashFlow(ctx context.Context, request api.GetCashFlowRequestO
 	}
 
 	return api.GetCashFlow200JSONResponse{Base: s.base, Months: months}, nil
+}
+
+func (s Server) GetForecast(ctx context.Context, request api.GetForecastRequestObject) (api.GetForecastResponseObject, error) {
+	start := forecastMonth(request.Params.Month)
+	end := start.AddDate(0, 1, 0)
+
+	schedules, err := s.schedules.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rates, err := s.reports.LatestRates(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	f := ledger.ForecastMonth(s.base, schedules, start, end, rates)
+
+	missing := f.MissingRates
+	if missing == nil {
+		missing = []string{}
+	}
+
+	lines := make([]api.ForecastLine, len(f.Lines))
+	for i, l := range f.Lines {
+		line := api.ForecastLine{
+			ScheduleId:  l.Schedule.ID,
+			Type:        api.TransactionType(l.Schedule.Type),
+			Amount:      l.Amount,
+			Occurrences: l.Occurrences,
+		}
+		if l.Schedule.Name != nil {
+			line.Name = nullable.NewNullableWithValue(*l.Schedule.Name)
+		}
+		if l.Schedule.CategoryID != nil {
+			line.CategoryId = nullable.NewNullableWithValue(*l.Schedule.CategoryID)
+		}
+		if l.Schedule.FromAccountID != nil {
+			line.FromAccountId = nullable.NewNullableWithValue(*l.Schedule.FromAccountID)
+		}
+		if l.Schedule.ToAccountID != nil {
+			line.ToAccountId = nullable.NewNullableWithValue(*l.Schedule.ToAccountID)
+		}
+		lines[i] = line
+	}
+
+	return api.GetForecast200JSONResponse{
+		Base:         s.base,
+		Month:        start.Format("2006-01"),
+		Income:       f.Income,
+		Expense:      f.Expense,
+		Transfers:    f.Transfers,
+		Net:          f.Net,
+		Lines:        lines,
+		MissingRates: missing,
+	}, nil
+}
+
+// forecastMonth resolves the optional YYYY-MM query param to the first day of
+// that month (UTC). An empty or unparseable value defaults to the current month.
+func forecastMonth(month *string) time.Time {
+	now := time.Now().UTC()
+	if month != nil {
+		if t, err := time.Parse("2006-01", *month); err == nil {
+			return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
+		}
+	}
+
+	return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 }
 
 func (s Server) toNetWorth(nw ledger.NetWorthBreakdown) api.NetWorthReport {

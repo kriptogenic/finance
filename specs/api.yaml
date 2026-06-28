@@ -622,6 +622,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/CashFlowReport'
 
+  /reports/forecast:
+    get:
+      operationId: getForecast
+      summary: Projected income/expense/transfer cash flow for a month (base currency)
+      parameters:
+        - name: month
+          in: query
+          description: Target month as YYYY-MM. Defaults to the current month.
+          schema: { type: string }
+      responses:
+        200:
+          description: Forecast report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastReport'
+
   /budgets:
     get:
       operationId: listBudgets
@@ -755,24 +772,6 @@ paths:
       responses:
         204:
           description: Schedule deleted
-        404:
-          $ref: '#/components/responses/NotFound'
-
-  /scheduled-transactions/{id}/run:
-    parameters:
-      - $ref: '#/components/parameters/ScheduledTransactionId'
-    post:
-      operationId: runScheduledTransaction
-      summary: Materialize one occurrence now and advance the schedule
-      responses:
-        201:
-          description: Transaction created from the schedule
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-        400:
-          $ref: '#/components/responses/BadRequest'
         404:
           $ref: '#/components/responses/NotFound'
 
@@ -1999,6 +1998,78 @@ components:
         net:
           $ref: './definitions.yaml#/components/schemas/Money'
 
+    ForecastReport:
+      type: object
+      additionalProperties: false
+      description: Projected cash flow for a month from scheduled transactions. Transfers count as planned outflow; net = income − expense − transfers.
+      required:
+        - base
+        - month
+        - income
+        - expense
+        - transfers
+        - net
+        - lines
+        - missing_rates
+      properties:
+        base:
+          $ref: './definitions.yaml#/components/schemas/Currency'
+        month:
+          type: string
+          description: YYYY-MM
+        income:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        expense:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        transfers:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        net:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/ForecastLine'
+        missing_rates:
+          type: array
+          description: Currencies with no known rate; their schedules are omitted from totals.
+          items:
+            type: string
+
+    ForecastLine:
+      type: object
+      additionalProperties: false
+      required:
+        - schedule_id
+        - type
+        - amount
+        - occurrences
+      properties:
+        schedule_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          nullable: true
+        type:
+          $ref: './definitions.yaml#/components/schemas/TransactionType'
+        category_id:
+          type: string
+          format: uuid
+          nullable: true
+        from_account_id:
+          type: string
+          format: uuid
+          nullable: true
+        to_account_id:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        occurrences:
+          type: integer
+          description: Number of times this schedule occurs in the month.
+
     AmortizationSchedule:
       type: object
       additionalProperties: false
@@ -2165,7 +2236,7 @@ components:
         - tags
         - frequency
         - interval
-        - next_run
+        - start_date
         - paused
         - created_at
       properties:
@@ -2211,21 +2282,18 @@ components:
           type: integer
           minimum: 1
           description: Recur every N units of the frequency.
-        next_run:
+        start_date:
           type: string
           format: date
-          description: Date of the next occurrence to materialize.
+          description: Recurrence anchor; the first occurrence.
         end_date:
           type: string
           format: date
           nullable: true
-          description: Last date an occurrence may run; no end when omitted.
+          description: Last date an occurrence may fall on; no end when omitted.
         paused:
           type: boolean
-        last_run_at:
-          type: string
-          format: date-time
-          nullable: true
+          description: Excluded from the forecast while paused.
         created_at:
           type: string
           format: date-time
@@ -2237,7 +2305,7 @@ components:
         - type
         - amount
         - frequency
-        - next_run
+        - start_date
       properties:
         name:
           type: string
@@ -2275,7 +2343,7 @@ components:
           type: integer
           minimum: 1
           default: 1
-        next_run:
+        start_date:
           type: string
           format: date
         end_date:
@@ -2292,7 +2360,7 @@ components:
         - type
         - amount
         - frequency
-        - next_run
+        - start_date
       properties:
         name:
           type: string
@@ -2327,7 +2395,7 @@ components:
           type: integer
           minimum: 1
           default: 1
-        next_run:
+        start_date:
           type: string
           format: date
         end_date:

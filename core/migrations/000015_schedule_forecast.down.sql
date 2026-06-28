@@ -1,0 +1,3 @@
+ALTER TABLE scheduled_transactions ADD COLUMN last_run_at TIMESTAMPTZ;
+ALTER TABLE scheduled_transactions RENAME COLUMN start_date TO next_run;
+ALTER INDEX scheduled_transactions_start_date_idx RENAME TO scheduled_transactions_next_run_idx;

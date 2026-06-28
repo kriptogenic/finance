@@ -21,8 +21,8 @@ const (
 )
 
 // ScheduledTransaction is a transaction template plus a recurrence rule. The
-// template mirrors Transaction's buckets (§4/§5); a worker materializes it into
-// real transactions, advancing NextRun each run.
+// template mirrors Transaction's buckets (§4/§5); it describes expected
+// recurring cash flow that the forecast projects over a month.
 type ScheduledTransaction struct {
 	ID   uuid.UUID `db:"id"`
 	Name *string   `db:"name"`
@@ -40,10 +40,9 @@ type ScheduledTransaction struct {
 
 	Frequency ScheduleFrequency `db:"frequency"`
 	Interval  int               `db:"interval"`
-	NextRun   time.Time         `db:"next_run"` // date of the next occurrence to materialize
+	StartDate time.Time         `db:"start_date"` // recurrence anchor; first occurrence
 	EndDate   *time.Time        `db:"end_date"`
 	Paused    bool              `db:"paused"`
-	LastRunAt *time.Time        `db:"last_run_at"`
 	CreatedAt time.Time         `db:"created_at"`
 }
 

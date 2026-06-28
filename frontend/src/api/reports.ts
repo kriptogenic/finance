@@ -1,5 +1,5 @@
 import { api, call } from './client'
-import type { CashFlowReport, NetWorthReport, SpendingReport } from './types'
+import type { CashFlowReport, ForecastReport, NetWorthReport, SpendingReport } from './types'
 
 interface DateRange {
   date_from?: string
@@ -14,4 +14,7 @@ export const reportsApi = {
 
   cashFlow: (query: DateRange = {}): Promise<CashFlowReport> =>
     call(api.GET('/reports/cash-flow', { params: { query } })),
+
+  forecast: (month?: string): Promise<ForecastReport> =>
+    call(api.GET('/reports/forecast', { params: { query: month ? { month } : {} } })),
 }

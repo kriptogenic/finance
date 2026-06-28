@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+
 	"finance/internal/entities"
 	"finance/pkg/database"
 )
@@ -51,18 +53,9 @@ func (r repository) List(ctx context.Context) ([]entities.BalanceSnapshot, error
 	if err != nil {
 		return nil, fmt.Errorf("list balance snapshots: %w", err)
 	}
-	defer rows.Close()
 
-	var snaps []entities.BalanceSnapshot
-	for rows.Next() {
-		var s entities.BalanceSnapshot
-		if err = rows.Scan(&s.CardLast4, &s.Bank, &s.Amount, &s.Source, &s.ReportedAt); err != nil {
-			return nil, fmt.Errorf("list balance snapshots: %w", err)
-		}
-
-		snaps = append(snaps, s)
-	}
-	if err = rows.Err(); err != nil {
+	snaps, err := pgx.CollectRows(rows, pgx.RowToStructByName[entities.BalanceSnapshot])
+	if err != nil {
 		return nil, fmt.Errorf("list balance snapshots: %w", err)
 	}
 

@@ -149,20 +149,13 @@ func (r repository) SaveParsed(ctx context.Context, rec *entities.Receipt) (err 
 	return nil
 }
 
+// raw_html is omitted (fetched separately via GetRawHTML); reads scan into the
+// Receipt header with the lax mapper, leaving RawHTML and Items unset.
 const headerCols = `
 	id, qr_url, status, error, terminal_id, receipt_seq, fiscal_sign, received_at,
 	receipt_type, merchant_name, merchant_tin, merchant_address, device_name, serial_number,
 	card_type, merchant_lat, merchant_lng, paid_cash, paid_card, total_amount, total_vat,
 	photo_key, scraped_at, created_at, transaction_id`
-
-func scanHeader(row pgx.Row, rec *entities.Receipt) error {
-	return row.Scan(
-		&rec.ID, &rec.QRURL, &rec.Status, &rec.Error, &rec.TerminalID, &rec.ReceiptSeq, &rec.FiscalSign, &rec.ReceivedAt,
-		&rec.ReceiptType, &rec.MerchantName, &rec.MerchantTIN, &rec.MerchantAddress, &rec.DeviceName, &rec.SerialNumber,
-		&rec.CardType, &rec.MerchantLat, &rec.MerchantLng, &rec.PaidCash, &rec.PaidCard, &rec.TotalAmount, &rec.TotalVAT,
-		&rec.PhotoKey, &rec.ScrapedAt, &rec.CreatedAt, &rec.TransactionID,
-	)
-}
 
 func (r repository) SetTransaction(ctx context.Context, id uuid.UUID, txID *uuid.UUID) error {
 	_, err := r.db.Pool.Exec(ctx, `UPDATE receipts SET transaction_id = $2 WHERE id = $1`, id, txID)
@@ -190,17 +183,9 @@ func (r repository) FindAutoLinkCandidate(ctx context.Context, amount int64, fro
 	if err != nil {
 		return nil, fmt.Errorf("find auto-link candidate: %w", err)
 	}
-	defer rows.Close()
 
-	var ids []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err = rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("scan auto-link candidate: %w", err)
-		}
-		ids = append(ids, id)
-	}
-	if err = rows.Err(); err != nil {
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
 		return nil, fmt.Errorf("find auto-link candidate: %w", err)
 	}
 
@@ -212,8 +197,12 @@ func (r repository) FindAutoLinkCandidate(ctx context.Context, amount int64, fro
 }
 
 func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Receipt, error) {
-	var rec entities.Receipt
-	err := scanHeader(r.db.Pool.QueryRow(ctx, `SELECT `+headerCols+` FROM receipts WHERE id = $1`, id), &rec)
+	rows, err := r.db.Pool.Query(ctx, `SELECT `+headerCols+` FROM receipts WHERE id = $1`, id)
+	if err != nil {
+		return nil, fmt.Errorf("get receipt: %w", err)
+	}
+
+	rec, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[entities.Receipt])
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -256,20 +245,9 @@ func (r repository) items(ctx context.Context, id uuid.UUID) ([]entities.Receipt
 	if err != nil {
 		return nil, fmt.Errorf("list receipt items: %w", err)
 	}
-	defer rows.Close()
 
-	var items []entities.ReceiptItem
-	for rows.Next() {
-		var it entities.ReceiptItem
-		if err = rows.Scan(
-			&it.Name, &it.Quantity, &it.Price, &it.VATAmount, &it.VATRate, &it.Discount, &it.Other,
-			&it.Barcode, &it.IKPUCode, &it.IKPUName, &it.Unit, &it.MarkingCode, &it.ConsignorTIN,
-		); err != nil {
-			return nil, fmt.Errorf("scan receipt item: %w", err)
-		}
-		items = append(items, it)
-	}
-	if err = rows.Err(); err != nil {
+	items, err := pgx.CollectRows(rows, pgx.RowToStructByName[entities.ReceiptItem])
+	if err != nil {
 		return nil, fmt.Errorf("list receipt items: %w", err)
 	}
 
@@ -291,17 +269,9 @@ func (r repository) List(ctx context.Context, page, limit int) ([]entities.Recei
 	if err != nil {
 		return nil, fmt.Errorf("list receipts: %w", err)
 	}
-	defer rows.Close()
 
-	var receipts []entities.Receipt
-	for rows.Next() {
-		var rec entities.Receipt
-		if err = scanHeader(rows, &rec); err != nil {
-			return nil, fmt.Errorf("scan receipt: %w", err)
-		}
-		receipts = append(receipts, rec)
-	}
-	if err = rows.Err(); err != nil {
+	receipts, err := pgx.CollectRows(rows, pgx.RowToStructByNameLax[entities.Receipt])
+	if err != nil {
 		return nil, fmt.Errorf("list receipts: %w", err)
 	}
 

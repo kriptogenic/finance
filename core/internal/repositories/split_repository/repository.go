@@ -124,18 +124,9 @@ func clearGroup(ctx context.Context, tx pgx.Tx, mainID uuid.UUID, group *uuid.UU
 	if err != nil {
 		return fmt.Errorf("split list legs: %w", err)
 	}
-	var personIDs []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err = rows.Scan(&id); err != nil {
-			rows.Close()
 
-			return fmt.Errorf("split scan leg: %w", err)
-		}
-		personIDs = append(personIDs, id)
-	}
-	rows.Close()
-	if err = rows.Err(); err != nil {
+	personIDs, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
 		return fmt.Errorf("split list legs: %w", err)
 	}
 

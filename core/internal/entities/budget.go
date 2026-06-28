@@ -20,13 +20,13 @@ const (
 // Budget is a spending limit for an expense category (and its subcategories)
 // over a period. amount is in base-currency minor units (REQUIREMENTS App. A).
 type Budget struct {
-	ID          uuid.UUID
-	CategoryID  uuid.UUID
-	Period      BudgetPeriod
-	Amount      money.Money // base-currency limit
-	Rollover    bool
-	StartPeriod *time.Time
-	CreatedAt   time.Time
+	ID          uuid.UUID    `db:"id"`
+	CategoryID  uuid.UUID    `db:"category_id"`
+	Period      BudgetPeriod `db:"period"`
+	Amount      money.Money  `db:"amount"` // base-currency limit
+	Rollover    bool         `db:"rollover"`
+	StartPeriod *time.Time   `db:"start_period"`
+	CreatedAt   time.Time    `db:"created_at"`
 }
 
 // PeriodWindow returns the [start, end) window of the period containing ref,

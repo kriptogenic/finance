@@ -34,35 +34,36 @@ const (
 // Account is a money bucket you own (asset) or owe (liability). It holds exactly
 // one currency; balances are derived, never stored mutably (§5).
 type Account struct {
-	ID             uuid.UUID
-	Name           string
-	Kind           AccountKind
-	Type           AccountType
-	Currency       string      // ISO 4217 — the account's single currency
-	OpeningBalance money.Money // in Currency; for liabilities, positive = owed at start
-	Archived       bool
-	CreatedAt      time.Time
+	ID             uuid.UUID   `db:"id"`
+	Name           string      `db:"name"`
+	Kind           AccountKind `db:"kind"`
+	Type           AccountType `db:"type"`
+	Currency       string      `db:"currency"`        // ISO 4217 — the account's single currency
+	OpeningBalance money.Money `db:"opening_balance"` // in Currency; for liabilities, positive = owed at start
+	Archived       bool        `db:"archived"`
+	CreatedAt      time.Time   `db:"created_at"`
 
 	// Stored/exposed as include_in_net_worth; inverted here so the zero value
 	// (false) means included — the default. Excluded accounts still record
-	// transactions but drop out of net-worth totals and currency exposure.
-	ExcludedFromNetWorth bool
+	// transactions but drop out of net-worth totals and currency exposure. Reads
+	// select NOT include_in_net_worth AS excluded_from_net_worth.
+	ExcludedFromNetWorth bool `db:"excluded_from_net_worth"`
 
-	CardLast4 *string // identifies the account for external ingest (e.g. card alerts)
+	CardLast4 *string `db:"card_last4"` // identifies the account for external ingest (e.g. card alerts)
 
 	// deposit subtype
-	InterestRate   *float64
-	TermMonths     *int
-	MaturityDate   *time.Time
-	Capitalization *bool
+	InterestRate   *float64   `db:"interest_rate"`
+	TermMonths     *int       `db:"term_months"`
+	MaturityDate   *time.Time `db:"maturity_date"`
+	Capitalization *bool      `db:"capitalization"`
 
 	// credit_card subtype
-	CreditLimit *money.Money // in Currency
+	CreditLimit *money.Money `db:"credit_limit"` // in Currency
 
 	// loan subtype
-	Principal  *money.Money // in Currency
-	StartDate  *time.Time
-	PaymentDay *int
+	Principal  *money.Money `db:"principal"` // in Currency
+	StartDate  *time.Time   `db:"start_date"`
+	PaymentDay *int         `db:"payment_day"`
 }
 
 func (a Account) IsAsset() bool     { return a.Kind == KindAsset }

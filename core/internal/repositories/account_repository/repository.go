@@ -43,29 +43,12 @@ func NewRepository(db *database.DB) Repository {
 	return &repository{db: db}
 }
 
-// include_in_net_worth is scanned last and inverted into ExcludedFromNetWorth.
+// include_in_net_worth is stored, but reads expose its inverse so it maps
+// directly onto Account.ExcludedFromNetWorth.
 const accountColumns = `id, name, kind, type, currency, opening_balance, archived, created_at,
 	interest_rate, term_months, maturity_date, capitalization,
-	credit_limit, principal, start_date, payment_day, card_last4, include_in_net_worth`
-
-func scanAccount(row pgx.Row) (entities.Account, error) {
-	var (
-		a       entities.Account
-		include bool
-	)
-	err := row.Scan(
-		&a.ID, &a.Name, &a.Kind, &a.Type, &a.Currency, &a.OpeningBalance, &a.Archived, &a.CreatedAt,
-		&a.InterestRate, &a.TermMonths, &a.MaturityDate, &a.Capitalization,
-		&a.CreditLimit, &a.Principal, &a.StartDate, &a.PaymentDay, &a.CardLast4, &include,
-	)
-	if err != nil {
-		return entities.Account{}, err
-	}
-
-	a.ExcludedFromNetWorth = !include
-
-	return a, nil
-}
+	credit_limit, principal, start_date, payment_day, card_last4,
+	NOT include_in_net_worth AS excluded_from_net_worth`
 
 // openingBalance defaults a bare account's opening balance to zero in its own
 // currency so the NOT NULL money_t column is never sent a null.
@@ -109,18 +92,9 @@ func (r repository) List(ctx context.Context, includeArchived bool) ([]entities.
 	if err != nil {
 		return nil, fmt.Errorf("list accounts: %w", err)
 	}
-	defer rows.Close()
 
-	var accounts []entities.Account
-	for rows.Next() {
-		a, scanErr := scanAccount(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("list accounts: %w", scanErr)
-		}
-
-		accounts = append(accounts, a)
-	}
-	if err = rows.Err(); err != nil {
+	accounts, err := pgx.CollectRows(rows, pgx.RowToStructByName[entities.Account])
+	if err != nil {
 		return nil, fmt.Errorf("list accounts: %w", err)
 	}
 
@@ -130,7 +104,7 @@ func (r repository) List(ctx context.Context, includeArchived bool) ([]entities.
 func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Account, error) {
 	query := `SELECT ` + accountColumns + ` FROM accounts WHERE id = $1`
 
-	a, err := scanAccount(r.db.Pool.QueryRow(ctx, query, id))
+	a, err := r.queryOne(ctx, query, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -138,18 +112,32 @@ func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Account, e
 		return nil, fmt.Errorf("get account: %w", err)
 	}
 
-	return &a, nil
+	return a, nil
 }
 
 func (r repository) ByCardLast4(ctx context.Context, last4 string) (*entities.Account, error) {
 	query := `SELECT ` + accountColumns + ` FROM accounts WHERE card_last4 = $1`
 
-	a, err := scanAccount(r.db.Pool.QueryRow(ctx, query, last4))
+	a, err := r.queryOne(ctx, query, last4)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get account by card: %w", err)
+	}
+
+	return a, nil
+}
+
+func (r repository) queryOne(ctx context.Context, query string, args ...any) (*entities.Account, error) {
+	rows, err := r.db.Pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	a, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[entities.Account])
+	if err != nil {
+		return nil, err
 	}
 
 	return &a, nil

@@ -39,13 +39,6 @@ func NewRepository(db *database.DB, finance *config.Finance) Repository {
 
 const columns = `id, category_id, period, amount, rollover, start_period, created_at`
 
-func (r repository) scanBudget(row pgx.Row) (entities.Budget, error) {
-	var b entities.Budget
-	err := row.Scan(&b.ID, &b.CategoryID, &b.Period, &b.Amount, &b.Rollover, &b.StartPeriod, &b.CreatedAt)
-
-	return b, err
-}
-
 func (r repository) Create(ctx context.Context, b *entities.Budget) error {
 	const query = `
 		INSERT INTO budgets (category_id, period, amount, rollover, start_period)
@@ -66,18 +59,9 @@ func (r repository) List(ctx context.Context) ([]entities.Budget, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list budgets: %w", err)
 	}
-	defer rows.Close()
 
-	var budgets []entities.Budget
-	for rows.Next() {
-		b, scanErr := r.scanBudget(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("list budgets: %w", scanErr)
-		}
-
-		budgets = append(budgets, b)
-	}
-	if err = rows.Err(); err != nil {
+	budgets, err := pgx.CollectRows(rows, pgx.RowToStructByName[entities.Budget])
+	if err != nil {
 		return nil, fmt.Errorf("list budgets: %w", err)
 	}
 
@@ -85,7 +69,12 @@ func (r repository) List(ctx context.Context) ([]entities.Budget, error) {
 }
 
 func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Budget, error) {
-	b, err := r.scanBudget(r.db.Pool.QueryRow(ctx, `SELECT `+columns+` FROM budgets WHERE id = $1`, id))
+	rows, err := r.db.Pool.Query(ctx, `SELECT `+columns+` FROM budgets WHERE id = $1`, id)
+	if err != nil {
+		return nil, fmt.Errorf("get budget: %w", err)
+	}
+
+	b, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[entities.Budget])
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

@@ -25,58 +25,58 @@ const ReceiptCurrency = "UZS"
 // scraped+parsed from ofd.soliq.uz. Monetary fields are integer minor units
 // (tiyin) in UZS.
 type Receipt struct {
-	ID     uuid.UUID
-	QRURL  string
-	Status ReceiptStatus
-	Error  *string
+	ID     uuid.UUID     `db:"id"`
+	QRURL  string        `db:"qr_url"`
+	Status ReceiptStatus `db:"status"`
+	Error  *string       `db:"error"`
 
 	// From the QR url query params.
-	TerminalID *string
-	ReceiptSeq *int
-	FiscalSign *string
-	ReceivedAt *time.Time
+	TerminalID *string    `db:"terminal_id"`
+	ReceiptSeq *int       `db:"receipt_seq"`
+	FiscalSign *string    `db:"fiscal_sign"`
+	ReceivedAt *time.Time `db:"received_at"`
 
 	// Parsed header.
-	ReceiptType     *string
-	MerchantName    *string
-	MerchantTIN     *string
-	MerchantAddress *string
-	DeviceName      *string
-	SerialNumber    *string
-	CardType        *string
-	MerchantLat     *string
-	MerchantLng     *string
+	ReceiptType     *string `db:"receipt_type"`
+	MerchantName    *string `db:"merchant_name"`
+	MerchantTIN     *string `db:"merchant_tin"`
+	MerchantAddress *string `db:"merchant_address"`
+	DeviceName      *string `db:"device_name"`
+	SerialNumber    *string `db:"serial_number"`
+	CardType        *string `db:"card_type"`
+	MerchantLat     *string `db:"merchant_lat"`
+	MerchantLng     *string `db:"merchant_lng"`
 
 	// Parsed totals (UZS).
-	PaidCash    money.Money
-	PaidCard    money.Money
-	TotalAmount money.Money
-	TotalVAT    money.Money
+	PaidCash    money.Money `db:"paid_cash"`
+	PaidCard    money.Money `db:"paid_card"`
+	TotalAmount money.Money `db:"total_amount"`
+	TotalVAT    money.Money `db:"total_vat"`
 
-	PhotoKey  *string
-	RawHTML   *string
-	ScrapedAt *time.Time
-	CreatedAt time.Time
+	PhotoKey  *string    `db:"photo_key"`
+	RawHTML   *string    `db:"raw_html"` // not in the header read; fetched separately
+	ScrapedAt *time.Time `db:"scraped_at"`
+	CreatedAt time.Time  `db:"created_at"`
 
 	// linked expense transaction, if any (1:1)
-	TransactionID *uuid.UUID
+	TransactionID *uuid.UUID `db:"transaction_id"`
 
-	Items []ReceiptItem
+	Items []ReceiptItem `db:"-"` // child relation, loaded separately
 }
 
 // ReceiptItem is one line of a receipt. Monetary fields are UZS.
 type ReceiptItem struct {
-	Name         string
-	Quantity     string
-	Price        money.Money
-	VATAmount    money.Money
-	VATRate      int
-	Discount     money.Money
-	Other        money.Money
-	Barcode      *string
-	IKPUCode     *string
-	IKPUName     *string
-	Unit         *string
-	MarkingCode  *string
-	ConsignorTIN *string
+	Name         string      `db:"name"`
+	Quantity     string      `db:"quantity"`
+	Price        money.Money `db:"price"`
+	VATAmount    money.Money `db:"vat_amount"`
+	VATRate      int         `db:"vat_rate"`
+	Discount     money.Money `db:"discount"`
+	Other        money.Money `db:"other"`
+	Barcode      *string     `db:"barcode"`
+	IKPUCode     *string     `db:"ikpu_code"`
+	IKPUName     *string     `db:"ikpu_name"`
+	Unit         *string     `db:"unit"`
+	MarkingCode  *string     `db:"marking_code"`
+	ConsignorTIN *string     `db:"consignor_tin"`
 }

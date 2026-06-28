@@ -37,13 +37,6 @@ func NewRepository(db *database.DB) Repository {
 
 const categoryColumns = `id, name, parent_id, type, icon, color, archived, hidden_in_picker, created_at, system_key`
 
-func scanCategory(row pgx.Row) (entities.Category, error) {
-	var c entities.Category
-	err := row.Scan(&c.ID, &c.Name, &c.ParentID, &c.Type, &c.Icon, &c.Color, &c.Archived, &c.HiddenInPicker, &c.CreatedAt, &c.SystemKey)
-
-	return c, err
-}
-
 func (r repository) Create(ctx context.Context, cat *entities.Category) error {
 	const query = `
 		INSERT INTO categories (name, parent_id, type, icon, color, hidden_in_picker, system_key)
@@ -77,18 +70,9 @@ func (r repository) List(ctx context.Context, typ *entities.CategoryType, includ
 	if err != nil {
 		return nil, fmt.Errorf("list categories: %w", err)
 	}
-	defer rows.Close()
 
-	var categories []entities.Category
-	for rows.Next() {
-		c, scanErr := scanCategory(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("list categories: %w", scanErr)
-		}
-
-		categories = append(categories, c)
-	}
-	if err = rows.Err(); err != nil {
+	categories, err := pgx.CollectRows(rows, pgx.RowToStructByName[entities.Category])
+	if err != nil {
 		return nil, fmt.Errorf("list categories: %w", err)
 	}
 
@@ -98,7 +82,12 @@ func (r repository) List(ctx context.Context, typ *entities.CategoryType, includ
 func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Category, error) {
 	query := `SELECT ` + categoryColumns + ` FROM categories WHERE id = $1`
 
-	c, err := scanCategory(r.db.Pool.QueryRow(ctx, query, id))
+	rows, err := r.db.Pool.Query(ctx, query, id)
+	if err != nil {
+		return nil, fmt.Errorf("get category: %w", err)
+	}
+
+	c, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[entities.Category])
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

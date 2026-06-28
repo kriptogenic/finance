@@ -24,26 +24,27 @@ const (
 // template mirrors Transaction's buckets (§4/§5); a worker materializes it into
 // real transactions, advancing NextRun each run.
 type ScheduledTransaction struct {
-	ID   uuid.UUID
-	Name *string
+	ID   uuid.UUID `db:"id"`
+	Name *string   `db:"name"`
 
-	Type          TransactionType
-	FromAccountID *uuid.UUID
-	ToAccountID   *uuid.UUID
-	CategoryID    *uuid.UUID
-	Amount        money.Money
-	ToAmount      *money.Money
-	RateToBase    *fx.Rate
-	Note          *string
-	Tags          []string
+	Type          TransactionType `db:"type"`
+	FromAccountID *uuid.UUID      `db:"from_account_id"`
+	ToAccountID   *uuid.UUID      `db:"to_account_id"`
+	CategoryID    *uuid.UUID      `db:"category_id"`
+	Amount        money.Money     `db:"amount"`
+	ToAmount      *money.Money    `db:"to_amount"`
+	// Reads select rate_to_base::text AS rate_to_base so fx.Rate scans from the decimal.
+	RateToBase *fx.Rate `db:"rate_to_base"`
+	Note       *string  `db:"note"`
+	Tags       []string `db:"tags"`
 
-	Frequency ScheduleFrequency
-	Interval  int
-	NextRun   time.Time // date of the next occurrence to materialize
-	EndDate   *time.Time
-	Paused    bool
-	LastRunAt *time.Time
-	CreatedAt time.Time
+	Frequency ScheduleFrequency `db:"frequency"`
+	Interval  int               `db:"interval"`
+	NextRun   time.Time         `db:"next_run"` // date of the next occurrence to materialize
+	EndDate   *time.Time        `db:"end_date"`
+	Paused    bool              `db:"paused"`
+	LastRunAt *time.Time        `db:"last_run_at"`
+	CreatedAt time.Time         `db:"created_at"`
 }
 
 // NextRun returns the occurrence date that follows from, stepping by interval

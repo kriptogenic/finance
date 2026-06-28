@@ -11,7 +11,6 @@ import (
 
 	"finance/internal/entities"
 	"finance/pkg/database"
-	"finance/pkg/fx"
 )
 
 var ErrNotFound = errors.New("transaction not found")
@@ -59,38 +58,12 @@ func NewRepository(db *database.DB) Repository {
 	return &repository{db: db}
 }
 
-// rate_to_base is cast to text so it can be parsed into fx.Rate without relying
-// on pgx numeric decoding. amount/to_amount/base_amount are money_t composites.
+// rate_to_base is cast to text so it scans into fx.Rate without relying on pgx
+// numeric decoding. amount/to_amount/base_amount are money_t composites.
 const txColumns = `id, date, type, from_account_id, to_account_id, category_id,
-	amount, to_amount, rate_to_base::text, base_amount,
+	amount, to_amount, rate_to_base::text AS rate_to_base, base_amount,
 	note, tags, created_at, external_id, transfer_group_id, split_group_id,
 	(SELECT id FROM receipts WHERE receipts.transaction_id = transactions.id) AS receipt_id`
-
-func (r repository) scanTransaction(row pgx.Row) (entities.Transaction, error) {
-	var (
-		t        entities.Transaction
-		rateText *string
-	)
-	err := row.Scan(
-		&t.ID, &t.Date, &t.Type, &t.FromAccountID, &t.ToAccountID, &t.CategoryID,
-		&t.Amount, &t.ToAmount, &rateText, &t.BaseAmount,
-		&t.Note, &t.Tags, &t.CreatedAt, &t.ExternalID, &t.TransferGroupID, &t.SplitGroupID,
-		&t.ReceiptID,
-	)
-	if err != nil {
-		return entities.Transaction{}, err
-	}
-
-	if rateText != nil {
-		rate, parseErr := fx.ParseRate(*rateText)
-		if parseErr != nil {
-			return entities.Transaction{}, fmt.Errorf("parse rate_to_base: %w", parseErr)
-		}
-		t.RateToBase = &rate
-	}
-
-	return t, nil
-}
 
 func (r repository) Create(ctx context.Context, tx *entities.Transaction) error {
 	var rateText *string
@@ -156,12 +129,12 @@ func (r repository) Ingest(ctx context.Context, tx *entities.Transaction) (creat
 	}
 
 	// conflict: the external_id already exists — return the stored transaction
-	existing, getErr := r.scanTransaction(r.db.Pool.QueryRow(ctx,
-		`SELECT `+txColumns+` FROM transactions WHERE external_id = $1`, *tx.ExternalID))
+	existing, getErr := r.queryOne(ctx,
+		`SELECT `+txColumns+` FROM transactions WHERE external_id = $1`, *tx.ExternalID)
 	if getErr != nil {
 		return false, fmt.Errorf("ingest lookup: %w", getErr)
 	}
-	*tx = existing
+	*tx = *existing
 
 	return false, nil
 }
@@ -220,18 +193,9 @@ func (r repository) List(ctx context.Context, filter Filter) ([]entities.Transac
 	if err != nil {
 		return nil, fmt.Errorf("list transactions: %w", err)
 	}
-	defer rows.Close()
 
-	var txns []entities.Transaction
-	for rows.Next() {
-		t, scanErr := r.scanTransaction(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("list transactions: %w", scanErr)
-		}
-
-		txns = append(txns, t)
-	}
-	if err = rows.Err(); err != nil {
+	txns, err := pgx.CollectRows(rows, pgx.RowToStructByName[entities.Transaction])
+	if err != nil {
 		return nil, fmt.Errorf("list transactions: %w", err)
 	}
 
@@ -248,18 +212,9 @@ func (r repository) ListBySplitGroup(ctx context.Context, group uuid.UUID) ([]en
 	if err != nil {
 		return nil, fmt.Errorf("list split group: %w", err)
 	}
-	defer rows.Close()
 
-	var txns []entities.Transaction
-	for rows.Next() {
-		t, scanErr := r.scanTransaction(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("list split group: %w", scanErr)
-		}
-
-		txns = append(txns, t)
-	}
-	if err = rows.Err(); err != nil {
+	txns, err := pgx.CollectRows(rows, pgx.RowToStructByName[entities.Transaction])
+	if err != nil {
 		return nil, fmt.Errorf("list split group: %w", err)
 	}
 
@@ -269,12 +224,26 @@ func (r repository) ListBySplitGroup(ctx context.Context, group uuid.UUID) ([]en
 func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Transaction, error) {
 	query := `SELECT ` + txColumns + ` FROM transactions WHERE id = $1`
 
-	t, err := r.scanTransaction(r.db.Pool.QueryRow(ctx, query, id))
+	t, err := r.queryOne(ctx, query, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get transaction: %w", err)
+	}
+
+	return t, nil
+}
+
+func (r repository) queryOne(ctx context.Context, query string, args ...any) (*entities.Transaction, error) {
+	rows, err := r.db.Pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	t, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[entities.Transaction])
+	if err != nil {
+		return nil, err
 	}
 
 	return &t, nil

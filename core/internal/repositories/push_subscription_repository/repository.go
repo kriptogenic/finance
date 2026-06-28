@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+
 	"finance/internal/entities"
 	"finance/pkg/database"
 )
@@ -46,18 +48,9 @@ func (r repository) List(ctx context.Context) ([]entities.PushSubscription, erro
 	if err != nil {
 		return nil, fmt.Errorf("list push subscriptions: %w", err)
 	}
-	defer rows.Close()
 
-	var subs []entities.PushSubscription
-	for rows.Next() {
-		var s entities.PushSubscription
-		if err = rows.Scan(&s.Endpoint, &s.P256dh, &s.Auth); err != nil {
-			return nil, fmt.Errorf("list push subscriptions: %w", err)
-		}
-
-		subs = append(subs, s)
-	}
-	if err = rows.Err(); err != nil {
+	subs, err := pgx.CollectRows(rows, pgx.RowToStructByName[entities.PushSubscription])
+	if err != nil {
 		return nil, fmt.Errorf("list push subscriptions: %w", err)
 	}
 

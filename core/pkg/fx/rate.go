@@ -55,6 +55,33 @@ func (rate Rate) String() string {
 	return rate.r.FloatString(10)
 }
 
+// Scan implements sql.Scanner so pgx can decode a rate into a Rate. The
+// rate_to_base column is selected as text (rate_to_base::text); a NULL leaves
+// the Rate invalid.
+func (rate *Rate) Scan(src any) error {
+	var s string
+	switch v := src.(type) {
+	case nil:
+		rate.r = nil
+
+		return nil
+	case string:
+		s = v
+	case []byte:
+		s = string(v)
+	default:
+		return fmt.Errorf("fx: cannot scan %T into Rate", src)
+	}
+
+	parsed, err := ParseRate(s)
+	if err != nil {
+		return err
+	}
+	*rate = parsed
+
+	return nil
+}
+
 // Convert applies the rate to a minor-unit amount, rounding half away from zero.
 func (rate Rate) Convert(amount int64) int64 {
 	if rate.r == nil {

@@ -36,38 +36,12 @@ func NewRepository(db *database.DB) Repository {
 	return &repository{db: db}
 }
 
-// rate_to_base is cast to text so it parses into fx.Rate without relying on pgx
-// numeric decoding (mirrors transaction_repository).
-// rate_to_base is cast to text so it parses into fx.Rate without relying on pgx
-// numeric decoding. amount/to_amount are money_t composites.
+// rate_to_base is cast to text so it scans into fx.Rate without relying on pgx
+// numeric decoding (mirrors transaction_repository). amount/to_amount are
+// money_t composites.
 const columns = `id, name, type, from_account_id, to_account_id, category_id,
-	amount, to_amount, rate_to_base::text, note, tags,
+	amount, to_amount, rate_to_base::text AS rate_to_base, note, tags,
 	frequency, interval, next_run, end_date, paused, last_run_at, created_at`
-
-func scanScheduled(row pgx.Row) (entities.ScheduledTransaction, error) {
-	var (
-		s        entities.ScheduledTransaction
-		rateText *string
-	)
-	err := row.Scan(
-		&s.ID, &s.Name, &s.Type, &s.FromAccountID, &s.ToAccountID, &s.CategoryID,
-		&s.Amount, &s.ToAmount, &rateText, &s.Note, &s.Tags,
-		&s.Frequency, &s.Interval, &s.NextRun, &s.EndDate, &s.Paused, &s.LastRunAt, &s.CreatedAt,
-	)
-	if err != nil {
-		return entities.ScheduledTransaction{}, err
-	}
-
-	if rateText != nil {
-		rate, parseErr := fx.ParseRate(*rateText)
-		if parseErr != nil {
-			return entities.ScheduledTransaction{}, fmt.Errorf("parse rate_to_base: %w", parseErr)
-		}
-		s.RateToBase = &rate
-	}
-
-	return s, nil
-}
 
 func rateText(rate *fx.Rate) *string {
 	if rate == nil {
@@ -123,17 +97,9 @@ func (r repository) query(ctx context.Context, query string, args ...any) ([]ent
 	if err != nil {
 		return nil, fmt.Errorf("list scheduled transactions: %w", err)
 	}
-	defer rows.Close()
 
-	var out []entities.ScheduledTransaction
-	for rows.Next() {
-		s, scanErr := scanScheduled(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("list scheduled transactions: %w", scanErr)
-		}
-		out = append(out, s)
-	}
-	if err = rows.Err(); err != nil {
+	out, err := pgx.CollectRows(rows, pgx.RowToStructByName[entities.ScheduledTransaction])
+	if err != nil {
 		return nil, fmt.Errorf("list scheduled transactions: %w", err)
 	}
 
@@ -141,7 +107,12 @@ func (r repository) query(ctx context.Context, query string, args ...any) ([]ent
 }
 
 func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.ScheduledTransaction, error) {
-	s, err := scanScheduled(r.db.Pool.QueryRow(ctx, `SELECT `+columns+` FROM scheduled_transactions WHERE id = $1`, id))
+	rows, err := r.db.Pool.Query(ctx, `SELECT `+columns+` FROM scheduled_transactions WHERE id = $1`, id)
+	if err != nil {
+		return nil, fmt.Errorf("get scheduled transaction: %w", err)
+	}
+
+	s, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[entities.ScheduledTransaction])
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

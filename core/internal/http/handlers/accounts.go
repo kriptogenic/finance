@@ -265,7 +265,7 @@ func toAccount(acc entities.Account, balance money.Money) api.Account {
 		Kind:              api.AccountKind(acc.Kind),
 		Type:              api.AccountType(acc.Type),
 		Currency:          acc.Currency,
-		OpeningBalance:    acc.OpeningBalance.Minor(),
+		OpeningBalance:    acc.OpeningBalance,
 		Balance:           balance,
 		Archived:          acc.Archived,
 		IncludeInNetWorth: !acc.ExcludedFromNetWorth,
@@ -284,12 +284,8 @@ func toAccount(acc entities.Account, balance money.Money) api.Account {
 	if acc.Capitalization != nil {
 		a.Capitalization = nullable.NewNullableWithValue(*acc.Capitalization)
 	}
-	if acc.CreditLimit != nil {
-		a.CreditLimit = nullable.NewNullableWithValue(acc.CreditLimit.Minor())
-	}
-	if acc.Principal != nil {
-		a.Principal = nullable.NewNullableWithValue(acc.Principal.Minor())
-	}
+	a.CreditLimit = acc.CreditLimit
+	a.Principal = acc.Principal
 	if acc.StartDate != nil {
 		a.StartDate = nullable.NewNullableWithValue(openapi_types.Date{Time: *acc.StartDate})
 	}

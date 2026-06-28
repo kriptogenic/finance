@@ -107,9 +107,9 @@ func (s Server) toNetWorth(nw ledger.NetWorthBreakdown) api.NetWorthReport {
 	for i, e := range nw.ByCurrency {
 		ce := api.CurrencyExposure{
 			Currency:    e.Currency,
-			Assets:      e.Assets.Minor(),
-			Liabilities: e.Liabilities.Minor(),
-			Net:         e.Net.Minor(),
+			Assets:      e.Assets,
+			Liabilities: e.Liabilities,
+			Net:         e.Net,
 			RateKnown:   e.RateKnown,
 		}
 		if e.RateKnown {

@@ -4,7 +4,7 @@ import { accountsApi } from '../api/accounts'
 import { errMessage } from '../api/client'
 import { confirm } from '../lib/confirm'
 import type { Account, AccountKind, AccountType, CreateAccountRequest, UpdateAccountRequest } from '../api/types'
-import { toMinor, toMajor } from '../lib/format'
+import { toMinor } from '../lib/format'
 import Modal from './Modal.vue'
 import MoneyInput from './MoneyInput.vue'
 
@@ -68,8 +68,8 @@ const form = reactive<FormState>({
   kind: props.account?.kind ?? 'asset',
   type: props.account?.type ?? 'debit_card',
   currency: props.account?.currency ?? props.base,
-  opening: props.account ? toMajor(props.account.opening_balance, props.account.currency) : 0,
-  credit_limit: props.account?.credit_limit != null ? toMajor(props.account.credit_limit, props.account.currency) : null,
+  opening: props.account ? props.account.opening_balance.toMajor() : 0,
+  credit_limit: props.account?.credit_limit != null ? props.account.credit_limit.toMajor() : null,
   interest_rate: props.account?.interest_rate ?? null,
   term_months: props.account?.term_months ?? null,
   card_last4: props.account?.card_last4 ?? '',

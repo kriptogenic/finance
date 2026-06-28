@@ -659,11 +659,7 @@ export interface components {
             kind: components["schemas"]["AccountKind"];
             type: components["schemas"]["AccountType"];
             currency: components["schemas"]["Currency"];
-            /**
-             * Format: int64
-             * @description Minor units, in the account's own currency.
-             */
-            opening_balance: number;
+            opening_balance: components["schemas"]["Money"];
             balance: components["schemas"]["Money"];
             archived: boolean;
             /** @description When false, the account is excluded from net-worth totals and currency exposure. */
@@ -677,10 +673,8 @@ export interface components {
             /** Format: date */
             maturity_date?: string | null;
             capitalization?: boolean | null;
-            /** Format: int64 */
-            credit_limit?: number | null;
-            /** Format: int64 */
-            principal?: number | null;
+            credit_limit?: components["schemas"]["Money"];
+            principal?: components["schemas"]["Money"];
             /** Format: date */
             start_date?: string | null;
             payment_day?: number | null;
@@ -951,15 +945,9 @@ export interface components {
         };
         CurrencyExposure: {
             currency: components["schemas"]["Currency"];
-            /**
-             * Format: int64
-             * @description Minor units, in this currency.
-             */
-            assets: number;
-            /** Format: int64 */
-            liabilities: number;
-            /** Format: int64 */
-            net: number;
+            assets: components["schemas"]["Money"];
+            liabilities: components["schemas"]["Money"];
+            net: components["schemas"]["Money"];
             rate_known: boolean;
             net_in_base?: components["schemas"]["Money"];
         };

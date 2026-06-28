@@ -1188,9 +1188,7 @@ components:
         currency:
           $ref: './definitions.yaml#/components/schemas/Currency'
         opening_balance:
-          type: integer
-          format: int64
-          description: Minor units, in the account's own currency.
+          $ref: './definitions.yaml#/components/schemas/Money'
         balance:
           $ref: './definitions.yaml#/components/schemas/Money'
         archived:
@@ -1220,13 +1218,9 @@ components:
           type: boolean
           nullable: true
         credit_limit:
-          type: integer
-          format: int64
-          nullable: true
+          $ref: './definitions.yaml#/components/schemas/Money'
         principal:
-          type: integer
-          format: int64
-          nullable: true
+          $ref: './definitions.yaml#/components/schemas/Money'
         start_date:
           type: string
           format: date
@@ -1834,15 +1828,11 @@ components:
         currency:
           $ref: './definitions.yaml#/components/schemas/Currency'
         assets:
-          type: integer
-          format: int64
-          description: Minor units, in this currency.
+          $ref: './definitions.yaml#/components/schemas/Money'
         liabilities:
-          type: integer
-          format: int64
+          $ref: './definitions.yaml#/components/schemas/Money'
         net:
-          type: integer
-          format: int64
+          $ref: './definitions.yaml#/components/schemas/Money'
         rate_known:
           type: boolean
         net_in_base:

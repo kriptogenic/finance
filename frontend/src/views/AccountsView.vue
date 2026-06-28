@@ -6,7 +6,8 @@ import { configApi } from '../api/config'
 import { errMessage } from '../api/client'
 import { confirm } from '../lib/confirm'
 import type { Account, Category } from '../api/types'
-import { formatMinor, toMajor } from '../lib/format'
+import { Money } from '../api/money'
+import { toMajor } from '../lib/format'
 import SwipeRow from '../components/SwipeRow.vue'
 import AccountForm from '../components/AccountForm.vue'
 import TransactionForm from '../components/TransactionForm.vue'
@@ -38,8 +39,8 @@ const chargePrefill = computed(() =>
 )
 
 // For a credit card, balance is what you owe; available = limit − owed.
-function availableCredit(a: Account): number {
-  return (a.credit_limit ?? 0) - a.balance.amount
+function availableCredit(a: Account): Money {
+  return (a.credit_limit ?? Money.of(0, a.currency)).sub(a.balance)
 }
 
 const typeLabel = {
@@ -152,7 +153,7 @@ onMounted(async () => {
                       {{ a.balance.format() }}
                     </p>
                     <p v-if="a.type === 'credit_card' && a.credit_limit != null" class="tabular text-sm font-medium text-slate-500">
-                      {{ formatMinor(availableCredit(a), a.currency) }}
+                      {{ availableCredit(a).format() }}
                     </p>
                   </div>
                   <div class="flex shrink-0 items-center gap-1">

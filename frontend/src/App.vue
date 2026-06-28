@@ -16,6 +16,8 @@ import TransactionForm from './components/TransactionForm.vue'
 import CategorizeModal from './components/CategorizeModal.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import ReceiptScanner from './components/ReceiptScanner.vue'
+import LockScreen from './components/LockScreen.vue'
+import { locked, pinSet, clearPin, installLock } from './lib/lock'
 
 const route = useRoute()
 const router = useRouter()
@@ -218,6 +220,18 @@ async function togglePush() {
   }
 }
 onMounted(refreshPushState)
+
+// ── App lock (PIN) ──────────────────────────────────────────────────────────
+const lockSetupOpen = ref(false)
+onMounted(installLock)
+
+function onLockToggle(e: Event) {
+  if ((e.target as HTMLInputElement).checked) {
+    lockSetupOpen.value = true
+  } else {
+    clearPin()
+  }
+}
 </script>
 
 <template>
@@ -293,6 +307,15 @@ onMounted(refreshPushState)
         </span>
       </label>
       <p v-if="pushError" class="px-3 text-xs text-rose-400">{{ pushError }}</p>
+
+      <label class="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white">
+        <span>App lock (PIN)</span>
+        <span class="relative inline-flex h-5 w-9 shrink-0">
+          <input type="checkbox" class="peer sr-only" :checked="pinSet" @change="onLockToggle" />
+          <span class="absolute inset-0 rounded-full bg-slate-600 transition peer-checked:bg-amber-400" />
+          <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4" />
+        </span>
+      </label>
 
       <button
         class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
@@ -460,6 +483,14 @@ onMounted(refreshPushState)
               </span>
             </label>
             <p v-if="pushError" class="px-3 text-xs text-rose-600">{{ pushError }}</p>
+            <label class="flex cursor-pointer items-center justify-between rounded-2xl px-3 py-3 text-sm font-medium text-slate-600 active:bg-slate-100">
+              <span>App lock (PIN)</span>
+              <span class="relative inline-flex h-5 w-9 shrink-0">
+                <input type="checkbox" class="peer sr-only" :checked="pinSet" @change="onLockToggle" />
+                <span class="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-amber-400" />
+                <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
+              </span>
+            </label>
           </div>
         </div>
       </div>
@@ -491,4 +522,10 @@ onMounted(refreshPushState)
 
   <!-- styled confirm dialog (teleports to body; available on every screen) -->
   <ConfirmDialog />
+
+  <!-- app-lock PIN gate -->
+  <Teleport to="body">
+    <LockScreen v-if="locked" mode="unlock" />
+    <LockScreen v-else-if="lockSetupOpen" mode="setup" @done="lockSetupOpen = false" @cancel="lockSetupOpen = false" />
+  </Teleport>
 </template>

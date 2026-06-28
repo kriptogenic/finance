@@ -48,13 +48,12 @@ function subtitle(s: ScheduledTransaction): string {
 }
 
 const groups = [
-  { type: 'income', label: 'Income', dot: 'bg-emerald-500' },
-  { type: 'expense', label: 'Expenses', dot: 'bg-rose-500' },
-  { type: 'transfer', label: 'Transfers', dot: 'bg-sky-500' },
+  { key: 'income', label: 'Income', dot: 'bg-emerald-500', types: ['income'] },
+  { key: 'expense', label: 'Expenses', dot: 'bg-rose-500', types: ['expense', 'transfer'] },
 ] as const
 
-function itemsFor(type: string): ScheduledTransaction[] {
-  return schedules.value.filter((s) => s.type === type)
+function itemsFor(types: readonly string[]): ScheduledTransaction[] {
+  return schedules.value.filter((s) => types.includes(s.type))
 }
 
 const monthLabel = computed(() =>
@@ -140,7 +139,7 @@ onMounted(async () => {
 
     <template v-else>
       <!-- summary -->
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div class="grid grid-cols-3 gap-3">
         <div class="card p-4">
           <p class="text-xs font-medium text-slate-400">Income</p>
           <p class="tabular mt-1 text-lg font-semibold text-emerald-600">{{ forecast?.income.format() }}</p>
@@ -148,10 +147,6 @@ onMounted(async () => {
         <div class="card p-4">
           <p class="text-xs font-medium text-slate-400">Expenses</p>
           <p class="tabular mt-1 text-lg font-semibold text-rose-600">{{ forecast?.expense.format() }}</p>
-        </div>
-        <div class="card p-4">
-          <p class="text-xs font-medium text-slate-400">Transfers</p>
-          <p class="tabular mt-1 text-lg font-semibold text-sky-600">{{ forecast?.transfers.format() }}</p>
         </div>
         <div class="card p-4">
           <p class="text-xs font-medium text-slate-400">Net · {{ monthLabel }}</p>
@@ -170,14 +165,14 @@ onMounted(async () => {
       </div>
 
       <!-- grouped plan items -->
-      <div v-for="g in groups" v-else :key="g.type" class="space-y-2">
-        <template v-if="itemsFor(g.type).length || (g.type === 'expense' && budgetLines.length)">
+      <div v-for="g in groups" v-else :key="g.key" class="space-y-2">
+        <template v-if="itemsFor(g.types).length || (g.key === 'expense' && budgetLines.length)">
           <div class="flex items-center gap-2 px-1">
             <span class="h-2 w-2 rounded-full" :class="g.dot" />
             <h2 class="text-sm font-semibold text-slate-700">{{ g.label }}</h2>
           </div>
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div v-for="s in itemsFor(g.type)" :key="s.id" class="card group flex items-center justify-between p-4">
+            <div v-for="s in itemsFor(g.types)" :key="s.id" class="card group flex items-center justify-between p-4">
               <div class="min-w-0">
                 <div class="flex items-center gap-2">
                   <p class="truncate font-semibold text-slate-800">{{ s.name || categoryName[s.category_id ?? ''] || cadence(s) }}</p>
@@ -202,7 +197,7 @@ onMounted(async () => {
 
             <!-- budgeted spending (managed on the Budgets tab) -->
             <RouterLink
-              v-for="b in (g.type === 'expense' ? budgetLines : [])"
+              v-for="b in (g.key === 'expense' ? budgetLines : [])"
               :key="b.budget_id"
               to="/budgets"
               class="card flex items-center justify-between p-4 ring-1 ring-dashed ring-slate-200 hover:ring-slate-300"

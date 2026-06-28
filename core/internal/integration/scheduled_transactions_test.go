@@ -56,7 +56,7 @@ func TestScheduled_CRUDRoundTrip(t *testing.T) {
 }
 
 // A monthly salary in, rent out, and a card top-up transfer project into one
-// month: net = income − expense − transfers (transfers count as outflow).
+// month: expense combines the rent and the transfer outflow; net = income − expense.
 func TestScheduled_ForecastMonth(t *testing.T) {
 	reset(t)
 	ctx := context.Background()
@@ -92,8 +92,7 @@ func TestScheduled_ForecastMonth(t *testing.T) {
 	f := ledger.ForecastMonth("USD", schedules, nil, monthStart, monthStart.AddDate(0, 1, 0), map[string]fx.Rate{})
 
 	assert.Equal(t, int64(500000), f.Income.Minor())
-	assert.Equal(t, int64(150000), f.Expense.Minor())
-	assert.Equal(t, int64(100000), f.Transfers.Minor())
+	assert.Equal(t, int64(250000), f.Expense.Minor()) // 150000 rent + 100000 transfer
 	assert.Equal(t, int64(250000), f.Net.Minor())
 	assert.Len(t, f.Lines, 3)
 	assert.Empty(t, f.MissingRates)

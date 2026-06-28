@@ -77,9 +77,8 @@ func (s *LedgerSuite) TestForecastMonth_AggregatesAndConverts() {
 		start, end, map[string]fx.Rate{})
 
 	s.Equal(int64(500000), f.Income.Minor())
-	s.Equal(int64(210000), f.Expense.Minor()) // 150000 + 60000
-	s.Equal(int64(100000), f.Transfers.Minor())
-	s.Equal(int64(190000), f.Net.Minor()) // 500000 - 210000 - 100000
+	s.Equal(int64(310000), f.Expense.Minor()) // 150000 expense + 60000 eur + 100000 transfer
+	s.Equal(int64(190000), f.Net.Minor())     // 500000 - 310000
 	s.Empty(f.MissingRates)
 }
 

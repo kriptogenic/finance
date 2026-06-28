@@ -2001,13 +2001,12 @@ components:
     ForecastReport:
       type: object
       additionalProperties: false
-      description: Projected cash flow for a month from scheduled transactions and budgets. Transfers count as planned outflow and budgets fold into expense; net = income − expense − transfers.
+      description: Projected cash flow for a month from scheduled transactions and budgets. Expense is total planned outflow (expenses, transfers and budgets combined); net = income − expense.
       required:
         - base
         - month
         - income
         - expense
-        - transfers
         - net
         - lines
         - budget_lines
@@ -2021,8 +2020,6 @@ components:
         income:
           $ref: './definitions.yaml#/components/schemas/Money'
         expense:
-          $ref: './definitions.yaml#/components/schemas/Money'
-        transfers:
           $ref: './definitions.yaml#/components/schemas/Money'
         net:
           $ref: './definitions.yaml#/components/schemas/Money'

@@ -157,7 +157,6 @@ func (s Server) GetForecast(ctx context.Context, request api.GetForecastRequestO
 		Month:        start.Format("2006-01"),
 		Income:       f.Income,
 		Expense:      f.Expense,
-		Transfers:    f.Transfers,
 		Net:          f.Net,
 		Lines:        lines,
 		BudgetLines:  budgetLines,

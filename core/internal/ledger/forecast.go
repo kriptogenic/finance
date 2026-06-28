@@ -25,13 +25,11 @@ type BudgetLine struct {
 }
 
 // Forecast is the projected cash flow for a single month, in base currency.
-// Transfers count as planned outflow (loan / credit-card payments) and budgets
-// count as planned spending on top of scheduled expenses, so
-// Net = Income − Expense − Transfers and Expense already includes the budgets.
+// Expense is total planned outflow: scheduled expenses, transfers (loan /
+// credit-card payments) and budgets all count as spending, so Net = Income − Expense.
 type Forecast struct {
 	Income       money.Money
-	Expense      money.Money // scheduled expenses + budgets
-	Transfers    money.Money
+	Expense      money.Money // scheduled expenses + transfers + budgets
 	Net          money.Money
 	Lines        []ForecastLine // schedule-derived
 	BudgetLines  []BudgetLine   // budget-derived (also summed into Expense)
@@ -74,7 +72,7 @@ func Occurrences(s entities.ScheduledTransaction, start, end time.Time) int {
 // RateToBase wins, then the latest known rate; a currency with no rate is
 // recorded in MissingRates and its line dropped.
 func ForecastMonth(base string, schedules []entities.ScheduledTransaction, budgets []entities.Budget, start, end time.Time, rates map[string]fx.Rate) Forecast {
-	var income, expense, transfers int64
+	var income, expense int64
 	var lines []ForecastLine
 	missing := map[string]bool{}
 
@@ -97,10 +95,8 @@ func ForecastMonth(base string, schedules []entities.ScheduledTransaction, budge
 		switch s.Type {
 		case entities.TxIncome:
 			income += total
-		case entities.TxExpense:
+		case entities.TxExpense, entities.TxTransfer:
 			expense += total
-		case entities.TxTransfer:
-			transfers += total
 		}
 	}
 
@@ -118,8 +114,7 @@ func ForecastMonth(base string, schedules []entities.ScheduledTransaction, budge
 	f := Forecast{
 		Income:      money.New(income, base),
 		Expense:     money.New(expense, base),
-		Transfers:   money.New(transfers, base),
-		Net:         money.New(income-expense-transfers, base),
+		Net:         money.New(income-expense, base),
 		Lines:       lines,
 		BudgetLines: budgetLines,
 	}

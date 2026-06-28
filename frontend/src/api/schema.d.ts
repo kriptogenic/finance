@@ -1013,14 +1013,13 @@ export interface components {
             expense: components["schemas"]["Money"];
             net: components["schemas"]["Money"];
         };
-        /** @description Projected cash flow for a month from scheduled transactions and budgets. Transfers count as planned outflow and budgets fold into expense; net = income − expense − transfers. */
+        /** @description Projected cash flow for a month from scheduled transactions and budgets. Expense is total planned outflow (expenses, transfers and budgets combined); net = income − expense. */
         ForecastReport: {
             base: components["schemas"]["Currency"];
             /** @description YYYY-MM */
             month: string;
             income: components["schemas"]["Money"];
             expense: components["schemas"]["Money"];
-            transfers: components["schemas"]["Money"];
             net: components["schemas"]["Money"];
             lines: components["schemas"]["ForecastLine"][];
             /** @description Budget limits normalized to a monthly equivalent; also summed into expense. */

@@ -89,7 +89,7 @@ func TestScheduled_ForecastMonth(t *testing.T) {
 	require.NoError(t, err)
 
 	monthStart := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
-	f := ledger.ForecastMonth("USD", schedules, nil, monthStart, monthStart.AddDate(0, 1, 0), map[string]fx.Rate{})
+	f := ledger.ForecastMonth("USD", schedules, nil, nil, monthStart, monthStart.AddDate(0, 1, 0), map[string]fx.Rate{})
 
 	assert.Equal(t, int64(500000), f.Income.Minor())
 	assert.Equal(t, int64(250000), f.Expense.Minor()) // 150000 rent + 100000 transfer

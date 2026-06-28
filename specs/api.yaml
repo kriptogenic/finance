@@ -2001,7 +2001,7 @@ components:
     ForecastReport:
       type: object
       additionalProperties: false
-      description: Projected cash flow for a month from scheduled transactions and budgets. Expense is total planned outflow (expenses, transfers and budgets combined); net = income − expense.
+      description: Projected cash flow for a month from scheduled transactions, budgets and credit-card usage. Expense is total planned outflow (expenses, transfers, budgets and card usage combined); net = income − expense.
       required:
         - base
         - month
@@ -2010,6 +2010,7 @@ components:
         - net
         - lines
         - budget_lines
+        - credit_card_lines
         - missing_rates
       properties:
         base:
@@ -2032,6 +2033,11 @@ components:
           description: Budget limits normalized to a monthly equivalent; also summed into expense.
           items:
             $ref: '#/components/schemas/ForecastBudgetLine'
+        credit_card_lines:
+          type: array
+          description: Per credit-card spend charged this month (paid later); also summed into expense.
+          items:
+            $ref: '#/components/schemas/ForecastCreditCardLine'
         missing_rates:
           type: array
           description: Currencies with no known rate; their schedules are omitted from totals.
@@ -2090,6 +2096,19 @@ components:
           format: uuid
         period:
           $ref: './definitions.yaml#/components/schemas/BudgetPeriod'
+        amount:
+          $ref: './definitions.yaml#/components/schemas/Money'
+
+    ForecastCreditCardLine:
+      type: object
+      additionalProperties: false
+      required:
+        - account_id
+        - amount
+      properties:
+        account_id:
+          type: string
+          format: uuid
         amount:
           $ref: './definitions.yaml#/components/schemas/Money'
 

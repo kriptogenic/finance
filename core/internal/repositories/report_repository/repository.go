@@ -28,12 +28,21 @@ type MonthFlow struct {
 	Expense money.Money
 }
 
+// CardSpend is the total expense charged to one credit-card account over a period,
+// in base currency — the bill that will be paid later.
+type CardSpend struct {
+	AccountID uuid.UUID
+	Amount    money.Money
+}
+
 type Repository interface {
 	// LatestRates returns the most recent frozen rate_to_base per currency — the
 	// "latest known rate" used to convert current balances (§3 point 5).
 	LatestRates(ctx context.Context) (map[string]fx.Rate, error)
 	SpendingByCategory(ctx context.Context, from, to time.Time) ([]CategorySpend, error)
 	CashFlow(ctx context.Context, from, to time.Time) ([]MonthFlow, error)
+	// CreditCardSpend totals expense charged to each credit-card account in [from, to).
+	CreditCardSpend(ctx context.Context, from, to time.Time) ([]CardSpend, error)
 }
 
 type repository struct {
@@ -113,6 +122,41 @@ func (r repository) SpendingByCategory(ctx context.Context, from, to time.Time) 
 	}
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("spending by category: %w", err)
+	}
+
+	return out, nil
+}
+
+func (r repository) CreditCardSpend(ctx context.Context, from, to time.Time) ([]CardSpend, error) {
+	const query = `
+		SELECT a.id, SUM(COALESCE((t.base_amount).amount, (t.amount).amount))::bigint AS spent
+		FROM transactions t
+		JOIN accounts a ON a.id = t.from_account_id
+		WHERE t.type = 'expense' AND a.type = 'credit_card'
+		  AND t.date >= $1 AND t.date < $2
+		GROUP BY a.id`
+
+	rows, err := r.db.Pool.Query(ctx, query, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("credit card spend: %w", err)
+	}
+	defer rows.Close()
+
+	var out []CardSpend
+	for rows.Next() {
+		var (
+			c     CardSpend
+			spent int64
+		)
+		if err = rows.Scan(&c.AccountID, &spent); err != nil {
+			return nil, fmt.Errorf("credit card spend: %w", err)
+		}
+		c.Amount = money.New(spent, r.base)
+
+		out = append(out, c)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("credit card spend: %w", err)
 	}
 
 	return out, nil

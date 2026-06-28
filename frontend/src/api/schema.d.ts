@@ -1013,7 +1013,7 @@ export interface components {
             expense: components["schemas"]["Money"];
             net: components["schemas"]["Money"];
         };
-        /** @description Projected cash flow for a month from scheduled transactions and budgets. Expense is total planned outflow (expenses, transfers and budgets combined); net = income − expense. */
+        /** @description Projected cash flow for a month from scheduled transactions, budgets and credit-card usage. Expense is total planned outflow (expenses, transfers, budgets and card usage combined); net = income − expense. */
         ForecastReport: {
             base: components["schemas"]["Currency"];
             /** @description YYYY-MM */
@@ -1024,6 +1024,8 @@ export interface components {
             lines: components["schemas"]["ForecastLine"][];
             /** @description Budget limits normalized to a monthly equivalent; also summed into expense. */
             budget_lines: components["schemas"]["ForecastBudgetLine"][];
+            /** @description Per credit-card spend charged this month (paid later); also summed into expense. */
+            credit_card_lines: components["schemas"]["ForecastCreditCardLine"][];
             /** @description Currencies with no known rate; their schedules are omitted from totals. */
             missing_rates: string[];
         };
@@ -1048,6 +1050,11 @@ export interface components {
             /** Format: uuid */
             category_id: string;
             period: components["schemas"]["BudgetPeriod"];
+            amount: components["schemas"]["Money"];
+        };
+        ForecastCreditCardLine: {
+            /** Format: uuid */
+            account_id: string;
             amount: components["schemas"]["Money"];
         };
         AmortizationSchedule: {

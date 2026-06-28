@@ -107,12 +107,21 @@ func (s Server) GetForecast(ctx context.Context, request api.GetForecastRequestO
 		return nil, err
 	}
 
+	cardSpend, err := s.reports.CreditCardSpend(ctx, start, end)
+	if err != nil {
+		return nil, err
+	}
+	cardUsage := make([]ledger.CreditCardUsage, len(cardSpend))
+	for i, c := range cardSpend {
+		cardUsage[i] = ledger.CreditCardUsage{AccountID: c.AccountID, Amount: c.Amount}
+	}
+
 	rates, err := s.reports.LatestRates(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	f := ledger.ForecastMonth(s.base, schedules, budgets, start, end, rates)
+	f := ledger.ForecastMonth(s.base, schedules, budgets, cardUsage, start, end, rates)
 
 	missing := f.MissingRates
 	if missing == nil {
@@ -152,15 +161,21 @@ func (s Server) GetForecast(ctx context.Context, request api.GetForecastRequestO
 		}
 	}
 
+	cardLines := make([]api.ForecastCreditCardLine, len(f.CreditCardLines))
+	for i, c := range f.CreditCardLines {
+		cardLines[i] = api.ForecastCreditCardLine{AccountId: c.AccountID, Amount: c.Amount}
+	}
+
 	return api.GetForecast200JSONResponse{
-		Base:         s.base,
-		Month:        start.Format("2006-01"),
-		Income:       f.Income,
-		Expense:      f.Expense,
-		Net:          f.Net,
-		Lines:        lines,
-		BudgetLines:  budgetLines,
-		MissingRates: missing,
+		Base:            s.base,
+		Month:           start.Format("2006-01"),
+		Income:          f.Income,
+		Expense:         f.Expense,
+		Net:             f.Net,
+		Lines:           lines,
+		BudgetLines:     budgetLines,
+		CreditCardLines: cardLines,
+		MissingRates:    missing,
 	}, nil
 }
 

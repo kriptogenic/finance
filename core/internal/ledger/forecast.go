@@ -4,6 +4,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/google/uuid"
+
 	"finance/internal/entities"
 	"finance/pkg/fx"
 	"finance/pkg/money"
@@ -24,16 +26,25 @@ type BudgetLine struct {
 	Amount money.Money
 }
 
+// CreditCardUsage is the total charged to a credit-card account during the
+// forecast month, in base currency — spending settled later, counted as outflow.
+type CreditCardUsage struct {
+	AccountID uuid.UUID
+	Amount    money.Money
+}
+
 // Forecast is the projected cash flow for a single month, in base currency.
 // Expense is total planned outflow: scheduled expenses, transfers (loan /
-// credit-card payments) and budgets all count as spending, so Net = Income − Expense.
+// credit-card payments), budgets and credit-card usage all count as spending,
+// so Net = Income − Expense.
 type Forecast struct {
-	Income       money.Money
-	Expense      money.Money // scheduled expenses + transfers + budgets
-	Net          money.Money
-	Lines        []ForecastLine // schedule-derived
-	BudgetLines  []BudgetLine   // budget-derived (also summed into Expense)
-	MissingRates []string       // currencies with no frozen/known rate; their lines are skipped
+	Income          money.Money
+	Expense         money.Money // scheduled expenses + transfers + budgets + card usage
+	Net             money.Money
+	Lines           []ForecastLine    // schedule-derived
+	BudgetLines     []BudgetLine      // budget-derived (also summed into Expense)
+	CreditCardLines []CreditCardUsage // credit-card usage (also summed into Expense)
+	MissingRates    []string          // currencies with no frozen/known rate; their lines are skipped
 }
 
 // Occurrences counts how many times s falls within the half-open window
@@ -71,7 +82,7 @@ func Occurrences(s entities.ScheduledTransaction, start, end time.Time) int {
 // an amount already in base is taken as-is, otherwise the schedule's frozen
 // RateToBase wins, then the latest known rate; a currency with no rate is
 // recorded in MissingRates and its line dropped.
-func ForecastMonth(base string, schedules []entities.ScheduledTransaction, budgets []entities.Budget, start, end time.Time, rates map[string]fx.Rate) Forecast {
+func ForecastMonth(base string, schedules []entities.ScheduledTransaction, budgets []entities.Budget, cardUsage []CreditCardUsage, start, end time.Time, rates map[string]fx.Rate) Forecast {
 	var income, expense int64
 	var lines []ForecastLine
 	missing := map[string]bool{}
@@ -111,12 +122,17 @@ func ForecastMonth(base string, schedules []entities.ScheduledTransaction, budge
 		budgetLines = append(budgetLines, BudgetLine{Budget: b, Amount: money.New(monthly, base)})
 	}
 
+	for _, c := range cardUsage {
+		expense += c.Amount.Minor()
+	}
+
 	f := Forecast{
-		Income:      money.New(income, base),
-		Expense:     money.New(expense, base),
-		Net:         money.New(income-expense, base),
-		Lines:       lines,
-		BudgetLines: budgetLines,
+		Income:          money.New(income, base),
+		Expense:         money.New(expense, base),
+		Net:             money.New(income-expense, base),
+		Lines:           lines,
+		BudgetLines:     budgetLines,
+		CreditCardLines: cardUsage,
 	}
 	for c := range missing {
 		f.MissingRates = append(f.MissingRates, c)

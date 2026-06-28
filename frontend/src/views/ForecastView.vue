@@ -28,6 +28,7 @@ const lineBySchedule = computed(() =>
   Object.fromEntries((forecast.value?.lines ?? []).map((l) => [l.schedule_id, l])),
 )
 const budgetLines = computed(() => forecast.value?.budget_lines ?? [])
+const creditCardLines = computed(() => forecast.value?.credit_card_lines ?? [])
 
 const periodLabel: Record<string, string> = { weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' }
 
@@ -160,13 +161,13 @@ onMounted(async () => {
         No exchange rate for {{ forecast.missing_rates.join(', ') }} — those plans are excluded from the totals.
       </p>
 
-      <div v-if="!schedules.length && !budgetLines.length" class="card p-10 text-center text-sm text-slate-400">
+      <div v-if="!schedules.length && !budgetLines.length && !creditCardLines.length" class="card p-10 text-center text-sm text-slate-400">
         No planned transactions yet. Add your salary, rent, loan and card payments to forecast the month.
       </div>
 
       <!-- grouped plan items -->
       <div v-for="g in groups" v-else :key="g.key" class="space-y-2">
-        <template v-if="itemsFor(g.types).length || (g.key === 'expense' && budgetLines.length)">
+        <template v-if="itemsFor(g.types).length || (g.key === 'expense' && (budgetLines.length || creditCardLines.length))">
           <div class="flex items-center gap-2 px-1">
             <span class="h-2 w-2 rounded-full" :class="g.dot" />
             <h2 class="text-sm font-semibold text-slate-700">{{ g.label }}</h2>
@@ -211,6 +212,22 @@ onMounted(async () => {
               </div>
               <p class="tabular font-semibold text-slate-800">{{ b.amount.format() }}</p>
             </RouterLink>
+
+            <!-- credit-card usage: charged this month, paid later -->
+            <div
+              v-for="c in (g.key === 'expense' ? creditCardLines : [])"
+              :key="c.account_id"
+              class="card flex items-center justify-between p-4 ring-1 ring-dashed ring-slate-200"
+            >
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <p class="truncate font-semibold text-slate-800">{{ accountName[c.account_id] ?? 'Credit card' }}</p>
+                  <span class="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-600">Credit card</span>
+                </div>
+                <p class="mt-0.5 truncate text-xs text-slate-400">Spent this month · paid later</p>
+              </div>
+              <p class="tabular font-semibold text-slate-800">{{ c.amount.format() }}</p>
+            </div>
           </div>
         </template>
       </div>

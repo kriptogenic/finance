@@ -41,6 +41,15 @@ Prefer `Read` over `cat`, `sed`, `head` in bash.
 ## Comments
 Don't write long comments in code. only short ones
 
+## Repository row scanning (pgx)
+Entities carry `db` tags; map rows by name, never by column position.
+- **Reads that return entities** (List/Get/lookup) → `pgx.CollectRows` / `pgx.CollectOneRow` with `pgx.RowToStructByName[Entity]`. Use the `...Lax` mapper when the query selects a subset of fields (e.g. receipt header skips `raw_html`, `Items`).
+- **Multi-row single-column reads** (e.g. a list of ids) → `pgx.CollectRows(rows, pgx.RowTo[T])`.
+- **Single scalar / single-row reads** (`count(*)`, one id, one value) → keep `QueryRow(...).Scan(&x)`. Don't expand these into Query + Collect.
+- **`INSERT/UPDATE ... RETURNING` that back-fills the caller's struct** (e.g. `id, created_at`) → `QueryRow(...).Scan(&e.ID, &e.CreatedAt)`.
+- **Aggregations that build `money.Money` from a `bigint` + base currency** (reports, balances) → manual `Scan` into locals; they don't map to a struct by name.
+- Columns needing a cast/alias must be aliased to the exact `db` tag name (`rate_to_base::text AS rate_to_base`); `db` tag matching is exact, not normalized.
+
 ## Project Structure
 
 Monorepo with three deployables — `core`, `frontend`, `lookout` — that integrate **only** through `specs/`.

@@ -14,6 +14,7 @@ import (
 type ScheduleFrequency string
 
 const (
+	FreqOnce    ScheduleFrequency = "once" // single occurrence on StartDate
 	FreqDaily   ScheduleFrequency = "daily"
 	FreqWeekly  ScheduleFrequency = "weekly"
 	FreqMonthly ScheduleFrequency = "monthly"

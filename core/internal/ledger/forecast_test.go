@@ -30,6 +30,20 @@ func (s *LedgerSuite) TestOccurrences_CountsWithinWindow() {
 	s.Equal(5, ledger.Occurrences(weekly, start, end)) // Jun 1,8,15,22,29
 }
 
+func (s *LedgerSuite) TestOccurrences_OneTime() {
+	start := day(2026, time.June, 1)
+	end := start.AddDate(0, 1, 0) // [Jun 1, Jul 1)
+
+	inMonth := entities.ScheduledTransaction{Frequency: entities.FreqOnce, StartDate: day(2026, time.June, 20)}
+	s.Equal(1, ledger.Occurrences(inMonth, start, end))
+
+	otherMonth := entities.ScheduledTransaction{Frequency: entities.FreqOnce, StartDate: day(2026, time.July, 20)}
+	s.Equal(0, ledger.Occurrences(otherMonth, start, end))
+
+	paused := entities.ScheduledTransaction{Frequency: entities.FreqOnce, StartDate: day(2026, time.June, 20), Paused: true}
+	s.Equal(0, ledger.Occurrences(paused, start, end))
+}
+
 func (s *LedgerSuite) TestOccurrences_PausedAndEnded() {
 	start := day(2026, time.June, 1)
 	end := start.AddDate(0, 1, 0)

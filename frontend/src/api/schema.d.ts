@@ -1297,10 +1297,10 @@ export interface components {
         /** @enum {string} */
         BudgetPeriod: "weekly" | "monthly" | "yearly";
         /**
-         * @description How often a scheduled transaction recurs (combined with an interval).
+         * @description How often a scheduled transaction recurs (combined with an interval). "once" is a one-time item on its start date.
          * @enum {string}
          */
-        ScheduleFrequency: "daily" | "weekly" | "monthly" | "yearly";
+        ScheduleFrequency: "once" | "daily" | "weekly" | "monthly" | "yearly";
         /**
          * @description Lifecycle of an async receipt scrape+parse.
          * @enum {string}

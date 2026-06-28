@@ -177,6 +177,10 @@ func (s *seeder) seedSchedules(ctx context.Context, acc map[string]entities.Acco
 	accID := func(name string) *uuid.UUID { a := acc[name]; return &a.ID }
 	catID := func(name string) *uuid.UUID { c := cat[name]; return &c.ID }
 
+	// a one-time present, anchored mid current month so it shows in the default forecast
+	now := time.Now().UTC()
+	birthday := time.Date(now.Year(), now.Month(), 20, 0, 0, 0, 0, time.UTC)
+
 	defs := []entities.ScheduledTransaction{
 		{
 			Name: ptr("Salary"), Type: entities.TxIncome, ToAccountID: accID("Cash"), CategoryID: catID("Salary"),
@@ -193,6 +197,10 @@ func (s *seeder) seedSchedules(ctx context.Context, acc map[string]entities.Acco
 		{
 			Name: ptr("Visa Card top-up"), Type: entities.TxTransfer, FromAccountID: accID("Cash"), ToAccountID: accID("Visa Card"),
 			Amount: uzs(300_000_00), Frequency: entities.FreqMonthly, Interval: 1, StartDate: day(10),
+		},
+		{
+			Name: ptr("Birthday present"), Type: entities.TxExpense, FromAccountID: accID("Cash"), CategoryID: catID("Gifts"),
+			Amount: uzs(500_000_00), Frequency: entities.FreqOnce, Interval: 1, StartDate: birthday,
 		},
 	}
 
@@ -299,6 +307,7 @@ func (s *seeder) seedCategories(ctx context.Context) (map[string]entities.Catego
 		{"Rent", "home", "#3b82f6"},
 		{"Transport", "car", "#06b6d4"},
 		{"Utilities", "bolt", "#eab308"},
+		{"Gifts", "gift", "#ec4899"},
 	} {
 		if _, err = create(def, entities.CategoryExpense, nil); err != nil {
 			return nil, err

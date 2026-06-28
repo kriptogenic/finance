@@ -33,6 +33,7 @@ const periodLabel: Record<string, string> = { weekly: 'Weekly', monthly: 'Monthl
 
 const unit: Record<string, string> = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }
 function cadence(s: ScheduledTransaction): string {
+  if (s.frequency === 'once') return 'One-time'
   const u = unit[s.frequency] ?? s.frequency
   return s.interval === 1 ? `Every ${u}` : `Every ${s.interval} ${u}s`
 }
@@ -127,7 +128,6 @@ onMounted(async () => {
     <div class="flex items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-bold tracking-tight text-slate-900">Forecast</h1>
-        <p class="text-sm text-slate-500">Expected income and spending from your planned transactions</p>
       </div>
       <div class="flex items-center gap-2">
         <input v-model="month" type="month" class="field !w-auto !py-1.5" @change="loadForecast" />

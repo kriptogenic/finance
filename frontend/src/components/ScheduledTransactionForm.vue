@@ -78,11 +78,14 @@ const types: { v: TransactionType; label: string }[] = [
 ]
 
 const frequencies: { v: ScheduleFrequency; label: string }[] = [
+  { v: 'once', label: 'one-time' },
   { v: 'daily', label: 'day(s)' },
   { v: 'weekly', label: 'week(s)' },
   { v: 'monthly', label: 'month(s)' },
   { v: 'yearly', label: 'year(s)' },
 ]
+
+const isOnce = computed(() => form.frequency === 'once')
 
 const acctIcons: Record<string, string> = {
   cash: 'cash',
@@ -136,7 +139,7 @@ async function submit() {
     if (isCross.value) payload.to_amount = toMinor(form.toAmount, toAcc.value?.currency ?? props.base)
     if (needsRate.value && form.rate !== '') payload.rate_to_base = String(form.rate)
     if (form.note) payload.note = form.note
-    if (form.endDate) payload.end_date = form.endDate
+    if (!isOnce.value && form.endDate) payload.end_date = form.endDate
     const tags = form.tags.split(',').map((x) => x.trim()).filter(Boolean)
     if (tags.length) payload.tags = tags
 
@@ -194,16 +197,16 @@ async function submit() {
       <!-- recurrence -->
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="lbl">Repeat every</label>
+          <label class="lbl">{{ isOnce ? 'Frequency' : 'Repeat every' }}</label>
           <div class="flex gap-2">
-            <input v-model.number="form.interval" type="number" min="1" class="field w-20" required />
+            <input v-if="!isOnce" v-model.number="form.interval" type="number" min="1" class="field w-20" required />
             <select v-model="form.frequency" class="field">
               <option v-for="f in frequencies" :key="f.v" :value="f.v">{{ f.label }}</option>
             </select>
           </div>
         </div>
         <div>
-          <label class="lbl">Starts</label>
+          <label class="lbl">{{ isOnce ? 'Date' : 'Starts' }}</label>
           <input v-model="form.startDate" type="date" class="field" required />
         </div>
       </div>
@@ -295,7 +298,7 @@ async function submit() {
             <input v-model="form.rate" class="field" required placeholder="e.g. 12500" />
           </div>
 
-          <div>
+          <div v-if="!isOnce">
             <label class="lbl">End date (optional)</label>
             <input v-model="form.endDate" type="date" class="field" />
           </div>

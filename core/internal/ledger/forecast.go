@@ -46,6 +46,15 @@ func Occurrences(s entities.ScheduledTransaction, start, end time.Time) int {
 		return 0
 	}
 
+	// one-time: a single occurrence on StartDate, no stepping.
+	if s.Frequency == entities.FreqOnce {
+		if !s.StartDate.Before(start) && s.StartDate.Before(end) {
+			return 1
+		}
+
+		return 0
+	}
+
 	count := 0
 	for cur := s.StartDate; cur.Before(end); cur = entities.NextRun(s.Frequency, s.Interval, cur) {
 		if s.EndDate != nil && cur.After(*s.EndDate) {

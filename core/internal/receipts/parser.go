@@ -1,15 +1,12 @@
 package receipts
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/PuerkitoBio/goquery"
-	"golang.org/x/net/html"
 
 	"finance/internal/entities"
 	"finance/pkg/money"
@@ -17,28 +14,31 @@ import (
 
 func uzs(v int64) money.Money { return money.New(v, entities.ReceiptCurrency) }
 
-// placemarkRe pulls merchant coordinates out of the inline Yandex Maps script.
-var placemarkRe = regexp.MustCompile(`new ymaps\.Placemark\(\[([0-9.]+),\s*([0-9.]+)\]`)
+// cardTypeLabels maps soliq's numeric card type to its Uzbek label (from the
+// ofd.soliq.uz web client).
+var cardTypeLabels = map[int]string{1: "Korporativ", 2: "Shaxsiy", 3: "Ijtimoiy"}
 
-// receivedAtRe matches a date like "01.02.2024, 13:45" inside an <i> tag.
-var receivedAtRe = regexp.MustCompile(`(\d{2}\.\d{2}\.\d{4}),?\s+(\d{2}:\d{2})`)
-
-// parseAmount turns a displayed amount like "16,480.00" (comma thousands, dot
-// decimal, always 2 dp) into integer minor units (tiyin) without floats.
-func parseAmount(s string) (int64, error) {
+// parseMinor converts a UZS major-unit decimal string (e.g. "5990", "5990.0",
+// "641.79") into integer minor units (tiyin) without floating point.
+func parseMinor(s string) int64 {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return 0, nil
+		return 0
 	}
-	s = strings.ReplaceAll(s, ",", "")
-	s = strings.ReplaceAll(s, ".", "")
+	neg := strings.HasPrefix(s, "-")
+	s = strings.TrimPrefix(s, "-")
 
-	v, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("parse amount %q: %w", s, err)
+	intPart, frac, _ := strings.Cut(s, ".")
+	frac = (frac + "00")[:2] // pad/truncate to exactly 2 decimal places
+
+	whole, _ := strconv.ParseInt(intPart, 10, 64)
+	cents, _ := strconv.ParseInt(frac, 10, 64)
+	v := whole*100 + cents
+	if neg {
+		v = -v
 	}
 
-	return v, nil
+	return v
 }
 
 // ParseQRParams extracts the terminal id, receipt sequence, fiscal sign and
@@ -71,60 +71,177 @@ func ParseQRParams(qrURL string) (terminalID *string, seq *int, fiscalSign *stri
 	return terminalID, seq, fiscalSign, receivedAt
 }
 
-// ParseHTML scrapes a fiscal receipt page into a Receipt. It follows the
-// selectors documented in QR_RECEIPT.md; they may need tuning against live
-// ofd.soliq.uz markup.
-func ParseHTML(html string) (entities.Receipt, error) {
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+// paymentParams are the QR fields the payment API request body needs.
+type paymentParams struct {
+	TerminalID  string
+	PaymentNo   string
+	PaymentDate string
+	FiscalSign  string
+}
+
+// paymentParamsFromQR pulls the payment request fields (t/r/c/s) from the QR
+// url. ok is false when any required field is missing.
+func paymentParamsFromQR(qrURL string) (p paymentParams, ok bool) {
+	u, err := url.Parse(qrURL)
 	if err != nil {
-		return entities.Receipt{}, fmt.Errorf("parse html: %w", err)
+		return paymentParams{}, false
+	}
+	q := u.Query()
+	p = paymentParams{
+		TerminalID:  q.Get("t"),
+		PaymentNo:   q.Get("r"),
+		PaymentDate: q.Get("c"),
+		FiscalSign:  q.Get("s"),
+	}
+	if p.TerminalID == "" || p.PaymentNo == "" || p.PaymentDate == "" || p.FiscalSign == "" {
+		return paymentParams{}, false
 	}
 
-	var r entities.Receipt
+	return p, true
+}
 
-	r.ReceiptType = strPtr(doc.Find("h3").First().Text())
-	r.MerchantName = strPtr(doc.Find(`h3[style*="font-weight: bold"]`).First().Text())
+// paymentResponse mirrors new-ofd.soliq.uz/api/payment. Monetary fields decode
+// as json.Number so parseMinor can convert them without float rounding.
+type paymentResponse struct {
+	Data    *paymentData `json:"data"`
+	Message string       `json:"message"`
+	Success bool         `json:"success"`
+}
 
-	// merchant tin: the first <i> made of digits; merchant address: the text
-	// node sitting before it.
-	doc.Find("i").EachWithBreak(func(_ int, i *goquery.Selection) bool {
-		txt := strings.TrimSpace(i.Text())
-		if isDigits(txt) {
-			r.MerchantTIN = strPtr(txt)
-			if prev := strings.TrimSpace(nodeTextBefore(i)); prev != "" {
-				r.MerchantAddress = strPtr(prev)
-			}
+type paymentData struct {
+	TIN         json.Number    `json:"tin"`
+	PaymentNo   string         `json:"paymentNo"`
+	PaymentDate string         `json:"paymentDate"`
+	CashTotal   json.Number    `json:"cashTotal"`
+	CardTotal   json.Number    `json:"cardTotal"`
+	VatTotal    json.Number    `json:"vatTotal"`
+	IsRefund    int            `json:"isRefund"`
+	Details     []paymentItem  `json:"paymentDetails"`
+	ExtraInfo   paymentExtra   `json:"extraInfo"`
+	Labels      []paymentLabel `json:"labels"`
+	KkmName     string         `json:"kkmName"`
+	KkmSerial   string         `json:"kkmSerialNumber"`
+}
 
-			return false
+type paymentItem struct {
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	Barcode     string      `json:"barcode"`
+	ProductCode string      `json:"productCode"`
+	ProductName string      `json:"productName"`
+	PackageName string      `json:"packageName"`
+	VatPercent  int         `json:"vatPercent"`
+	ComitentTin json.Number `json:"comitentTin"`
+	Price       json.Number `json:"price"`
+	Vat         json.Number `json:"vat"`
+	Amount      json.Number `json:"amount"`
+	Discount    json.Number `json:"discount"`
+	Other       json.Number `json:"other"`
+}
+
+type paymentExtra struct {
+	CompanyName string `json:"companyName"`
+	CardType    *int   `json:"cardType"`
+	Latitude    string `json:"latitude"`
+	Longitude   string `json:"longitude"`
+	Address     string `json:"address"`
+}
+
+type paymentLabel struct {
+	DetailID string `json:"detailId"`
+	Label    string `json:"label"`
+}
+
+// ParseJSON maps a new-ofd.soliq.uz payment response into a Receipt.
+func ParseJSON(raw []byte) (entities.Receipt, error) {
+	var resp paymentResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return entities.Receipt{}, fmt.Errorf("parse payment json: %w", err)
+	}
+	if resp.Data == nil {
+		msg := strings.TrimSpace(resp.Message)
+		if msg == "" {
+			msg = "no receipt data"
 		}
 
-		return true
-	})
+		return entities.Receipt{}, fmt.Errorf("payment response: %s", msg)
+	}
+	d := resp.Data
 
-	r.ReceiptSeq = parseSeq(spanValue(doc, "Chek raqami"))
-	r.DeviceName = strPtr(spanValue(doc, "Onlayn NKM nomi"))
-	r.SerialNumber = strPtr(spanValue(doc, "SN"))
+	r := entities.Receipt{
+		ReceiptType:     strPtr("Savdo cheki/" + refundLabel(d.IsRefund)),
+		MerchantName:    strPtr(d.ExtraInfo.CompanyName),
+		MerchantTIN:     nonZeroNum(d.TIN),
+		MerchantAddress: strPtr(d.ExtraInfo.Address),
+		DeviceName:      strPtr(d.KkmName),
+		SerialNumber:    strPtr(d.KkmSerial),
+		CardType:        cardTypeLabel(d.ExtraInfo.CardType),
+		MerchantLat:     strPtr(d.ExtraInfo.Latitude),
+		MerchantLng:     strPtr(d.ExtraInfo.Longitude),
+		PaidCash:        uzs(parseMinor(d.CashTotal.String())),
+		PaidCard:        uzs(parseMinor(d.CardTotal.String())),
+		TotalVAT:        uzs(parseMinor(d.VatTotal.String())),
+		ReceiptSeq:      parseSeq(d.PaymentNo),
+	}
+	r.TotalAmount = uzs(r.PaidCash.Minor() + r.PaidCard.Minor())
 
-	if m := receivedAtRe.FindStringSubmatch(doc.Find("i").Text()); m != nil {
-		if ts, err := time.Parse("02.01.2006 15:04", m[1]+" "+m[2]); err == nil {
-			r.ReceivedAt = &ts
+	// paymentDate is "dd.MM.yyyy HH:mm:ss".
+	if ts, err := time.Parse("02.01.2006 15:04:05", d.PaymentDate); err == nil {
+		r.ReceivedAt = &ts
+	}
+
+	labels := make(map[string]string, len(d.Labels))
+	for _, l := range d.Labels {
+		labels[l.DetailID] = l.Label
+	}
+
+	r.Items = make([]entities.ReceiptItem, 0, len(d.Details))
+	for _, it := range d.Details {
+		item := entities.ReceiptItem{
+			Name:         it.Name,
+			Quantity:     it.Amount.String(),
+			Price:        uzs(parseMinor(it.Price.String())),
+			VATAmount:    uzs(parseMinor(it.Vat.String())),
+			VATRate:      it.VatPercent,
+			Discount:     uzs(parseMinor(it.Discount.String())),
+			Other:        uzs(parseMinor(it.Other.String())),
+			Barcode:      strPtr(it.Barcode),
+			IKPUCode:     strPtr(it.ProductCode),
+			IKPUName:     strPtr(it.ProductName),
+			Unit:         strPtr(it.PackageName),
+			ConsignorTIN: nonZeroNum(it.ComitentTin),
 		}
+		item.MarkingCode = strPtr(labels[it.ID])
+		r.Items = append(r.Items, item)
 	}
-
-	r.PaidCash = uzs(rowAmount(doc, "Naqd pul"))
-	r.PaidCard = uzs(rowAmount(doc, "Bank kartalari"))
-	r.CardType = strPtr(rowText(doc, "Bank kartasi turi"))
-	r.TotalAmount = uzs(rowAmount(doc, "Jami to'lov"))
-	r.TotalVAT = uzs(rowAmount(doc, "Umumiy QQS qiymati"))
-
-	if m := placemarkRe.FindStringSubmatch(html); m != nil {
-		r.MerchantLat = strPtr(m[1])
-		r.MerchantLng = strPtr(m[2])
-	}
-
-	r.Items = parseItems(doc)
 
 	return r, nil
+}
+
+func refundLabel(isRefund int) string {
+	if isRefund == 1 {
+		return "Qaytarish"
+	}
+
+	return "Sotuv"
+}
+
+func cardTypeLabel(code *int) *string {
+	if code == nil {
+		return nil
+	}
+
+	return strPtr(cardTypeLabels[*code])
+}
+
+// nonZeroNum returns a pointer to n's string form, or nil when empty or "0".
+func nonZeroNum(n json.Number) *string {
+	s := strings.TrimSpace(n.String())
+	if s == "" || s == "0" {
+		return nil
+	}
+
+	return &s
 }
 
 // parseSeq turns an int-ish receipt sequence string into a pointer.
@@ -138,145 +255,6 @@ func parseSeq(s string) *int {
 	}
 
 	return nil
-}
-
-func parseItems(doc *goquery.Document) []entities.ReceiptItem {
-	var items []entities.ReceiptItem
-
-	doc.Find("tr.products-row").Each(func(_ int, prod *goquery.Selection) {
-		group := prod.NextUntil("tr.products-row").AddSelection(prod)
-
-		tds := prod.Find("td")
-		item := entities.ReceiptItem{
-			Name:     strings.TrimSpace(tds.Eq(0).Text()),
-			Quantity: strings.TrimSpace(tds.Eq(1).Text()),
-		}
-
-		price, _ := parseAmount(group.Find(".price-sum").First().Text())
-		item.Price = uzs(price)
-
-		nds := group.Find(".nds-sum")
-		vat, _ := parseAmount(nds.Eq(0).Text())
-		item.VATAmount = uzs(vat)
-		item.VATRate = parseVATRate(nds.Eq(1).Text())
-
-		if cb := rowValueIn(group, "Chegirma/Boshqa"); cb != "" {
-			left, right, _ := strings.Cut(cb, "/")
-			discount, _ := parseAmount(left)
-			other, _ := parseAmount(right)
-			item.Discount = uzs(discount)
-			item.Other = uzs(other)
-		}
-
-		item.Barcode = strPtr(rowValueIn(group, "Shtrix kodi"))
-		item.IKPUCode = strPtr(rowValueIn(group, "MXIK kodi"))
-		item.IKPUName = strPtr(rowValueIn(group, "MXIK nomi"))
-		item.Unit = strPtr(rowValueIn(group, "O'lchov birligi"))
-		item.MarkingCode = strPtr(rowValueIn(group, "Markirovka kodi"))
-		item.ConsignorTIN = strPtr(rowValueIn(group, "Komitent STIR/JSHSHIR"))
-
-		items = append(items, item)
-	})
-
-	return items
-}
-
-// parseVATRate strips a trailing % and parses the integer percent.
-func parseVATRate(s string) int {
-	s = strings.TrimSpace(strings.ReplaceAll(s, "%", ""))
-	if n, err := strconv.Atoi(s); err == nil {
-		return n
-	}
-
-	return 0
-}
-
-// spanValue returns the <b> text inside a `span.left` whose text contains label.
-func spanValue(doc *goquery.Document, label string) string {
-	var val string
-	doc.Find("span.left").EachWithBreak(func(_ int, span *goquery.Selection) bool {
-		if strings.Contains(span.Text(), label) {
-			val = strings.TrimSpace(span.Find("b").First().Text())
-
-			return false
-		}
-
-		return true
-	})
-
-	return val
-}
-
-// rowText returns the value cell of the first <tr> whose first <td> contains label.
-func rowText(doc *goquery.Document, label string) string {
-	return rowValueIn(doc.Find("tr"), label)
-}
-
-// rowAmount is rowText parsed as a minor-unit amount.
-func rowAmount(doc *goquery.Document, label string) int64 {
-	v, _ := parseAmount(rowText(doc, label))
-
-	return v
-}
-
-// quoteNormalizer unifies the apostrophe variants receipts mix into labels
-// (straight ', backtick `, curly ’/‘) — e.g. "Jami to`lov:" vs "Jami to'lov".
-var quoteNormalizer = strings.NewReplacer("`", "'", "’", "'", "‘", "'")
-
-// rowValueIn finds, among the given rows, the first <tr> whose first cell *starts
-// with* label and returns the trailing value (last <td>, or the remainder of a
-// single-cell row). Prefix (not substring) matching is deliberate: real receipts
-// wrap the whole ticket in an outer <tr><td>…</td></tr>, whose concatenated text
-// contains every label — a substring match would wrongly hit that wrapper.
-func rowValueIn(rows *goquery.Selection, label string) string {
-	label = quoteNormalizer.Replace(label)
-
-	var val string
-	rows.EachWithBreak(func(_ int, tr *goquery.Selection) bool {
-		tds := tr.Find("td")
-		if tds.Length() == 0 {
-			return true
-		}
-		first := strings.TrimSpace(tds.First().Text())
-		if !strings.HasPrefix(quoteNormalizer.Replace(first), label) {
-			return true
-		}
-		if tds.Length() >= 2 {
-			val = strings.TrimSpace(tds.Last().Text())
-		} else {
-			val = strings.TrimSpace(quoteNormalizer.Replace(first)[len(label):])
-		}
-
-		return false
-	})
-
-	return val
-}
-
-// nodeTextBefore returns the nearest non-empty text node preceding sel.
-func nodeTextBefore(sel *goquery.Selection) string {
-	for node := sel.Nodes[0].PrevSibling; node != nil; node = node.PrevSibling {
-		if node.Type == html.TextNode {
-			if t := strings.TrimSpace(node.Data); t != "" {
-				return t
-			}
-		}
-	}
-
-	return ""
-}
-
-func isDigits(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-
-	return true
 }
 
 // strPtr trims s and returns a pointer, or nil when empty.

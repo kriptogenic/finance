@@ -8,23 +8,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseAmount(t *testing.T) {
+func TestParseMinor(t *testing.T) {
 	cases := map[string]int64{
-		"16,480.00": 1648000,
-		"0.00":      0,
-		"8,240.00":  824000,
-		"880.00":    88000,
-		"":          0,
-		"  12.50 ":  1250,
+		"5990":   599000,
+		"5990.0": 599000,
+		"641.79": 64179,
+		"641.7":  64170,
+		"0":      0,
+		"0.0":    0,
+		"":       0,
+		" 12.5 ": 1250,
+		"-100":   -10000,
 	}
 	for in, want := range cases {
-		got, err := parseAmount(in)
-		require.NoError(t, err, in)
-		assert.Equal(t, want, got, in)
+		assert.Equal(t, want, parseMinor(in), in)
 	}
-
-	_, err := parseAmount("abc")
-	assert.Error(t, err)
 }
 
 func TestParseQRParams(t *testing.T) {
@@ -42,101 +40,89 @@ func TestParseQRParams(t *testing.T) {
 	assert.Equal(t, 13, at.Hour())
 }
 
-func TestParseHTML(t *testing.T) {
-	raw, err := os.ReadFile("testdata/receipt.html")
+func TestPaymentParamsFromQR(t *testing.T) {
+	p, ok := paymentParamsFromQR(
+		"https://ofd.soliq.uz/?t=VG343420034337&r=34698&c=20260629165127&s=181435540172",
+	)
+	require.True(t, ok)
+	assert.Equal(t, "VG343420034337", p.TerminalID)
+	assert.Equal(t, "34698", p.PaymentNo)
+	assert.Equal(t, "20260629165127", p.PaymentDate)
+	assert.Equal(t, "181435540172", p.FiscalSign)
+
+	_, ok = paymentParamsFromQR("https://ofd.soliq.uz/?t=VG343420034337&r=34698")
+	assert.False(t, ok)
+}
+
+// TestPaymentSignature pins the HMAC scheme against a known request/signature
+// captured from the live ofd.soliq.uz web client.
+func TestPaymentSignature(t *testing.T) {
+	got := paymentSignature("VG343420034337", "34698", "1782737660")
+	assert.Equal(t, "520e6445ec4127fedc825eb8ba0fe5c3bab6d747778a68e716b2c9c898daacd7", got)
+}
+
+func TestParseJSON(t *testing.T) {
+	raw, err := os.ReadFile("testdata/payment.json")
 	require.NoError(t, err)
 
-	r, err := ParseHTML(string(raw))
+	r, err := ParseJSON(raw)
 	require.NoError(t, err)
 
 	require.NotNil(t, r.ReceiptType)
 	assert.Equal(t, "Savdo cheki/Sotuv", *r.ReceiptType)
 	require.NotNil(t, r.MerchantName)
-	assert.Equal(t, "OOO MAGAZIN", *r.MerchantName)
-	require.NotNil(t, r.MerchantTIN)
-	assert.Equal(t, "305123456", *r.MerchantTIN)
-	require.NotNil(t, r.MerchantAddress)
-	assert.Equal(t, "Toshkent sh., Chilonzor 12", *r.MerchantAddress)
-
-	require.NotNil(t, r.ReceiptSeq)
-	assert.Equal(t, 4271, *r.ReceiptSeq)
-	require.NotNil(t, r.DeviceName)
-	assert.Equal(t, "NKM-X", *r.DeviceName)
-	require.NotNil(t, r.SerialNumber)
-	assert.Equal(t, "SN9988", *r.SerialNumber)
-
-	require.NotNil(t, r.ReceivedAt)
-	assert.Equal(t, 2024, r.ReceivedAt.Year())
-
-	assert.Equal(t, int64(0), r.PaidCash.Minor())
-	assert.Equal(t, int64(1648000), r.PaidCard.Minor())
-	require.NotNil(t, r.CardType)
-	assert.Equal(t, "Shaxsiy", *r.CardType)
-	assert.Equal(t, int64(1648000), r.TotalAmount.Minor())
-	assert.Equal(t, int64(162800), r.TotalVAT.Minor())
-
-	require.NotNil(t, r.MerchantLat)
-	assert.Equal(t, "41.311081", *r.MerchantLat)
-	require.NotNil(t, r.MerchantLng)
-	assert.Equal(t, "69.240562", *r.MerchantLng)
-
-	require.Len(t, r.Items, 2)
-
-	non := r.Items[0]
-	assert.Equal(t, "Non", non.Name)
-	assert.Equal(t, "2", non.Quantity)
-	assert.Equal(t, int64(824000), non.Price.Minor())
-	assert.Equal(t, int64(88000), non.VATAmount.Minor())
-	assert.Equal(t, 12, non.VATRate)
-	require.NotNil(t, non.Barcode)
-	assert.Equal(t, "4780000001", *non.Barcode)
-	require.NotNil(t, non.IKPUCode)
-	assert.Equal(t, "01234567", *non.IKPUCode)
-	require.NotNil(t, non.IKPUName)
-	assert.Equal(t, "Non mahsuloti", *non.IKPUName)
-	require.NotNil(t, non.Unit)
-	assert.Equal(t, "dona", *non.Unit)
-	assert.Nil(t, non.MarkingCode)
-
-	sut := r.Items[1]
-	assert.Equal(t, "Sut", sut.Name)
-	assert.Equal(t, int64(74800), sut.VATAmount.Minor())
-	assert.Equal(t, 10, sut.VATRate)
-	require.NotNil(t, sut.IKPUCode)
-	assert.Equal(t, "07654321", *sut.IKPUCode)
-}
-
-// TestParseHTMLReal guards against the totals/card-type regression: a real
-// ofd.soliq.uz receipt wraps the whole ticket in an outer table row and uses a
-// backtick in "Jami to`lov:". Earlier substring matching read the document's
-// last cell (the VAT total) into paid_cash/paid_card/card_type.
-func TestParseHTMLReal(t *testing.T) {
-	raw, err := os.ReadFile("testdata/receipt-2.html")
-	require.NoError(t, err)
-
-	r, err := ParseHTML(string(raw))
-	require.NoError(t, err)
-
-	require.NotNil(t, r.MerchantName)
 	assert.Contains(t, *r.MerchantName, "ANGLESEY FOOD")
 	require.NotNil(t, r.MerchantTIN)
 	assert.Equal(t, "202099756", *r.MerchantTIN)
+	require.NotNil(t, r.MerchantAddress)
+	assert.Contains(t, *r.MerchantAddress, "Olmazor")
 
-	// totals: the bug put 1,968.23 (VAT) into cash/card/card_type and 0 into total
-	assert.Equal(t, int64(0), r.PaidCash.Minor())
-	assert.Equal(t, int64(1837000), r.PaidCard.Minor())    // 18,370.00
-	assert.Equal(t, int64(1837000), r.TotalAmount.Minor()) // 18,370.00
-	assert.Equal(t, int64(196823), r.TotalVAT.Minor())     // 1,968.23
+	require.NotNil(t, r.DeviceName)
+	assert.Equal(t, "POS2k", *r.DeviceName)
+	require.NotNil(t, r.SerialNumber)
+	assert.Equal(t, "AFK-20251010-000337", *r.SerialNumber)
 	require.NotNil(t, r.CardType)
 	assert.Equal(t, "Shaxsiy", *r.CardType)
+	require.NotNil(t, r.ReceiptSeq)
+	assert.Equal(t, 34698, *r.ReceiptSeq)
 
-	require.Len(t, r.Items, 4)
-	first := r.Items[0]
-	assert.Equal(t, "Logotipli paket Bio poelitilen 4 k gacha", first.Name)
-	assert.Equal(t, "1", first.Quantity)
-	assert.Equal(t, int64(40000), first.Price.Minor())    // 400.00
-	assert.Equal(t, int64(4286), first.VATAmount.Minor()) // 42.86
-	assert.Equal(t, 12, first.VATRate)
-	require.NotNil(t, first.Barcode)
-	assert.Equal(t, "21005602", *first.Barcode)
+	require.NotNil(t, r.ReceivedAt)
+	assert.Equal(t, 2026, r.ReceivedAt.Year())
+	assert.Equal(t, 16, r.ReceivedAt.Hour())
+
+	assert.Equal(t, int64(0), r.PaidCash.Minor())
+	assert.Equal(t, int64(599000), r.PaidCard.Minor())
+	assert.Equal(t, int64(599000), r.TotalAmount.Minor())
+	assert.Equal(t, int64(64179), r.TotalVAT.Minor())
+
+	require.NotNil(t, r.MerchantLat)
+	assert.Equal(t, "41.34714268633668", *r.MerchantLat)
+	require.NotNil(t, r.MerchantLng)
+	assert.Equal(t, "69.25738852794223", *r.MerchantLng)
+
+	require.Len(t, r.Items, 1)
+	it := r.Items[0]
+	assert.Equal(t, "Ichimlik Coca Cola Zero t/b, 250ml", it.Name)
+	assert.Equal(t, "1", it.Quantity)
+	assert.Equal(t, int64(599000), it.Price.Minor())
+	assert.Equal(t, int64(64179), it.VATAmount.Minor())
+	assert.Equal(t, 12, it.VATRate)
+	assert.Equal(t, int64(0), it.Discount.Minor())
+	require.NotNil(t, it.Barcode)
+	assert.Equal(t, "4780069000666", *it.Barcode)
+	require.NotNil(t, it.IKPUCode)
+	assert.Equal(t, "02202002001010003", *it.IKPUCode)
+	require.NotNil(t, it.IKPUName)
+	assert.Contains(t, *it.IKPUName, "COCA-COLA")
+	require.NotNil(t, it.Unit)
+	assert.Contains(t, *it.Unit, "дона")
+	require.NotNil(t, it.MarkingCode)
+	assert.Equal(t, "01047800690006662172AZ!+K8\"WA+,", *it.MarkingCode)
+	assert.Nil(t, it.ConsignorTIN) // comitentTin 0 -> nil
+}
+
+func TestParseJSONError(t *testing.T) {
+	_, err := ParseJSON([]byte(`{"data":null,"message":"Ma'lumot topilmadi","success":false}`))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Ma'lumot topilmadi")
 }

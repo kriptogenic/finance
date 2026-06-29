@@ -105,7 +105,7 @@ func TestReceiptSetTransactionConflict(t *testing.T) {
 	assert.Equal(t, exp.ID, *got.TransactionID)
 }
 
-func TestReceiptRawHTML(t *testing.T) {
+func TestReceiptRawPayload(t *testing.T) {
 	reset(t)
 	ctx := context.Background()
 	repo := receiptRepo()
@@ -113,16 +113,16 @@ func TestReceiptRawHTML(t *testing.T) {
 	rec := mustReceipt(t)
 
 	// nothing stored yet
-	html, err := repo.GetRawHTML(ctx, rec.ID)
+	payload, err := repo.GetRawPayload(ctx, rec.ID)
 	require.NoError(t, err)
-	assert.Empty(t, html)
+	assert.Empty(t, payload)
 
-	require.NoError(t, repo.SetRawHTML(ctx, rec.ID, "<html>hi</html>"))
-	html, err = repo.GetRawHTML(ctx, rec.ID)
+	require.NoError(t, repo.SetRawPayload(ctx, rec.ID, `{"ok":true}`))
+	payload, err = repo.GetRawPayload(ctx, rec.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "<html>hi</html>", html)
+	assert.Equal(t, `{"ok":true}`, payload)
 
-	_, err = repo.GetRawHTML(ctx, uuid.New())
+	_, err = repo.GetRawPayload(ctx, uuid.New())
 	assert.ErrorIs(t, err, receiptrepository.ErrNotFound)
 }
 

@@ -27,8 +27,8 @@ type Repository interface {
 	SetStatus(ctx context.Context, id uuid.UUID, status entities.ReceiptStatus, errMsg *string) error
 	// SetPhotoKey records the stored photo's object key.
 	SetPhotoKey(ctx context.Context, id uuid.UUID, key string) error
-	// SetRawHTML stores the scraped HTML and flips status to html_received.
-	SetRawHTML(ctx context.Context, id uuid.UUID, html string) error
+	// SetRawPayload stores the fetched payload and flips status to html_received.
+	SetRawPayload(ctx context.Context, id uuid.UUID, payload string) error
 	// SaveParsed writes all parsed header fields + items and marks success.
 	SaveParsed(ctx context.Context, r *entities.Receipt) error
 	// SetTransaction links (txID non-nil) or unlinks (txID nil) the receipt's
@@ -38,7 +38,7 @@ type Repository interface {
 	// matching amount within [from, to]; nil when none or ambiguous.
 	FindAutoLinkCandidate(ctx context.Context, amount int64, from, to time.Time) (*uuid.UUID, error)
 	Get(ctx context.Context, id uuid.UUID) (*entities.Receipt, error)
-	GetRawHTML(ctx context.Context, id uuid.UUID) (string, error)
+	GetRawPayload(ctx context.Context, id uuid.UUID) (string, error)
 	List(ctx context.Context, page, limit int) ([]entities.Receipt, error)
 	// Delete removes the receipt (items cascade). Returns ErrNotFound if missing.
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -89,12 +89,12 @@ func (r repository) SetPhotoKey(ctx context.Context, id uuid.UUID, key string) e
 	return nil
 }
 
-func (r repository) SetRawHTML(ctx context.Context, id uuid.UUID, html string) error {
+func (r repository) SetRawPayload(ctx context.Context, id uuid.UUID, payload string) error {
 	if _, err := r.db.Pool.Exec(ctx,
-		`UPDATE receipts SET raw_html = $2, status = $3 WHERE id = $1`,
-		id, html, entities.ReceiptHTMLReceived,
+		`UPDATE receipts SET raw_payload = $2, status = $3 WHERE id = $1`,
+		id, payload, entities.ReceiptHTMLReceived,
 	); err != nil {
-		return fmt.Errorf("set receipt html: %w", err)
+		return fmt.Errorf("set receipt payload: %w", err)
 	}
 
 	return nil
@@ -151,8 +151,8 @@ func (r repository) SaveParsed(ctx context.Context, rec *entities.Receipt) (err 
 	return nil
 }
 
-// raw_html is omitted (fetched separately via GetRawHTML); reads scan into the
-// Receipt header with the lax mapper, leaving RawHTML and Items unset.
+// raw_payload is omitted (fetched separately via GetRawPayload); reads scan into
+// the Receipt header with the lax mapper, leaving RawPayload and Items unset.
 const headerCols = `
 	id, qr_url, status, error, terminal_id, receipt_seq, fiscal_sign, received_at,
 	receipt_type, merchant_name, merchant_tin, merchant_address, device_name, serial_number,
@@ -221,20 +221,20 @@ func (r repository) Get(ctx context.Context, id uuid.UUID) (*entities.Receipt, e
 	return &rec, nil
 }
 
-func (r repository) GetRawHTML(ctx context.Context, id uuid.UUID) (string, error) {
-	var html *string
-	err := r.db.Pool.QueryRow(ctx, `SELECT raw_html FROM receipts WHERE id = $1`, id).Scan(&html)
+func (r repository) GetRawPayload(ctx context.Context, id uuid.UUID) (string, error) {
+	var payload *string
+	err := r.db.Pool.QueryRow(ctx, `SELECT raw_payload FROM receipts WHERE id = $1`, id).Scan(&payload)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrNotFound
 	}
 	if err != nil {
-		return "", fmt.Errorf("get receipt html: %w", err)
+		return "", fmt.Errorf("get receipt payload: %w", err)
 	}
-	if html == nil {
+	if payload == nil {
 		return "", nil
 	}
 
-	return *html, nil
+	return *payload, nil
 }
 
 func (r repository) items(ctx context.Context, id uuid.UUID) ([]entities.ReceiptItem, error) {

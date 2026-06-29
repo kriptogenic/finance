@@ -14,7 +14,8 @@ import (
 
 const defaultTimeout = 30 * time.Second
 
-// Client calls the UZ proxy's /fetch endpoint.
+// Client forwards HTTP requests through the UZ proxy, which performs them from
+// an Uzbek IP (soliq.uz is geo-restricted) and returns the raw response.
 type Client struct {
 	url     string
 	secret  string
@@ -23,7 +24,7 @@ type Client struct {
 }
 
 // New builds a Client. url is the full proxy endpoint. An empty url or secret
-// leaves it disabled (Enabled reports false, Fetch errors).
+// leaves it disabled (Enabled reports false, Forward errors).
 func New(url, secret string, opts ...Option) *Client {
 	c := &Client{
 		url:     strings.TrimRight(url, "/"),
@@ -41,41 +42,56 @@ func New(url, secret string, opts ...Option) *Client {
 // Enabled reports whether the proxy is configured.
 func (c *Client) Enabled() bool { return c.url != "" && c.secret != "" }
 
-// Fetch posts qrURL to the proxy and returns the receipt HTML it scraped.
-func (c *Client) Fetch(ctx context.Context, qrURL string) (string, error) {
+// Request is an HTTP request for the proxy to perform on our behalf.
+type Request struct {
+	Method  string            `json:"method"`
+	URL     string            `json:"url"`
+	Headers map[string]string `json:"headers,omitempty"`
+	Body    string            `json:"body,omitempty"`
+}
+
+// Response is the proxy's relay of the upstream response.
+type Response struct {
+	Status int    `json:"status"`
+	Body   string `json:"body"`
+}
+
+// Forward asks the proxy to perform fr and returns the upstream response.
+func (c *Client) Forward(ctx context.Context, fr Request) (Response, error) {
 	if !c.Enabled() {
-		return "", errors.New("proxy: not configured")
+		return Response{}, errors.New("proxy: not configured")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	reqBody, err := json.Marshal(map[string]string{"url": qrURL})
+	reqBody, err := json.Marshal(fr)
 	if err != nil {
-		return "", fmt.Errorf("proxy marshal: %w", err)
+		return Response{}, fmt.Errorf("proxy marshal: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(reqBody))
 	if err != nil {
-		return "", fmt.Errorf("proxy request: %w", err)
+		return Response{}, fmt.Errorf("proxy request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.secret)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("proxy fetch: %w", err)
+		return Response{}, fmt.Errorf("proxy forward: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("proxy read: %w", err)
+		return Response{}, fmt.Errorf("proxy read: %w", err)
 	}
 
 	var payload struct {
-		HTML  string `json:"html"`
-		Error string `json:"error"`
+		Status int    `json:"status"`
+		Body   string `json:"body"`
+		Error  string `json:"error"`
 	}
 	// Body is JSON on both success and error; tolerate a non-JSON body by
 	// falling back to the raw text in the error path.
@@ -87,12 +103,8 @@ func (c *Client) Fetch(ctx context.Context, qrURL string) (string, error) {
 			msg = strings.TrimSpace(string(body))
 		}
 
-		return "", fmt.Errorf("proxy fetch: status %d: %s", resp.StatusCode, msg)
+		return Response{}, fmt.Errorf("proxy forward: status %d: %s", resp.StatusCode, msg)
 	}
 
-	if payload.HTML == "" {
-		return "", errors.New("proxy fetch: empty html")
-	}
-
-	return payload.HTML, nil
+	return Response{Status: payload.Status, Body: payload.Body}, nil
 }

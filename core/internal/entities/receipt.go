@@ -53,10 +53,10 @@ type Receipt struct {
 	TotalAmount money.Money `db:"total_amount"`
 	TotalVAT    money.Money `db:"total_vat"`
 
-	PhotoKey  *string    `db:"photo_key"`
-	RawHTML   *string    `db:"raw_html"` // not in the header read; fetched separately
-	ScrapedAt *time.Time `db:"scraped_at"`
-	CreatedAt time.Time  `db:"created_at"`
+	PhotoKey   *string    `db:"photo_key"`
+	RawPayload *string    `db:"raw_payload"` // not in the header read; fetched separately
+	ScrapedAt  *time.Time `db:"scraped_at"`
+	CreatedAt  time.Time  `db:"created_at"`
 
 	// linked expense transaction, if any (1:1)
 	TransactionID *uuid.UUID `db:"transaction_id"`

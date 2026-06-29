@@ -87,24 +87,25 @@ func (s *Service) Reparse(ctx context.Context, id uuid.UUID) (*entities.Receipt,
 		return nil, err
 	}
 
-	rawHTML, err := s.repo.GetRawHTML(ctx, id)
+	raw, err := s.repo.GetRawPayload(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if rawHTML == "" {
+	if raw == "" {
 		if !s.proxy.Enabled() {
-			return nil, ValidationError{"no stored receipt HTML to reparse"}
+			return nil, ValidationError{"no stored receipt data to reparse"}
 		}
-		rawHTML, err = s.proxy.Fetch(ctx, rec.QRURL)
+		data, err := s.fetchPayment(ctx, rec.QRURL)
 		if err != nil {
 			return nil, ValidationError{"refetch receipt: " + err.Error()}
 		}
-		if err = s.repo.SetRawHTML(ctx, id, rawHTML); err != nil {
-			s.logger.Error("store receipt html", zap.Error(err))
+		raw = string(data)
+		if err = s.repo.SetRawPayload(ctx, id, raw); err != nil {
+			s.logger.Error("store receipt payload", zap.Error(err))
 		}
 	}
 
-	parsed, err := ParseHTML(rawHTML)
+	parsed, err := ParseJSON([]byte(raw))
 	if err != nil {
 		return nil, ValidationError{"parse receipt: " + err.Error()}
 	}
@@ -144,17 +145,17 @@ func (s *Service) process(ctx context.Context, id uuid.UUID, qrURL string, photo
 		s.logger.Error("set receipt photo key", zap.Error(err))
 	}
 
-	html, err := s.proxy.Fetch(ctx, qrURL)
+	data, err := s.fetchPayment(ctx, qrURL)
 	if err != nil {
 		s.fail(id, "fetch receipt", err)
 
 		return
 	}
-	if err = s.repo.SetRawHTML(ctx, id, html); err != nil {
-		s.logger.Error("store receipt html", zap.Error(err))
+	if err = s.repo.SetRawPayload(ctx, id, string(data)); err != nil {
+		s.logger.Error("store receipt payload", zap.Error(err))
 	}
 
-	parsed, err := ParseHTML(html)
+	parsed, err := ParseJSON(data)
 	if err != nil {
 		s.fail(id, "parse receipt", err)
 

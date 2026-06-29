@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"errors"
 	"finance/pkg/proxy"
 	"net/http"
+	"syscall"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
@@ -132,10 +134,21 @@ func Logger(loggerFactory func(cfg *config.Log) *zap.Logger) fx.Option {
 		}),
 		fx.Invoke(func(logger *zap.Logger, lc fx.Lifecycle) {
 			lc.Append(fx.Hook{
-				OnStop: func(context.Context) error { return logger.Sync() },
+				OnStop: func(context.Context) error {
+					if err := logger.Sync(); err != nil && !isSyncStderrErr(err) {
+						return err
+					}
+					return nil
+				},
 			})
 		}),
 	)
+}
+
+// isSyncStderrErr reports whether err is the benign error returned when syncing
+// stdout/stderr (a pipe or character device under Docker/k8s).
+func isSyncStderrErr(err error) bool {
+	return errors.Is(err, syscall.EINVAL) || errors.Is(err, syscall.ENOTTY)
 }
 
 func dbLifecycle(lc fx.Lifecycle, db *database.DB) {

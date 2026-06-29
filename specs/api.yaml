@@ -941,6 +941,14 @@ paths:
                 $ref: '#/components/schemas/Receipt'
         404:
           $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteReceipt
+      summary: Delete a receipt and its stored photo
+      responses:
+        204:
+          description: Deleted
+        404:
+          $ref: '#/components/responses/NotFound'
 
   /receipts/{id}/transaction:
     parameters:

@@ -116,6 +116,23 @@ func (s *Service) Reparse(ctx context.Context, id uuid.UUID) (*entities.Receipt,
 	return s.repo.Get(ctx, id)
 }
 
+// Delete removes the receipt and its stored photo. Returns ErrNotFound when the
+// receipt does not exist. A failed photo cleanup is logged, never fatal.
+func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
+	rec, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if rec.PhotoKey != nil && *rec.PhotoKey != "" && s.storage.Enabled() {
+		if err := s.storage.Delete(ctx, *rec.PhotoKey); err != nil {
+			s.logger.Warn("delete receipt photo", zap.String("id", id.String()), zap.Error(err))
+		}
+	}
+
+	return s.repo.Delete(ctx, id)
+}
+
 func (s *Service) process(ctx context.Context, id uuid.UUID, qrURL string, photo []byte, contentType string) {
 	key := photoKey(id, time.Now().UTC())
 	if err := s.storage.Upload(ctx, key, contentType, bytes.NewReader(photo)); err != nil {

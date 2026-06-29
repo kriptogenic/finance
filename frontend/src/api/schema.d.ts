@@ -570,7 +570,8 @@ export interface paths {
         get: operations["getReceipt"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete a receipt and its stored photo */
+        delete: operations["deleteReceipt"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2623,6 +2624,27 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Receipt"];
                 };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ReceiptId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             404: components["responses"]["NotFound"];
         };

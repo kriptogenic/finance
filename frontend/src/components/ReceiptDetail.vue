@@ -119,6 +119,20 @@ async function reparse() {
   }
 }
 
+async function del() {
+  if (!(await confirm({ title: 'Delete receipt?', message: 'This receipt and its stored photo will be permanently removed.', confirmText: 'Delete', tone: 'danger' }))) return
+  busy.value = true
+  try {
+    await receiptsApi.delete(props.id)
+    emit('changed')
+    emit('close')
+  } catch (e) {
+    alert(errMessage(e))
+  } finally {
+    busy.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -142,6 +156,14 @@ onMounted(load)
             @click="reparse"
           >
             <i class="ti" :class="busy ? 'ti-loader-2 animate-spin' : 'ti-refresh'" />
+          </button>
+          <button
+            class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+            :disabled="busy"
+            title="Delete receipt"
+            @click="del"
+          >
+            <i class="ti ti-trash" />
           </button>
           <span
             class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1"

@@ -101,3 +101,23 @@ func (c *Client) Upload(ctx context.Context, key, contentType string, body io.Re
 
 	return nil
 }
+
+// Delete removes the object at key. Deleting a missing object is not an error.
+func (c *Client) Delete(ctx context.Context, key string) error {
+	if c.s3 == nil {
+		return errors.New("s3: storage not configured")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	_, err := c.s3.DeleteObject(ctx, &awss3.DeleteObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf("s3 delete: %w", err)
+	}
+
+	return nil
+}

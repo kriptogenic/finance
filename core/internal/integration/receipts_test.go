@@ -126,6 +126,22 @@ func TestReceiptRawHTML(t *testing.T) {
 	assert.ErrorIs(t, err, receiptrepository.ErrNotFound)
 }
 
+func TestReceiptDelete(t *testing.T) {
+	reset(t)
+	ctx := context.Background()
+	repo := receiptRepo()
+
+	rec := mustReceipt(t)
+
+	// deleting removes the receipt (and its items, via ON DELETE CASCADE)
+	require.NoError(t, repo.Delete(ctx, rec.ID))
+	_, err := repo.Get(ctx, rec.ID)
+	assert.ErrorIs(t, err, receiptrepository.ErrNotFound)
+
+	// deleting a missing receipt reports not found
+	assert.ErrorIs(t, repo.Delete(ctx, uuid.New()), receiptrepository.ErrNotFound)
+}
+
 // TestTransactionCarriesReceiptID covers the reverse lookup: once a receipt is
 // linked, the transaction read exposes the receipt id (correlated subquery).
 func TestTransactionCarriesReceiptID(t *testing.T) {

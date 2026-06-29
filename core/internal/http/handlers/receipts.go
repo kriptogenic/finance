@@ -91,6 +91,19 @@ func (s Server) GetReceipt(ctx context.Context, request api.GetReceiptRequestObj
 	return api.GetReceipt200JSONResponse(toAPIReceipt(*rec)), nil
 }
 
+func (s Server) DeleteReceipt(ctx context.Context, request api.DeleteReceiptRequestObject) (api.DeleteReceiptResponseObject, error) {
+	if err := s.receiptSvc.Delete(ctx, request.Id); err != nil {
+		if errors.Is(err, receiptrepository.ErrNotFound) {
+			return api.DeleteReceipt404JSONResponse{NotFoundJSONResponse: notFound("receipt not found")}, nil
+		}
+		s.logger.Error("delete receipt", zap.Error(err))
+
+		return nil, err
+	}
+
+	return api.DeleteReceipt204Response{}, nil
+}
+
 func (s Server) ListReceipts(ctx context.Context, request api.ListReceiptsRequestObject) (api.ListReceiptsResponseObject, error) {
 	page, limit := 1, 20
 	if request.Params.Page != nil {

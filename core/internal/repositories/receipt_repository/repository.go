@@ -40,6 +40,8 @@ type Repository interface {
 	Get(ctx context.Context, id uuid.UUID) (*entities.Receipt, error)
 	GetRawHTML(ctx context.Context, id uuid.UUID) (string, error)
 	List(ctx context.Context, page, limit int) ([]entities.Receipt, error)
+	// Delete removes the receipt (items cascade). Returns ErrNotFound if missing.
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type repository struct {
@@ -252,6 +254,18 @@ func (r repository) items(ctx context.Context, id uuid.UUID) ([]entities.Receipt
 	}
 
 	return items, nil
+}
+
+func (r repository) Delete(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.db.Pool.Exec(ctx, `DELETE FROM receipts WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete receipt: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
 
 func (r repository) List(ctx context.Context, page, limit int) ([]entities.Receipt, error) {

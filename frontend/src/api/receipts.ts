@@ -38,6 +38,9 @@ export const receiptsApi = {
   reparse: (id: string): Promise<Receipt> =>
     call(api.POST('/receipts/{id}/reparse', { params: { path: { id } } })),
 
+  delete: (id: string): Promise<void> =>
+    call(api.DELETE('/receipts/{id}', { params: { path: { id } } })),
+
   linkTransaction: (id: string, transaction_id: string): Promise<Receipt> =>
     call(api.PUT('/receipts/{id}/transaction', { params: { path: { id } }, body: { transaction_id } })),
 

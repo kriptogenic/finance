@@ -25,6 +25,23 @@ class IngestClient(
     fun deliverBalance(request: BalanceSnapshotRequest): DeliveryOutcome =
         post("/ingest/balances", json.encodeToString(BalanceSnapshotRequest.serializer(), request))
 
+    /** GET <base>/health to test reachability. Uses the given base, no auth. */
+    fun checkHealth(rawBaseUrl: String): String {
+        val base = rawBaseUrl.trim().trimEnd('/')
+        if (base.isEmpty()) return "Set a base URL first"
+        val request = Request.Builder().url("$base/health").get().build()
+        return try {
+            http.newCall(request).execute().use { resp ->
+                if (resp.isSuccessful) "OK ${resp.code}: ${resp.body?.string()?.take(100).orEmpty()}"
+                else "HTTP ${resp.code}"
+            }
+        } catch (e: IllegalArgumentException) {
+            "Invalid URL: ${e.message}"
+        } catch (e: IOException) {
+            "Failed: ${e.message}"
+        }
+    }
+
     private fun post(path: String, payload: String): DeliveryOutcome {
         val base = baseUrlProvider()
         val token = tokenProvider()

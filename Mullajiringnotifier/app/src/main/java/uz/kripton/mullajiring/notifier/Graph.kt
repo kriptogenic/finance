@@ -23,6 +23,15 @@ object Graph {
         repo ?: build(context.applicationContext).also { repo = it }
     }
 
+    /** Stateless client for the Settings "Test connection" probe. */
+    fun ingestClient(context: Context): IngestClient {
+        val config = config(context)
+        return IngestClient(
+            baseUrlProvider = { config.ingestBaseUrl },
+            tokenProvider = { config.ingestToken },
+        )
+    }
+
     private fun build(context: Context): NotifierRepository {
         val config = config(context)
         val db = NotifierDatabase.get(context)

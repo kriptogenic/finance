@@ -172,6 +172,10 @@ class NotifierRepository(
 
     suspend fun dismissParseFailure(externalId: String) = parseFailures.dismiss(externalId)
 
+    /** Reset an item to PENDING/due-now so the next drain re-delivers it. Server dedupes by key. */
+    suspend fun resend(externalId: String) =
+        outbox.update(externalId, OutboxStatus.PENDING, 0, now(), null)
+
     private fun OutboxEntity.toRequest() = IngestTransactionRequest(
         externalId = externalId,
         type = type,

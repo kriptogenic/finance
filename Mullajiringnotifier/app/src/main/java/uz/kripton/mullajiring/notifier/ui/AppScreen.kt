@@ -118,7 +118,7 @@ private fun StatusScreen(vm: NotifierViewModel) {
 
         Text("Recent transactions", style = MaterialTheme.typography.titleMedium)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(recent) { OutboxRow(it) }
+            items(recent) { OutboxRow(it, onResend = { vm.resend(it.externalId) }) }
         }
     }
 }
@@ -134,7 +134,7 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun OutboxRow(item: OutboxEntity) {
+private fun OutboxRow(item: OutboxEntity, onResend: () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -148,6 +148,9 @@ private fun OutboxRow(item: OutboxEntity) {
             )
             item.lastError?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onResend) { Text("Resend") }
             }
         }
     }
@@ -186,6 +189,7 @@ private fun SettingsScreen(vm: NotifierViewModel) {
     var tokenVisible by rememberSaveable { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
     val smsGranted = rememberSmsPermissionGranted()
+    val healthResult by vm.healthResult.collectAsStateWithLifecycle()
 
     Column(
         Modifier.fillMaxSize().padding(16.dp),
@@ -223,12 +227,23 @@ private fun SettingsScreen(vm: NotifierViewModel) {
                 }
             },
         )
-        Button(onClick = {
-            vm.saveSettings(baseUrl, token, senderName)
-            tokenVisible = false // hide the token again after saving
-            saved = true
-        }) { Text("Save") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = {
+                vm.saveSettings(baseUrl, token, senderName)
+                tokenVisible = false // hide the token again after saving
+                saved = true
+            }) { Text("Save") }
+            TextButton(onClick = { vm.testConnection(baseUrl) }) { Text("Test connection") }
+        }
         if (saved) Text("Saved.", color = MaterialTheme.colorScheme.primary)
+        healthResult?.let {
+            val ok = it.startsWith("OK")
+            Text(
+                "Health: $it",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            )
+        }
     }
 }
 

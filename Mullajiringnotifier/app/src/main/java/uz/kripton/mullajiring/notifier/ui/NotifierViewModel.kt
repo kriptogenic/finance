@@ -4,9 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import uz.kripton.mullajiring.notifier.Graph
 import uz.kripton.mullajiring.notifier.data.OutboxEntity
 import uz.kripton.mullajiring.notifier.data.ParseFailureEntity
@@ -16,6 +19,10 @@ class NotifierViewModel(app: Application) : AndroidViewModel(app) {
 
     private val config = Graph.config(app)
     private val repo = Graph.repository(app)
+    private val ingest = Graph.ingestClient(app)
+
+    private val _healthResult = MutableStateFlow<String?>(null)
+    val healthResult = _healthResult.asStateFlow()
 
     val pendingCount = repo.pendingCount.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     val failedCount = repo.failedCount.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
@@ -46,5 +53,16 @@ class NotifierViewModel(app: Application) : AndroidViewModel(app) {
         repo.dismissParseFailure(externalId)
     }
 
+    fun resend(externalId: String) = viewModelScope.launch(Dispatchers.IO) {
+        repo.resend(externalId)
+        DeliveryWorker.schedule(getApplication())
+    }
+
     fun retryNow() = DeliveryWorker.schedule(getApplication())
+
+    /** Probe <baseUrl>/health and publish the result for the Settings screen. */
+    fun testConnection(baseUrl: String) = viewModelScope.launch {
+        _healthResult.value = "Testing…"
+        _healthResult.value = withContext(Dispatchers.IO) { ingest.checkHealth(baseUrl) }
+    }
 }

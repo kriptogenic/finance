@@ -10,9 +10,12 @@ import (
 // ReconRow pairs an account with the latest balance an external source reported
 // for its card. Delta is meaningful only when CurrencyMatch is true.
 type ReconRow struct {
-	Account       entities.Account
-	Snapshot      entities.BalanceSnapshot
-	Derived       money.Money // account's derived balance, in the account's currency
+	Account  entities.Account
+	Snapshot entities.BalanceSnapshot
+	// Derived is the figure comparable to the bank's reported balance, in the
+	// account's currency. For a credit card the bank reports available credit,
+	// so this is credit_limit − owed; for other accounts it's the plain balance.
+	Derived       money.Money
 	Delta         money.Money // reported − derived (valid when CurrencyMatch)
 	CurrencyMatch bool
 	InSync        bool
@@ -38,6 +41,13 @@ func Reconcile(snaps []entities.BalanceSnapshot, accounts []entities.Account, ba
 		}
 
 		derived := balances[acc.ID]
+		// A credit card's bank balance is available credit (limit − owed), so
+		// convert the derived owed amount to match before comparing.
+		if acc.Type == entities.TypeCreditCard && acc.CreditLimit != nil {
+			if avail, err := acc.CreditLimit.Minus(derived); err == nil {
+				derived = avail
+			}
+		}
 		match := snap.Amount.Code() == acc.Currency
 		row := ReconRow{
 			Account:       acc,

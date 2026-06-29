@@ -62,6 +62,31 @@ func (s *LedgerSuite) TestReconcile_CurrencyMismatch() {
 	require.True(s.T(), rows[0].Delta.IsZeroValue()) // not meaningful, left zero
 }
 
+func creditCard(id uuid.UUID, currency, last4 string, limit int64) entities.Account {
+	a := liability(id, currency, 0)
+	a.CardLast4 = ptr(last4)
+	a.CreditLimit = ptr(money.New(limit, currency))
+	return a
+}
+
+// The bank reports available credit (limit − owed), so reconciliation compares
+// against credit_limit minus the derived owed balance, not the owed amount itself.
+func (s *LedgerSuite) TestReconcile_CreditCardUsesAvailableCredit() {
+	acc := creditCard(uuid.New(), "UZS", "1234", 10_000_00)
+	owed := money.New(3_000_00, "UZS") // derived liability balance = owed
+
+	rows := ledger.Reconcile(
+		[]entities.BalanceSnapshot{snapshot("1234", "UZS", 7_000_00)}, // available = 10,000 − 3,000
+		[]entities.Account{acc},
+		map[uuid.UUID]money.Money{acc.ID: owed},
+	)
+
+	require.Len(s.T(), rows, 1)
+	require.True(s.T(), rows[0].InSync)
+	require.EqualValues(s.T(), 7_000_00, rows[0].Derived.Minor()) // shown as available credit
+	require.EqualValues(s.T(), 0, rows[0].Delta.Minor())
+}
+
 func (s *LedgerSuite) TestReconcile_OnlyMatchedPairs() {
 	withCard := cardAccount(uuid.New(), "UZS", "2953")
 	noCard := asset(uuid.New(), "UZS", 0) // no card_last4 → never a row

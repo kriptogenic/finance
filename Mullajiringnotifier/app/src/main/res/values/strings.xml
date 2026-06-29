@@ -16,6 +16,9 @@
     <string name="alert_recon_title">Possible missed transaction</string>
     <string name="alert_recon_text">Balance gap detected on card ••••%1$s</string>
 
+    <!-- Push notification listener -->
+    <string name="push_listener_label">Bank push reader</string>
+
     <!-- UI -->
     <string name="tab_status">Status</string>
     <string name="tab_failures">Failures</string>

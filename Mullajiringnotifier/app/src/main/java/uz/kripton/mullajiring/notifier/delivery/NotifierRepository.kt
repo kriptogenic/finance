@@ -16,6 +16,8 @@ import uz.kripton.mullajiring.notifier.net.IngestClient
 import uz.kripton.mullajiring.notifier.net.IngestTransactionRequest
 import uz.kripton.mullajiring.notifier.parser.IdempotencyKey
 import uz.kripton.mullajiring.notifier.parser.ParseResult
+import uz.kripton.mullajiring.notifier.parser.ParsedTransaction
+import uz.kripton.mullajiring.notifier.parser.PushParser
 import uz.kripton.mullajiring.notifier.parser.SmsParser
 
 /** Signals raised during processing for the caller (service/UI) to surface as notifications. */
@@ -60,28 +62,50 @@ class NotifierRepository(
             }
 
             is ParseResult.Success -> {
-                val tx = result.transaction
-                outbox.insertIfNew(
-                    OutboxEntity(
-                        externalId = externalId,
-                        type = tx.type.wire,
-                        merchant = tx.merchant,
-                        cardLast4 = tx.cardLast4,
-                        amountMinor = tx.amountMinor,
-                        currency = tx.currency,
-                        balanceMinor = tx.balanceMinor,
-                        balanceCurrency = tx.balanceCurrency,
-                        occurredAtUtc = tx.occurredAtUtc,
-                        status = OutboxStatus.PENDING,
-                        attempts = 0,
-                        nextAttemptAt = now(),
-                        createdAt = now(),
-                    ),
-                )
+                outbox.insertIfNew(newOutbox(externalId, result.transaction))
                 emptyList()
             }
         }
     }
+
+    /**
+     * Push-notification ingest from the bank app. The notification listener already filters by
+     * package, so there is no sender gate here — non-purchase pushes are dropped by the parser.
+     */
+    suspend fun ingestPush(rawText: String, source: String): List<NotifierEvent> {
+        val externalId = IdempotencyKey.of(rawText, source)
+        return when (val result = PushParser.parse(rawText)) {
+            is ParseResult.Ignored -> emptyList()
+
+            is ParseResult.Failed -> {
+                parseFailures.insertIfNew(
+                    ParseFailureEntity(externalId, rawText, source, result.reason, now()),
+                )
+                listOf(NotifierEvent.ParseFailure(1))
+            }
+
+            is ParseResult.Success -> {
+                outbox.insertIfNew(newOutbox(externalId, result.transaction))
+                emptyList()
+            }
+        }
+    }
+
+    private fun newOutbox(externalId: String, tx: ParsedTransaction) = OutboxEntity(
+        externalId = externalId,
+        type = tx.type.wire,
+        merchant = tx.merchant,
+        cardLast4 = tx.cardLast4,
+        amountMinor = tx.amountMinor,
+        currency = tx.currency,
+        balanceMinor = tx.balanceMinor,
+        balanceCurrency = tx.balanceCurrency,
+        occurredAtUtc = tx.occurredAtUtc,
+        status = OutboxStatus.PENDING,
+        attempts = 0,
+        nextAttemptAt = now(),
+        createdAt = now(),
+    )
 
     /** Result of a single drain pass over the outbox. */
     data class DrainResult(

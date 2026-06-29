@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import uz.kripton.mullajiring.notifier.parser.PushParser
 import uz.kripton.mullajiring.notifier.parser.SmsParser
 
 /**
@@ -26,6 +27,11 @@ class AppConfig private constructor(private val prefs: SharedPreferences) {
         get() = prefs.getString(KEY_SENDER, SmsParser.SENDER)?.ifBlank { SmsParser.SENDER } ?: SmsParser.SENDER
         set(value) = prefs.edit().putString(KEY_SENDER, value.trim()).apply()
 
+    /** Bank app package whose notifications we read (case-sensitive). Falls back to the default if blank. */
+    var pushPackage: String
+        get() = prefs.getString(KEY_PUSH_PACKAGE, PushParser.PACKAGE)?.ifBlank { PushParser.PACKAGE } ?: PushParser.PACKAGE
+        set(value) = prefs.edit().putString(KEY_PUSH_PACKAGE, value.trim()).apply()
+
     val isConfigured: Boolean
         get() = ingestBaseUrl.isNotEmpty() && ingestToken.isNotEmpty()
 
@@ -40,6 +46,7 @@ class AppConfig private constructor(private val prefs: SharedPreferences) {
         private const val KEY_BASE_URL = "ingest_base_url"
         private const val KEY_TOKEN = "ingest_token"
         private const val KEY_SENDER = "sender_name"
+        private const val KEY_PUSH_PACKAGE = "push_package"
 
         @Volatile
         private var instance: AppConfig? = null

@@ -37,16 +37,19 @@ class NotifierViewModel(app: Application) : AndroidViewModel(app) {
     var baseUrl: String = config.ingestBaseUrl
     var token: String = config.ingestToken
     var senderName: String = config.senderName
+    var pushPackage: String = config.pushPackage
 
     val isConfigured: Boolean get() = config.isConfigured
 
-    fun saveSettings(baseUrl: String, token: String, senderName: String) {
+    fun saveSettings(baseUrl: String, token: String, senderName: String, pushPackage: String) {
         config.ingestBaseUrl = baseUrl
         config.ingestToken = token
         config.senderName = senderName
+        config.pushPackage = pushPackage
         this.baseUrl = config.ingestBaseUrl
         this.token = config.ingestToken
         this.senderName = config.senderName
+        this.pushPackage = config.pushPackage
     }
 
     fun dismissFailure(externalId: String) = viewModelScope.launch(Dispatchers.IO) {

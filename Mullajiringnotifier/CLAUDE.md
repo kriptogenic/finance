@@ -90,8 +90,11 @@ Do not skip ahead. Complete and test each step before moving to the next:
 
 ## What not to do
 
-- No push notification listener in this version — do not scaffold it
-- No multi-bank support — sender filter is hardcoded to `infinbank` for now
+- Push notifications: a second source is now implemented — a `NotificationListenerService`
+  (`push/PushReceiver`) reads Ipak Yuli mobile (`com.ipakyulibank.mobile`) card-payment pushes
+  via `PushParser` into the same outbox/delivery pipeline. Non-purchase pushes (OTP, login) are
+  dropped silently, same stance as OTP SMS. No other apps.
+- No multi-bank support — SMS sender filter is `infinbank`; push package is `com.ipakyulibank.mobile`
 - No multiple card support — one card in config for now
 - No manual transaction entry UI
 - No analytics, no crash reporting SDKs, no third-party logging

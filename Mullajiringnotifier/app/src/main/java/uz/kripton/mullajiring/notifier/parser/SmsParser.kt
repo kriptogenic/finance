@@ -1,9 +1,5 @@
 package uz.kripton.mullajiring.notifier.parser
 
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-
 /**
  * Pure parser for Infinbank SMS notifications. No Android dependencies — unit-tested on the JVM.
  *
@@ -14,8 +10,6 @@ object SmsParser {
 
     const val SENDER = "infinbank"
 
-    private val TASHKENT: ZoneId = ZoneId.of("Asia/Tashkent")
-    private val SMS_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
 
     //   (NBSP) is interpreted by java.util.regex even inside a raw string.
     // merchant is lazy; the unique datetime anchors the country (the [A-Z]{3} just before it).
@@ -82,10 +76,5 @@ object SmsParser {
         }
     }
 
-    private fun parseTimestamp(datetime: String): String? = try {
-        val local = LocalDateTime.parse(datetime, SMS_TIME)
-        DateTimeFormatter.ISO_INSTANT.format(local.atZone(TASHKENT).toInstant())
-    } catch (_: Exception) {
-        null
-    }
+    private fun parseTimestamp(datetime: String): String? = BankTime.toUtcIso(datetime)
 }

@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Badge
@@ -39,6 +41,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -186,22 +189,32 @@ private fun SettingsScreen(vm: NotifierViewModel) {
     var baseUrl by rememberSaveable { mutableStateOf(vm.baseUrl) }
     var token by rememberSaveable { mutableStateOf(vm.token) }
     var senderName by rememberSaveable { mutableStateOf(vm.senderName) }
+    var pushPackage by rememberSaveable { mutableStateOf(vm.pushPackage) }
     var tokenVisible by rememberSaveable { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
     val smsGranted = rememberSmsPermissionGranted()
+    val pushGranted = rememberNotificationAccessGranted()
     val healthResult by vm.healthResult.collectAsStateWithLifecycle()
 
     Column(
-        Modifier.fillMaxSize().padding(16.dp),
+        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         PermissionStatusCard(smsGranted)
+        NotificationAccessCard(pushGranted)
 
         Text("Ingest configuration", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = senderName,
             onValueChange = { senderName = it; saved = false },
             label = { Text("SMS sender name") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
+        OutlinedTextField(
+            value = pushPackage,
+            onValueChange = { pushPackage = it; saved = false },
+            label = { Text("Bank app package (push)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
@@ -229,7 +242,7 @@ private fun SettingsScreen(vm: NotifierViewModel) {
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
-                vm.saveSettings(baseUrl, token, senderName)
+                vm.saveSettings(baseUrl, token, senderName, pushPackage)
                 tokenVisible = false // hide the token again after saving
                 saved = true
             }) { Text("Save") }
@@ -308,6 +321,53 @@ private fun PermissionStatusCard(granted: Boolean) {
 private fun android.content.Context.openAppSettings() {
     startActivity(
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+    )
+}
+
+/** Whether this app is an enabled notification listener, refreshed when the screen resumes. */
+@Composable
+private fun rememberNotificationAccessGranted(): Boolean {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    fun check() = NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+    var granted by remember { mutableStateOf(check()) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) granted = check()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return granted
+}
+
+@Composable
+private fun NotificationAccessCard(granted: Boolean) {
+    val context = LocalContext.current
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Push reception", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (granted) "Notification access: granted" else "Notification access: not granted",
+                color = if (granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            )
+            if (!granted) {
+                Text(
+                    "Without notification access, bank push notifications can't be read.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            TextButton(onClick = { context.openNotificationAccessSettings() }) {
+                Text("Open notification access")
+            }
+        }
+    }
+}
+
+private fun android.content.Context.openNotificationAccessSettings() {
+    startActivity(
+        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
     )
 }

@@ -195,10 +195,6 @@ func (s *seeder) seedSchedules(ctx context.Context, acc map[string]entities.Acco
 			Amount: uzs(900_000_00), Frequency: entities.FreqMonthly, Interval: 1, StartDate: day(5),
 		},
 		{
-			Name: ptr("Visa Card top-up"), Type: entities.TxTransfer, FromAccountID: accID("Cash"), ToAccountID: accID("Visa Card"),
-			Amount: uzs(300_000_00), Frequency: entities.FreqMonthly, Interval: 1, StartDate: day(10),
-		},
-		{
 			Name: ptr("Birthday present"), Type: entities.TxExpense, FromAccountID: accID("Cash"), CategoryID: catID("Gifts"),
 			Amount: uzs(500_000_00), Frequency: entities.FreqOnce, Interval: 1, StartDate: birthday,
 		},

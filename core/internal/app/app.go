@@ -91,26 +91,28 @@ func newProxy(cfg *config.Proxy) *proxy.Client {
 	return proxy.New(cfg.URL, cfg.Secret)
 }
 
-func httpHandler(server *handlers.Server, spec *openapi3.T, cfg *config.HTTP, ingest *config.Ingest, auth *config.Auth, rl *config.RateLimit) http.Handler {
+func httpHandler(server *handlers.Server, spec *openapi3.T, cfg *config.Config, logger *zap.Logger) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.Recoverer)
 
-	if cfg.CORSOrigin != "" {
+	if cfg.HTTP.CORSOrigin != "" {
 		r.Use(cors.Handler(cors.Options{
-			AllowedOrigins: []string{cfg.CORSOrigin},
+			AllowedOrigins: []string{cfg.HTTP.CORSOrigin},
 			AllowedMethods: []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
 			AllowedHeaders: []string{"Authorization", "Content-Type"},
 		}))
 	}
 
-	r.Use(middlewares.AuthRateLimiter(rl.AuthAttempts, rl.AuthWindow))
+	r.Use(middlewares.AuthRateLimiter(cfg.RateLimit.AuthAttempts, cfg.RateLimit.AuthWindow))
 
-	strictServer := api.NewStrictHandler(server, nil)
+	strictServer := api.NewStrictHandler(server, []api.StrictMiddlewareFunc{
+		middlewares.IngestRequestLogger(logger),
+	})
 
 	return api.HandlerWithOptions(strictServer, api.ChiServerOptions{
 		BaseRouter: r,
 		Middlewares: []api.MiddlewareFunc{
-			middlewares.OpenAPIRequestValidator(spec, auth, ingest),
+			middlewares.OpenAPIRequestValidator(spec, &cfg.Auth, &cfg.Ingest),
 		},
 	})
 }

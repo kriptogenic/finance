@@ -21,7 +21,7 @@ Each stage is a separate package so a slow ingest can't stall polling (§12):
 | `internal/parser`   | message text → structured record; pure, fixture-tested |
 | `internal/pairing`  | transfer-leg buffer (two timers, out-of-order, persistable) |
 | `internal/delivery` | ingest client generated from `../specs/api.yaml`; retries |
-| `internal/store`    | atomic JSON state: watermark + pending legs |
+| `internal/store`    | atomic JSON state: watermark |
 | `internal/recon`    | balance-gap detection |
 | `internal/app`      | orchestrator: poll loop, persist-after-deliver |
 

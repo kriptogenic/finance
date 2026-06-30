@@ -14,7 +14,6 @@ import (
 	"finance/lookout/internal/app"
 	"finance/lookout/internal/config"
 	"finance/lookout/internal/delivery"
-	"finance/lookout/internal/pairing"
 	"finance/lookout/internal/parser"
 	"finance/lookout/internal/recon"
 	"finance/lookout/internal/store"
@@ -45,8 +44,6 @@ func run() error {
 
 	p := parser.New(cfg.Location())
 
-	buffer := pairing.New(cfg.TransferPairWindow, cfg.TransferHoldDuration)
-
 	poster, err := delivery.New(cfg.FinanceAPIURL, cfg.FinanceAPIToken, &http.Client{Timeout: 30 * time.Second}, delivery.Config{}, log.Named("delivery"))
 	if err != nil {
 		return err
@@ -59,7 +56,7 @@ func run() error {
 
 	rc := recon.New(log.Named("recon"))
 
-	orchestrator := app.New(p, buffer, poster, poster, st, rc, cfg.PollInterval, log.Named("app"))
+	orchestrator := app.New(p, poster, poster, st, rc, cfg.PollInterval, log.Named("app"))
 
 	source := telegram.New(telegram.Config{
 		APIID:              cfg.TelegramAPIID,

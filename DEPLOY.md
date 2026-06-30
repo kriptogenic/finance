@@ -53,6 +53,7 @@ needed. The SPA calls the API at the relative `/api` path.
    HTTP_PORT=8080
    LOG_LEVEL=info
    BASE_CURRENCY=UZS
+   TRANSFER_PAIR_WINDOW=120s                # max gap between two opposite legs to merge them into a transfer
    CORS_ORIGIN=                             # empty — same-origin, no CORS
    INGEST_TOKEN=<strong-shared-secret>      # bearer for lookout's ingest calls
    AUTH_USERNAME=<login>                    # HTTP Basic creds the UI logs in with
@@ -96,8 +97,6 @@ needed. The SPA calls the API at the relative `/api` path.
    SOURCE_BOT=<bank bot @username>
    AUTH_MODE=qr
    POLL_INTERVAL=60s
-   TRANSFER_PAIR_WINDOW=120s
-   TRANSFER_HOLD_DURATION=5m
    TIMEZONE=Asia/Tashkent
    LOG_LEVEL=info
    FINANCE_API_URL=https://app.example.com/api   # public https endpoint (Traefik)

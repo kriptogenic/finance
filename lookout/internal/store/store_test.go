@@ -4,10 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
-
-	"finance/lookout/internal/pairing"
-	"finance/lookout/internal/parser"
 )
 
 func TestStore_RoundTrip(t *testing.T) {
@@ -17,15 +13,11 @@ func TestStore_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open fresh: %v", err)
 	}
-	if got := s.State(); got.Watermark != 0 || len(got.Pending) != 0 {
+	if got := s.State(); got.Watermark != 0 {
 		t.Fatalf("fresh state should be empty, got %+v", got)
 	}
 
-	legs := []pairing.PendingLeg{{
-		Record:    parser.Record{ChatID: 1, MessageID: 42, Direction: parser.Debit, Amount: 100000000, CardLast4: "4853", Time: time.Now().UTC().Truncate(time.Second), Parsed: true},
-		ArrivalAt: time.Now().UTC().Truncate(time.Second),
-	}}
-	if err := s.Save(42, legs); err != nil {
+	if err := s.Save(42); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 
@@ -33,12 +25,8 @@ func TestStore_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
-	got := s2.State()
-	if got.Watermark != 42 {
+	if got := s2.State(); got.Watermark != 42 {
 		t.Errorf("watermark: got %d want 42", got.Watermark)
-	}
-	if len(got.Pending) != 1 || got.Pending[0].Record.MessageID != 42 || got.Pending[0].Record.CardLast4 != "4853" {
-		t.Fatalf("pending legs not restored: %+v", got.Pending)
 	}
 }
 

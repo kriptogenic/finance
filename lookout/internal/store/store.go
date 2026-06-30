@@ -8,13 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-
-	"finance/lookout/internal/pairing"
 )
 
 type State struct {
-	Watermark int                  `json:"watermark"`
-	Pending   []pairing.PendingLeg `json:"pending"`
+	Watermark int `json:"watermark"`
 }
 
 type Store struct {
@@ -44,15 +41,15 @@ func (s *Store) State() State {
 	return s.snapshot()
 }
 
-func (s *Store) Save(watermark int, pending []pairing.PendingLeg) error {
+func (s *Store) Save(watermark int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.st = State{Watermark: watermark, Pending: append([]pairing.PendingLeg(nil), pending...)}
+	s.st = State{Watermark: watermark}
 	return s.flush()
 }
 
 func (s *Store) snapshot() State {
-	return State{Watermark: s.st.Watermark, Pending: append([]pairing.PendingLeg(nil), s.st.Pending...)}
+	return State{Watermark: s.st.Watermark}
 }
 
 func (s *Store) flush() error {

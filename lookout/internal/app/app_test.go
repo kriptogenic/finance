@@ -36,11 +36,10 @@ func (f *fakeFetcher) FetchNewer(_ context.Context, sinceID int) ([]telegram.Mes
 }
 
 type fakePoster struct {
-	mu        sync.Mutex
-	posted    []pairing.Posting
-	balances  [][]parser.CardBalance
-	failPerm  bool
-	failTimes int
+	mu       sync.Mutex
+	posted   []pairing.Posting
+	balances [][]parser.CardBalance
+	failPerm bool
 }
 
 func (p *fakePoster) Post(_ context.Context, post pairing.Posting) error {
@@ -80,7 +79,6 @@ func newApp(t *testing.T, poster *fakePoster) (*App, *store.Store) {
 	}
 	a := New(
 		parser.New(loc),
-		pairing.New(2*time.Minute, 5*time.Minute),
 		poster,
 		poster,
 		st,
@@ -101,34 +99,27 @@ func TestApp_ExpenseFlow(t *testing.T) {
 	poster := &fakePoster{}
 	a, st := newApp(t, poster)
 	clock := time.Date(2026, 6, 14, 10, 3, 0, 0, time.UTC)
-	a.now = func() time.Time { return clock }
 
 	f := &fakeFetcher{msgs: []telegram.Message{{ID: 100, Date: clock, Text: debit4853}}}
 
 	if err := a.cycle(context.Background(), f); err != nil {
 		t.Fatalf("cycle: %v", err)
 	}
-	if poster.count() != 0 {
-		t.Fatalf("lone debit should be held, not posted immediately; got %d", poster.count())
-	}
-	if st.State().Watermark != 100 {
-		t.Errorf("watermark not advanced/persisted: %d", st.State().Watermark)
-	}
-
-	clock = clock.Add(6 * time.Minute)
-	if err := a.cycle(context.Background(), f); err != nil {
-		t.Fatalf("cycle (flush): %v", err)
-	}
 	if poster.count() != 1 {
-		t.Fatalf("expected 1 expense after hold, got %d", poster.count())
+		t.Fatalf("a parsed debit should post immediately, got %d", poster.count())
 	}
 	got := poster.posted[0]
 	if got.Type != "expense" || got.FromCardLast4 != "4853" || got.ExternalID != "tg:1:100" {
 		t.Fatalf("bad expense posting: %+v", got)
 	}
+	if st.State().Watermark != 100 {
+		t.Errorf("watermark not advanced/persisted: %d", st.State().Watermark)
+	}
 }
 
-func TestApp_TransferPairing(t *testing.T) {
+// A card-to-card transfer now posts as two independent single legs; core pairs
+// them server-side. lookout no longer emits a "transfer" posting itself.
+func TestApp_TransferPostsBothLegsRaw(t *testing.T) {
 	poster := &fakePoster{}
 	a, _ := newApp(t, poster)
 	f := &fakeFetcher{msgs: []telegram.Message{
@@ -139,15 +130,15 @@ func TestApp_TransferPairing(t *testing.T) {
 	if err := a.cycle(context.Background(), f); err != nil {
 		t.Fatalf("cycle: %v", err)
 	}
-	if poster.count() != 1 {
-		t.Fatalf("expected exactly 1 transfer posting, got %d: %+v", poster.count(), poster.posted)
+	if poster.count() != 2 {
+		t.Fatalf("expected both legs posted raw, got %d: %+v", poster.count(), poster.posted)
 	}
-	got := poster.posted[0]
-	if got.Type != "transfer" || got.FromCardLast4 != "4853" || got.ToCardLast4 != "8400" {
-		t.Fatalf("bad transfer: %+v", got)
+	debit, credit := poster.posted[0], poster.posted[1]
+	if debit.Type != "expense" || debit.FromCardLast4 != "4853" || debit.ExternalID != "tg:1:200" {
+		t.Errorf("bad debit leg: %+v", debit)
 	}
-	if got.ExternalID != "tg:transfer:200-201" {
-		t.Errorf("transfer external id: %q", got.ExternalID)
+	if credit.Type != "income" || credit.ToCardLast4 != "8400" || credit.ExternalID != "tg:1:201" {
+		t.Errorf("bad credit leg: %+v", credit)
 	}
 }
 
@@ -155,47 +146,15 @@ func TestApp_WatermarkPreventsReprocess(t *testing.T) {
 	poster := &fakePoster{}
 	a, _ := newApp(t, poster)
 	clock := time.Date(2026, 6, 14, 10, 3, 0, 0, time.UTC)
-	a.now = func() time.Time { return clock }
 	f := &fakeFetcher{msgs: []telegram.Message{{ID: 100, Date: clock, Text: debit4853}}}
 
 	for i := 0; i < 5; i++ {
 		if err := a.cycle(context.Background(), f); err != nil {
 			t.Fatalf("cycle %d: %v", i, err)
 		}
-		clock = clock.Add(3 * time.Minute)
 	}
 	if poster.count() != 1 {
 		t.Fatalf("message must post exactly once across repeated cycles, got %d", poster.count())
-	}
-}
-
-func TestApp_RestartResumesPendingLeg(t *testing.T) {
-	poster := &fakePoster{}
-	a, st := newApp(t, poster)
-
-	f1 := &fakeFetcher{msgs: []telegram.Message{{ID: 200, Date: time.Now(), Text: xferDebit}}}
-	if err := a.cycle(context.Background(), f1); err != nil {
-		t.Fatal(err)
-	}
-	if poster.count() != 0 {
-		t.Fatalf("lone leg should not post yet, got %d", poster.count())
-	}
-	if len(st.State().Pending) != 1 {
-		t.Fatalf("pending leg should be persisted, have %d", len(st.State().Pending))
-	}
-
-	loc, _ := time.LoadLocation("Asia/Tashkent")
-	a2 := New(parser.New(loc), pairing.New(2*time.Minute, 5*time.Minute), poster, poster, st, recon.New(zap.NewNop()), time.Minute, zap.NewNop())
-
-	f2 := &fakeFetcher{msgs: []telegram.Message{
-		{ID: 200, Date: time.Now(), Text: xferDebit},
-		{ID: 201, Date: time.Now(), Text: xferCredit},
-	}}
-	if err := a2.cycle(context.Background(), f2); err != nil {
-		t.Fatal(err)
-	}
-	if poster.count() != 1 || poster.posted[0].Type != "transfer" {
-		t.Fatalf("restored leg should pair into a transfer, got %d: %+v", poster.count(), poster.posted)
 	}
 }
 
@@ -242,7 +201,6 @@ func TestApp_TransactionReportsBalance(t *testing.T) {
 	poster := &fakePoster{}
 	a, _ := newApp(t, poster)
 	clock := time.Date(2026, 6, 14, 10, 3, 0, 0, time.UTC)
-	a.now = func() time.Time { return clock }
 
 	f := &fakeFetcher{msgs: []telegram.Message{{ID: 100, Date: clock, Text: debit4853}}}
 	if err := a.cycle(context.Background(), f); err != nil {

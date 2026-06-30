@@ -42,8 +42,33 @@ type Repository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	// Ingest idempotently inserts by external_id; created=false means it already existed.
 	Ingest(ctx context.Context, tx *entities.Transaction) (created bool, err error)
+	// ByExternalID returns the transaction with this external_id, or ErrNotFound.
+	ByExternalID(ctx context.Context, externalID string) (*entities.Transaction, error)
+	// ConsumedTransfer returns the transfer that swallowed this external_id as a
+	// paired leg, or ErrNotFound when the id was never consumed.
+	ConsumedTransfer(ctx context.Context, externalID string) (*entities.Transaction, error)
+	// FindTransferMate returns the closest committed leg that pairs with an
+	// ingested leg into a transfer (opposite type, same amount, distinct account,
+	// near in time), or ErrNotFound.
+	FindTransferMate(ctx context.Context, q MateQuery) (*entities.Transaction, error)
+	// MergeIntoTransfer rewrites survivorID's row into transfer in place and
+	// records consumedExternalID in consumed_legs, atomically. transfer is
+	// back-filled with the surviving row's id/created_at.
+	MergeIntoTransfer(ctx context.Context, survivorID uuid.UUID, transfer *entities.Transaction, consumedExternalID string) error
 	// CountUncategorized returns how many transactions sit in the Uncategorized buckets.
 	CountUncategorized(ctx context.Context) (int, error)
+}
+
+// MateQuery describes the opposite leg to look for when pairing an ingested
+// expense/income into a transfer.
+type MateQuery struct {
+	OppositeType     entities.TransactionType
+	AmountMinor      int64
+	Currency         string
+	ExcludeAccountID uuid.UUID // the ingested leg's account; the mate must differ
+	From             time.Time // earliest occurred-at to consider
+	To               time.Time // latest occurred-at to consider
+	Around           time.Time // the ingested leg's occurred-at; closest wins
 }
 
 // uncategorizedBuckets selects the ids of the built-in Uncategorized categories.
@@ -137,6 +162,106 @@ func (r repository) Ingest(ctx context.Context, tx *entities.Transaction) (creat
 	*tx = *existing
 
 	return false, nil
+}
+
+func (r repository) ByExternalID(ctx context.Context, externalID string) (*entities.Transaction, error) {
+	tx, err := r.queryOne(ctx,
+		`SELECT `+txColumns+` FROM transactions WHERE external_id = $1`, externalID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("transaction by external_id: %w", err)
+	}
+
+	return tx, nil
+}
+
+func (r repository) ConsumedTransfer(ctx context.Context, externalID string) (*entities.Transaction, error) {
+	tx, err := r.queryOne(ctx,
+		`SELECT `+txColumns+` FROM transactions
+		 WHERE id = (SELECT transaction_id FROM consumed_legs WHERE external_id = $1)`, externalID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("consumed transfer lookup: %w", err)
+	}
+
+	return tx, nil
+}
+
+func (r repository) FindTransferMate(ctx context.Context, q MateQuery) (*entities.Transaction, error) {
+	// A mate is an ingested, non-split leg of the opposite type with the same
+	// amount on a different account, within the pairing window. The closest in
+	// time wins, matching the old in-buffer behaviour.
+	const query = `SELECT ` + txColumns + ` FROM transactions
+		WHERE type = $1
+		  AND (amount).amount = $2
+		  AND (amount).currency = $3
+		  AND external_id IS NOT NULL
+		  AND split_group_id IS NULL
+		  AND COALESCE(from_account_id, to_account_id) <> $4
+		  AND date BETWEEN $5 AND $6
+		ORDER BY abs(extract(epoch FROM date - $7)) ASC
+		LIMIT 1`
+
+	tx, err := r.queryOne(ctx, query,
+		q.OppositeType, q.AmountMinor, q.Currency, q.ExcludeAccountID, q.From, q.To, q.Around)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find transfer mate: %w", err)
+	}
+
+	return tx, nil
+}
+
+func (r repository) MergeIntoTransfer(ctx context.Context, survivorID uuid.UUID, transfer *entities.Transaction, consumedExternalID string) error {
+	var rateText *string
+	if transfer.RateToBase != nil {
+		s := transfer.RateToBase.String()
+		rateText = &s
+	}
+
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin merge: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	const update = `
+		UPDATE transactions SET
+			date = $2, type = 'transfer', from_account_id = $3, to_account_id = $4,
+			category_id = NULL, amount = $5, rate_to_base = $6::numeric, base_amount = $7,
+			note = NULL, tags = $8, transfer_group_id = $9
+		WHERE id = $1
+		RETURNING id, created_at`
+
+	err = tx.QueryRow(ctx, update,
+		survivorID, transfer.Date, transfer.FromAccountID, transfer.ToAccountID,
+		transfer.Amount, rateText, transfer.BaseAmount, transfer.Tags, transfer.TransferGroupID,
+	).Scan(&transfer.ID, &transfer.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("merge update: %w", err)
+	}
+
+	_, err = tx.Exec(ctx,
+		`INSERT INTO consumed_legs (external_id, transaction_id) VALUES ($1, $2)`,
+		consumedExternalID, survivorID)
+	if err != nil {
+		return fmt.Errorf("record consumed leg: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit merge: %w", err)
+	}
+
+	return nil
 }
 
 func (r repository) CountUncategorized(ctx context.Context) (int, error) {

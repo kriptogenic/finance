@@ -22,10 +22,6 @@ type Config struct {
 
 	PollInterval time.Duration `env:"POLL_INTERVAL" env-default:"60s"`
 
-	TransferPairWindow time.Duration `env:"TRANSFER_PAIR_WINDOW" env-default:"120s"`
-
-	TransferHoldDuration time.Duration `env:"TRANSFER_HOLD_DURATION" env-default:"5m"`
-
 	FinanceAPIURL   string `env:"FINANCE_API_URL" env-required:"true"`
 	FinanceAPIToken string `env:"FINANCE_API_TOKEN" env-required:"true"`
 
@@ -65,12 +61,6 @@ func (c *Config) validate() error {
 		return fmt.Errorf("invalid AUTH_MODE %q: must be \"code\" or \"qr\"", c.AuthMode)
 	}
 
-	if c.TransferHoldDuration <= c.PollInterval {
-		return fmt.Errorf("TRANSFER_HOLD_DURATION (%s) must exceed POLL_INTERVAL (%s)", c.TransferHoldDuration, c.PollInterval)
-	}
-	if c.TransferHoldDuration <= c.TransferPairWindow {
-		return fmt.Errorf("TRANSFER_HOLD_DURATION (%s) must exceed TRANSFER_PAIR_WINDOW (%s)", c.TransferHoldDuration, c.TransferPairWindow)
-	}
 	if err := validateAPIURL(c.FinanceAPIURL); err != nil {
 		return err
 	}

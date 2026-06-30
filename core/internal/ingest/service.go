@@ -49,6 +49,7 @@ type Service struct {
 	transactions transactionrepository.Repository
 	notifier     pushnotify.Notifier
 	base         string
+	pairWindow   time.Duration
 	logger       *zap.Logger
 }
 
@@ -66,11 +67,25 @@ func NewService(
 		transactions: transactions,
 		notifier:     notifier,
 		base:         finance.BaseCurrency,
+		pairWindow:   finance.TransferPairWindow,
 		logger:       logger,
 	}
 }
 
 func (s *Service) Ingest(ctx context.Context, cmd Command) (Result, error) {
+	// Idempotency: a re-delivered leg that was already swallowed into a transfer,
+	// or already committed on its own, returns the stored transaction unchanged.
+	if tx, err := s.transactions.ConsumedTransfer(ctx, cmd.ExternalID); err == nil {
+		return Result{Transaction: *tx, Created: false}, nil
+	} else if !errors.Is(err, transactionrepository.ErrNotFound) {
+		return Result{}, fmt.Errorf("consumed leg lookup: %w", err)
+	}
+	if tx, err := s.transactions.ByExternalID(ctx, cmd.ExternalID); err == nil {
+		return Result{Transaction: *tx, Created: false}, nil
+	} else if !errors.Is(err, transactionrepository.ErrNotFound) {
+		return Result{}, fmt.Errorf("external_id lookup: %w", err)
+	}
+
 	date := time.Now()
 	if cmd.Date != nil {
 		date = *cmd.Date
@@ -143,6 +158,15 @@ func (s *Service) Ingest(ctx context.Context, cmd Command) (Result, error) {
 	tx.ExternalID = &cmd.ExternalID
 	tx.TransferGroupID = cmd.TransferGroupID
 
+	// A bare expense/income leg may be one half of a card-to-card transfer whose
+	// other half already arrived (possibly from another source). If so, merge the
+	// pair into a single transfer instead of committing this leg on its own.
+	if transfer, ok, err := s.tryPair(ctx, tx); err != nil {
+		return Result{}, err
+	} else if ok {
+		return Result{Transaction: *transfer, Created: true}, nil
+	}
+
 	created, err := s.transactions.Ingest(ctx, &tx)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest transaction: %w", err)
@@ -153,6 +177,64 @@ func (s *Service) Ingest(ctx context.Context, cmd Command) (Result, error) {
 	}
 
 	return Result{Transaction: tx, Created: created}, nil
+}
+
+// tryPair looks for an already-committed opposite leg that, together with the
+// just-built leg, forms a transfer. On a match it rewrites the existing leg's
+// row into the transfer and records this leg's external_id as consumed, so this
+// leg never becomes its own row. It returns ok=false for non-expense/income
+// legs or when no mate exists.
+func (s *Service) tryPair(ctx context.Context, leg entities.Transaction) (*entities.Transaction, bool, error) {
+	var legAccount *uuid.UUID
+	var opposite entities.TransactionType
+	switch leg.Type {
+	case entities.TxExpense:
+		legAccount, opposite = leg.FromAccountID, entities.TxIncome
+	case entities.TxIncome:
+		legAccount, opposite = leg.ToAccountID, entities.TxExpense
+	default:
+		return nil, false, nil
+	}
+	if legAccount == nil {
+		return nil, false, nil
+	}
+
+	mate, err := s.transactions.FindTransferMate(ctx, transactionrepository.MateQuery{
+		OppositeType:     opposite,
+		AmountMinor:      leg.Amount.Minor(),
+		Currency:         leg.Amount.Code(),
+		ExcludeAccountID: *legAccount,
+		From:             leg.Date.Add(-s.pairWindow),
+		To:               leg.Date.Add(s.pairWindow),
+		Around:           leg.Date,
+	})
+	if errors.Is(err, transactionrepository.ErrNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("find transfer mate: %w", err)
+	}
+
+	transfer, err := ledger.TransferFromLegs(*mate, leg)
+	if err != nil {
+		// The mate passed the SQL guards but the ledger rejected the pair; treat
+		// it as no match and commit this leg on its own.
+		s.logger.Warn("transfer mate rejected by ledger", zap.Error(err))
+
+		return nil, false, nil
+	}
+
+	if err := s.transactions.MergeIntoTransfer(ctx, mate.ID, &transfer, *leg.ExternalID); err != nil {
+		return nil, false, fmt.Errorf("merge into transfer: %w", err)
+	}
+
+	s.logger.Info("paired ingest legs into a transfer",
+		zap.String("transfer_id", transfer.ID.String()),
+		zap.String("kept_leg", *mate.ExternalID),
+		zap.String("consumed_leg", *leg.ExternalID),
+	)
+
+	return &transfer, true, nil
 }
 
 func (s *Service) resolveCard(ctx context.Context, last4 string) (*entities.Account, error) {

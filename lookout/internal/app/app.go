@@ -26,7 +26,6 @@ type BalancePoster interface {
 
 type App struct {
 	parser   *parser.Parser
-	buffer   *pairing.Buffer
 	poster   Poster
 	balances BalancePoster
 	store    *store.Store
@@ -34,24 +33,19 @@ type App struct {
 	interval time.Duration
 	log      *zap.Logger
 
-	now func() time.Time
-
 	watermark int
 }
 
-func New(p *parser.Parser, buf *pairing.Buffer, poster Poster, balances BalancePoster, st *store.Store, rc *recon.Reconciler, interval time.Duration, log *zap.Logger) *App {
+func New(p *parser.Parser, poster Poster, balances BalancePoster, st *store.Store, rc *recon.Reconciler, interval time.Duration, log *zap.Logger) *App {
 	state := st.State()
-	buf.Restore(state.Pending)
 	return &App{
 		parser:    p,
-		buffer:    buf,
 		poster:    poster,
 		balances:  balances,
 		store:     st,
 		recon:     rc,
 		interval:  interval,
 		log:       log,
-		now:       time.Now,
 		watermark: state.Watermark,
 	}
 }
@@ -59,7 +53,6 @@ func New(p *parser.Parser, buf *pairing.Buffer, poster Poster, balances BalanceP
 func (a *App) Run(ctx context.Context, f telegram.Fetcher) error {
 	a.log.Info("starting poll loop",
 		zap.Int("watermark", a.watermark),
-		zap.Int("pending_legs", len(a.buffer.Pending())),
 		zap.Duration("interval", a.interval),
 	)
 
@@ -107,7 +100,7 @@ func (a *App) cycle(ctx context.Context, f telegram.Fetcher) error {
 			return err
 		}
 	}
-	return a.flush(ctx)
+	return nil
 }
 
 func (a *App) process(ctx context.Context, chatID int64, m telegram.Message) error {
@@ -141,26 +134,10 @@ func (a *App) process(ctx context.Context, chatID int64, m telegram.Message) err
 		}
 	}
 
-	posting := a.buffer.Add(rec, a.now())
-	if posting != nil {
-
-		if err := a.deliver(ctx, *posting); err != nil {
-			return err
-		}
+	if err := a.deliver(ctx, pairing.Standalone(rec)); err != nil {
+		return err
 	}
 	return a.commit(m.ID)
-}
-
-func (a *App) flush(ctx context.Context) error {
-	for _, p := range a.buffer.Tick(a.now()) {
-		if err := a.deliver(ctx, p); err != nil {
-			return err
-		}
-		if err := a.persist(); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (a *App) deliver(ctx context.Context, p pairing.Posting) error {
@@ -189,5 +166,5 @@ func (a *App) commit(messageID int) error {
 }
 
 func (a *App) persist() error {
-	return a.store.Save(a.watermark, a.buffer.Pending())
+	return a.store.Save(a.watermark)
 }

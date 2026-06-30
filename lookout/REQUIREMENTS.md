@@ -165,31 +165,18 @@ Therefore `CARD_ACCOUNT_MAP`'s job is **not** to gate "is this mine" (every mess
 is mine) — it is to (a) resolve each card's `account_id` and (b) enumerate all my
 cards. An internal transfer is recognized purely by **both legs appearing**.
 
-If the two legs were posted independently as expense + income, the app would
-double-count and **break net worth** — violating the invariant that *transfers carry
-no category and don't change net worth*. They **must collapse into ONE `transfer`**
-(from = debit's account, to = credit's account, shared `transfer_group_id`,
-deterministic `external_id = tg:transfer:<id_lo>-<id_hi>`).
+**Pairing now happens server-side in core, not here.** lookout forwards every
+parsed leg immediately as a single `expense` (debit) or `income` (credit) with its
+own idempotent `external_id` (`tg:<chat>:<msg>`). Core buffers ingested legs and
+collapses a matching debit+credit into ONE `transfer` (from = debit's account,
+to = credit's account). This moved out of lookout because a transfer leg can also
+arrive from a *different* source (the Android SMS/push app) — e.g. a Visa→Humo
+transfer where Humo's top-up comes via this bot but Visa's withdrawal comes from
+the phone. Only core sees every source, so only core can pair across them. See
+core's ingest service + `TRANSFER_PAIR_WINDOW`.
 
-**Fees are always a separate message/transaction.** So the two transfer legs are
-clean and **exactly equal** → match on exact amount (no fuzzy tolerance). The fee
-arrives as its own small debit (different amount → never pairs) → standalone expense.
-
-**Pairing rule.** Hold every debit/credit briefly and look in the buffer for a
-counterpart: **opposite sign, equal amount, different own-card, |🕓Δ| ≤
-`TRANSFER_PAIR_WINDOW`**. On a match → emit one `transfer` and drop both legs.
-Two distinct timers:
-
-- `TRANSFER_PAIR_WINDOW` (≈60–120s) — max gap between the two **🕓 transaction
-  times**. Legs are usually same-minute but can arrive up to ~2 min apart.
-- `HOLD_DURATION` (≈5 min, **> poll interval + skew**) — how long an unmatched leg
-  waits before it's flushed as a standalone expense/income. Must exceed poll latency
-  so a leg never times out *before* its mate is even polled (this is the safeguard
-  against double-counting).
-
-The buffer must tolerate **out-of-order arrival** (match against the buffer, so order
-is irrelevant), persist pending legs across restarts (§8), and guarantee
-**at-most-once** posting (idempotent `external_id`).
+**Fees are always a separate message/transaction** (different amount → never
+pairs → standalone expense), so lookout has nothing special to do for them.
 
 **False-positive risk.** A *coincidental* equal-amount expense + income within the
 window would look like a transfer and be wrongly merged (net worth off). Guards, in
@@ -301,8 +288,6 @@ Payload (validated against the app's OpenAPI `IngestTransactionRequest`):
 | `SESSION_FILE` | persisted user session path |
 | `SOURCE_BOT` | source bot username or ID |
 | `POLL_INTERVAL` | poll cadence (default 60s) |
-| `TRANSFER_PAIR_WINDOW` | max gap between the two legs' 🕓 times to pair (≈120s) |
-| `TRANSFER_HOLD_DURATION` | how long to hold an unmatched leg before flushing it standalone (≈5m) |
 | `FINANCE_API_URL`, `FINANCE_API_TOKEN` | ingest endpoint + bearer token (= app's `INGEST_TOKEN`) |
 | `TIMEZONE` | default `Asia/Tashkent` |
 
@@ -429,9 +414,9 @@ in **separate packages** so a slow ingest can't stall polling (§12):
 | `config` | env via `ilyakaznacheev/cleanenv` (§9 vars) |
 | `telegram` | `gotd/td` user session, peer resolve, history polling, watermark |
 | `parser` | message text → structured record (§4); pure, fixture-tested |
-| `pairing` | transfer leg buffer (two timers, out-of-order, persist pending) (§5.1) |
+| `pairing` | maps each parsed record to a standalone expense/income posting (§5.1; pairing itself lives in core) |
 | `delivery` | ingest client generated from `specs/api.yaml`; retries; 201/200 = ok |
-| `store` | persisted watermark + pending legs (file or embedded KV) |
+| `store` | persisted watermark (file or embedded KV) |
 
 Conventions mirrored from `core`: structured logging with **zap**; single static
 binary (`CGO_ENABLED=0`); config via env/flags, **no secrets in code**; `gofmt` +

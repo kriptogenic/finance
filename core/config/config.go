@@ -25,6 +25,7 @@ type (
 		RateLimit
 		S3
 		Proxy
+		MCP
 	}
 
 	App struct {
@@ -105,6 +106,12 @@ type (
 		URL    string `env:"PROXY_URL"    env-default:""`
 		Secret string `env:"PROXY_SECRET" env-default:""`
 	}
+
+	// MCP exposes the finance-audit MCP server at /mcp. An empty Token disables
+	// the endpoint (every request is rejected).
+	MCP struct {
+		Token string `env:"MCP_TOKEN" env-default:""`
+	}
 )
 
 func NewConfig() (*Config, error) {
@@ -131,6 +138,7 @@ func RegisterConfigs() fx.Option {
 		func(cfg *Config) *RateLimit { return &cfg.RateLimit },
 		func(cfg *Config) *S3 { return &cfg.S3 },
 		func(cfg *Config) *Proxy { return &cfg.Proxy },
+		func(cfg *Config) *MCP { return &cfg.MCP },
 	)
 }
 

@@ -17,6 +17,7 @@ import (
 
 	"finance/config"
 	"finance/generated/api"
+	"finance/internal/audit"
 	"finance/internal/categorysuggest"
 	"finance/internal/http/handlers"
 	"finance/internal/http/middlewares"
@@ -25,6 +26,7 @@ import (
 	"finance/internal/pushnotify"
 	"finance/internal/receipts"
 	accountrepository "finance/internal/repositories/account_repository"
+	auditreportrepository "finance/internal/repositories/audit_report_repository"
 	balancesnapshotrepository "finance/internal/repositories/balance_snapshot_repository"
 	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
@@ -38,6 +40,7 @@ import (
 	"finance/pkg/database"
 	"finance/pkg/httpserver"
 	"finance/pkg/log"
+	mcpwrap "finance/pkg/mcp"
 	"finance/pkg/s3"
 )
 
@@ -59,6 +62,7 @@ func CreateApp() fx.Option {
 			pushsubscriptionrepository.NewRepository,
 			scheduledtransactionrepository.NewRepository,
 			receiptrepository.NewRepository,
+			auditreportrepository.NewRepository,
 			newS3,
 			newProxy,
 			receipts.NewService,
@@ -66,6 +70,8 @@ func CreateApp() fx.Option {
 			categorysuggest.New,
 			pushnotify.New,
 			ingest.NewService,
+			audit.New,
+			audit.NewMCPServer,
 			handlers.NewServer,
 			httpHandler,
 		),
@@ -91,7 +97,7 @@ func newProxy(cfg *config.Proxy) *proxy.Client {
 	return proxy.New(cfg.URL, cfg.Secret)
 }
 
-func httpHandler(server *handlers.Server, spec *openapi3.T, cfg *config.Config, logger *zap.Logger) http.Handler {
+func httpHandler(server *handlers.Server, mcpSrv *mcpwrap.Server, spec *openapi3.T, cfg *config.Config, logger *zap.Logger) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.Recoverer)
 
@@ -104,6 +110,9 @@ func httpHandler(server *handlers.Server, spec *openapi3.T, cfg *config.Config, 
 	}
 
 	r.Use(middlewares.AuthRateLimiter(cfg.RateLimit.AuthAttempts, cfg.RateLimit.AuthWindow))
+
+	// MCP finance-audit endpoint (outside the OpenAPI contract; its own bearer auth).
+	r.With(middlewares.MCPAuth(cfg.MCP.Token)).Handle("/mcp", mcpSrv.Handler())
 
 	strictServer := api.NewStrictHandler(server, []api.StrictMiddlewareFunc{
 		middlewares.IngestRequestLogger(logger),

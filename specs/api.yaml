@@ -137,6 +137,67 @@ paths:
         404:
           $ref: '#/components/responses/NotFound'
 
+  /accounts/{id}/schedule:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: getLoanSchedule
+      summary: Stored repayment schedule for a loan account (generated on first read)
+      responses:
+        200:
+          description: Loan repayment schedule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanScheduleResponse'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: regenerateLoanSchedule
+      summary: Rebuild the schedule from the loan's terms, keeping overrides and paid flags
+      responses:
+        200:
+          description: Regenerated schedule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanScheduleResponse'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /accounts/{id}/schedule/{period}:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+      - name: period
+        in: path
+        required: true
+        schema:
+          type: integer
+    patch:
+      operationId: updateLoanScheduleRow
+      summary: Override a due date or mark an installment paid, recomputing the tail forward
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLoanScheduleRow'
+      responses:
+        200:
+          description: Updated schedule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanScheduleResponse'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        404:
+          $ref: '#/components/responses/NotFound'
+
   /categories:
     get:
       operationId: listCategories
@@ -2167,6 +2228,76 @@ components:
           $ref: './definitions.yaml#/components/schemas/Money'
         balance:
           $ref: './definitions.yaml#/components/schemas/Money'
+
+    LoanScheduleResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - currency
+        - monthly_payment
+        - total_payment
+        - total_interest
+        - rows
+      properties:
+        currency:
+          $ref: './definitions.yaml#/components/schemas/Currency'
+        monthly_payment:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        total_payment:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        total_interest:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/LoanScheduleRow'
+
+    LoanScheduleRow:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - period
+        - due_date
+        - payment
+        - principal
+        - interest
+        - balance
+        - paid
+      properties:
+        id:
+          type: string
+          format: uuid
+        period:
+          type: integer
+        due_date:
+          type: string
+          format: date
+        date_override:
+          type: string
+          format: date
+          nullable: true
+        payment:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        principal:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        interest:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        balance:
+          $ref: './definitions.yaml#/components/schemas/Money'
+        paid:
+          type: boolean
+
+    UpdateLoanScheduleRow:
+      type: object
+      additionalProperties: false
+      properties:
+        date_override:
+          type: string
+          format: date
+          nullable: true
+        paid:
+          type: boolean
 
     BudgetListResponse:
       type: object

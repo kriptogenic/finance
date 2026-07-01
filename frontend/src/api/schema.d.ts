@@ -97,6 +97,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounts/{id}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        /** Stored repayment schedule for a loan account (generated on first read) */
+        get: operations["getLoanSchedule"];
+        put?: never;
+        /** Rebuild the schedule from the loan's terms, keeping overrides and paid flags */
+        post: operations["regenerateLoanSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/{id}/schedule/{period}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["AccountId"];
+                period: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Override a due date or mark an installment paid, recomputing the tail forward */
+        patch: operations["updateLoanScheduleRow"];
+        trace?: never;
+    };
     "/categories": {
         parameters: {
             query?: never;
@@ -1074,6 +1114,32 @@ export interface components {
             interest: components["schemas"]["Money"];
             balance: components["schemas"]["Money"];
         };
+        LoanScheduleResponse: {
+            currency: components["schemas"]["Currency"];
+            monthly_payment: components["schemas"]["Money"];
+            total_payment: components["schemas"]["Money"];
+            total_interest: components["schemas"]["Money"];
+            rows: components["schemas"]["LoanScheduleRow"][];
+        };
+        LoanScheduleRow: {
+            /** Format: uuid */
+            id: string;
+            period: number;
+            /** Format: date */
+            due_date: string;
+            /** Format: date */
+            date_override?: string | null;
+            payment: components["schemas"]["Money"];
+            principal: components["schemas"]["Money"];
+            interest: components["schemas"]["Money"];
+            balance: components["schemas"]["Money"];
+            paid: boolean;
+        };
+        UpdateLoanScheduleRow: {
+            /** Format: date */
+            date_override?: string | null;
+            paid?: boolean;
+        };
         BudgetListResponse: {
             budgets: components["schemas"]["Budget"][];
         };
@@ -1544,6 +1610,83 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AmortizationSchedule"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getLoanSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Loan repayment schedule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoanScheduleResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    regenerateLoanSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Regenerated schedule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoanScheduleResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateLoanScheduleRow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["AccountId"];
+                period: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLoanScheduleRow"];
+            };
+        };
+        responses: {
+            /** @description Updated schedule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoanScheduleResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];

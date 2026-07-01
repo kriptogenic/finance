@@ -108,10 +108,14 @@ func (s *seeder) run(ctx context.Context, db *database.DB, reset bool) error {
 			return nil
 		}
 		if _, err = db.Pool.Exec(ctx,
-			`TRUNCATE transactions, scheduled_transactions, categories, accounts, balance_snapshots, receipts RESTART IDENTITY CASCADE`); err != nil {
+			`TRUNCATE transactions, scheduled_transactions, categories, accounts, balance_snapshots, receipts, loan_schedules, holidays RESTART IDENTITY CASCADE`); err != nil {
 			return fmt.Errorf("truncate: %w", err)
 		}
 		s.logger.Info("existing data wiped")
+	}
+
+	if err = s.seedHolidays(ctx, db); err != nil {
+		return err
 	}
 
 	accounts, err := s.seedAccounts(ctx)
@@ -147,6 +151,42 @@ func (s *seeder) run(ctx context.Context, db *database.DB, reset bool) error {
 
 	s.logger.Info("seed complete",
 		zap.Int("accounts", len(accounts)), zap.Int("categories", len(cats)))
+
+	return nil
+}
+
+// seedHolidays loads Uzbekistan's fixed-date public holidays so loan payments
+// roll off them to the next business day. Religious holidays (Eid) move yearly
+// and are left for manual entry. Idempotent via the day primary key.
+func (s *seeder) seedHolidays(ctx context.Context, db *database.DB) error {
+	type h struct {
+		month time.Month
+		day   int
+		name  string
+	}
+	fixed := []h{
+		{time.January, 1, "New Year"},
+		{time.January, 14, "Defenders of the Motherland Day"},
+		{time.March, 8, "International Women's Day"},
+		{time.March, 21, "Navruz"},
+		{time.May, 9, "Day of Memory and Honour"},
+		{time.September, 1, "Independence Day"},
+		{time.October, 1, "Teachers' and Instructors' Day"},
+		{time.December, 8, "Constitution Day"},
+	}
+
+	// seed a window around the current year so schedules a few years out still roll
+	now := time.Now().UTC().Year()
+	for year := now - 1; year <= now+5; year++ {
+		for _, item := range fixed {
+			day := time.Date(year, item.month, item.day, 0, 0, 0, 0, time.UTC)
+			if _, err := db.Pool.Exec(ctx,
+				`INSERT INTO holidays (day, name) VALUES ($1, $2) ON CONFLICT (day) DO NOTHING`,
+				day, item.name); err != nil {
+				return fmt.Errorf("seed holiday %s: %w", item.name, err)
+			}
+		}
+	}
 
 	return nil
 }

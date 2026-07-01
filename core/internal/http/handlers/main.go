@@ -16,6 +16,8 @@ import (
 	budgetrepository "finance/internal/repositories/budget_repository"
 	categoryrepository "finance/internal/repositories/category_repository"
 	categoryrulerepository "finance/internal/repositories/category_rule_repository"
+	holidayrepository "finance/internal/repositories/holiday_repository"
+	loanschedulerepository "finance/internal/repositories/loan_schedule_repository"
 	pushsubscriptionrepository "finance/internal/repositories/push_subscription_repository"
 	receiptrepository "finance/internal/repositories/receipt_repository"
 	reportrepository "finance/internal/repositories/report_repository"
@@ -38,6 +40,8 @@ type Server struct {
 	snapshots      balancesnapshotrepository.Repository
 	push           pushsubscriptionrepository.Repository
 	schedules      scheduledtransactionrepository.Repository
+	loanSchedules  loanschedulerepository.Repository
+	holidays       holidayrepository.Repository
 	receipts       receiptrepository.Repository
 	receiptSvc     *receipts.Service
 	icons          iconsuggest.Suggester
@@ -62,6 +66,8 @@ func NewServer(
 	snapshots balancesnapshotrepository.Repository,
 	push pushsubscriptionrepository.Repository,
 	schedules scheduledtransactionrepository.Repository,
+	loanSchedules loanschedulerepository.Repository,
+	holidays holidayrepository.Repository,
 	receiptsRepo receiptrepository.Repository,
 	receiptSvc *receipts.Service,
 	icons iconsuggest.Suggester,
@@ -82,6 +88,8 @@ func NewServer(
 		snapshots:      snapshots,
 		push:           push,
 		schedules:      schedules,
+		loanSchedules:  loanSchedules,
+		holidays:       holidays,
 		receipts:       receiptsRepo,
 		receiptSvc:     receiptSvc,
 		icons:          icons,

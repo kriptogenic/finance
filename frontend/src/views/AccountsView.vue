@@ -158,7 +158,7 @@ onMounted(async () => {
                   </div>
                   <div class="flex shrink-0 items-center gap-1">
                     <!-- schedule has no gesture, so it stays reachable on every size -->
-                    <button v-if="a.type === 'loan'" class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-amber-100 hover:text-amber-700" title="Amortization schedule" @click.stop="scheduleFor = a"><i class="ti ti-calendar text-base" /></button>
+                    <button v-if="a.type === 'loan'" class="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-amber-100 hover:text-amber-700" title="Payment schedule" @click.stop="scheduleFor = a"><i class="ti ti-calendar text-base" /></button>
                     <!-- desktop only: edit/delete (mobile uses tap + swipe) -->
                     <button class="hidden h-8 w-8 place-items-center rounded-lg text-slate-400 can-hover:grid can-hover:opacity-0 can-hover:transition can-hover:group-hover:opacity-100 hover:bg-slate-200 hover:text-slate-700" title="Edit" @click.stop="openEdit(a)"><i class="ti ti-pencil text-base" /></button>
                     <button class="hidden h-8 w-8 place-items-center rounded-lg text-slate-400 can-hover:grid can-hover:opacity-0 can-hover:transition can-hover:group-hover:opacity-100 hover:bg-rose-100 hover:text-rose-600" title="Delete" @click.stop="remove(a)"><i class="ti ti-trash text-base" /></button>

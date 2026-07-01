@@ -1,5 +1,12 @@
 import { api, call } from './client'
-import type { Account, AmortizationSchedule, CreateAccountRequest, UpdateAccountRequest } from './types'
+import type {
+  Account,
+  AmortizationSchedule,
+  CreateAccountRequest,
+  LoanScheduleResponse,
+  UpdateAccountRequest,
+  UpdateLoanScheduleRow,
+} from './types'
 
 export const accountsApi = {
   list: (includeArchived = false): Promise<Account[]> =>
@@ -16,4 +23,13 @@ export const accountsApi = {
 
   amortization: (id: string): Promise<AmortizationSchedule> =>
     call(api.GET('/accounts/{id}/amortization', { params: { path: { id } } })),
+
+  loanSchedule: (id: string): Promise<LoanScheduleResponse> =>
+    call(api.GET('/accounts/{id}/schedule', { params: { path: { id } } })),
+
+  regenerateSchedule: (id: string): Promise<LoanScheduleResponse> =>
+    call(api.POST('/accounts/{id}/schedule', { params: { path: { id } } })),
+
+  updateScheduleRow: (id: string, period: number, body: UpdateLoanScheduleRow): Promise<LoanScheduleResponse> =>
+    call(api.PATCH('/accounts/{id}/schedule/{period}', { params: { path: { id, period } }, body })),
 }

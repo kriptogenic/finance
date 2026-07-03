@@ -12,6 +12,7 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@tanstack/vue-query": "^5.101.2",
     "dinero.js": "^2.0.2",
     "jsqr": "^1.4.0",
     "openapi-fetch": "^0.13.5",

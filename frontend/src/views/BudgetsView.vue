@@ -1,19 +1,21 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { budgetsApi } from '../api/budgets'
-import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
+import { useBudgetsQuery, useCategoriesQuery } from '../api/queries'
 import { confirm } from '../lib/confirm'
-import type { Budget, Category } from '../api/types'
+import type { Budget } from '../api/types'
 import { formatDate } from '../lib/format'
 import BudgetForm from '../components/BudgetForm.vue'
 
-const budgets = ref<Budget[]>([])
-const categories = ref<Category[]>([])
+const budQuery = useBudgetsQuery()
+const catQuery = useCategoriesQuery({ type: 'expense' })
+const budgets = computed(() => budQuery.data.value ?? [])
+const categories = computed(() => catQuery.data.value ?? [])
 const base = ref('UZS')
-const loading = ref(true)
-const error = ref('')
+const loading = computed(() => budQuery.isLoading.value)
+const error = computed(() => (budQuery.error.value ? errMessage(budQuery.error.value) : ''))
 const formOpen = ref(false)
 const editing = ref<Budget | null>(null)
 
@@ -27,17 +29,9 @@ function tone(pct: number) {
   return { bar: 'bg-emerald-500', text: 'text-slate-700', chip: 'bg-slate-100 text-slate-500' }
 }
 
-async function load() {
-  loading.value = true
-  try {
-    const [bs, cats] = await Promise.all([budgetsApi.list(), categoriesApi.list({ type: 'expense' })])
-    budgets.value = bs
-    categories.value = cats
-  } catch (e) {
-    error.value = errMessage(e)
-  } finally {
-    loading.value = false
-  }
+function load() {
+  budQuery.refetch()
+  catQuery.refetch()
 }
 
 function openNew() {
@@ -62,16 +56,12 @@ async function remove(b: Budget) {
   }
 }
 
-onMounted(() => window.addEventListener('data:refresh', load))
-onUnmounted(() => window.removeEventListener('data:refresh', load))
-
 onMounted(async () => {
   try {
     base.value = (await reportsApi.netWorth()).base
   } catch {
     /* keep default */
   }
-  load()
 })
 </script>
 

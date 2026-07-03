@@ -1,18 +1,35 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
-import { reportsApi } from '../api/reports'
+import { ref, reactive, computed } from 'vue'
+import type { DateRange } from '../api/reports'
 import { errMessage } from '../api/client'
-import type { CashFlowReport, NetWorthReport, SpendingReport } from '../api/types'
+import { useNetWorthQuery, useSpendingQuery, useCashFlowQuery } from '../api/queries'
 import CategorizeCard from '../components/CategorizeCard.vue'
 import DonutChart from '../components/DonutChart.vue'
 
-const netWorth = ref<NetWorthReport | null>(null)
-const spending = ref<SpendingReport | null>(null)
-const cashFlow = ref<CashFlowReport | null>(null)
-const loading = ref(true)
-const error = ref('')
-
 const range = reactive({ from: '', to: '' })
+
+// Spending + cash flow both key on the selected range; changing it refetches.
+const reportParams = computed<DateRange>(() => {
+  const p: DateRange = {}
+  if (range.from) p.date_from = new Date(range.from + 'T00:00:00').toISOString()
+  if (range.to) p.date_to = new Date(range.to + 'T23:59:59.999').toISOString()
+  return p
+})
+
+const nwQuery = useNetWorthQuery()
+const spQuery = useSpendingQuery(reportParams)
+const cfQuery = useCashFlowQuery(reportParams)
+
+const netWorth = computed(() => nwQuery.data.value ?? null)
+const spending = computed(() => spQuery.data.value ?? null)
+const cashFlow = computed(() => cfQuery.data.value ?? null)
+// isLoading is true only on the first fetch (no cache); revisits render cached
+// data immediately while a background refetch runs.
+const loading = computed(() => nwQuery.isLoading.value || spQuery.isLoading.value || cfQuery.isLoading.value)
+const error = computed(() => {
+  const e = nwQuery.error.value || spQuery.error.value || cfQuery.error.value
+  return e ? errMessage(e) : ''
+})
 const activePreset = ref('all')
 
 const presets = [
@@ -69,51 +86,6 @@ const flowMax = computed(() =>
 function pct(value: number, max: number): string {
   return Math.max(2, (value / max) * 100) + '%'
 }
-
-async function loadReports() {
-  const params: { date_from?: string; date_to?: string } = {}
-  if (range.from) params.date_from = new Date(range.from + 'T00:00:00').toISOString()
-  if (range.to) params.date_to = new Date(range.to + 'T23:59:59.999').toISOString()
-  try {
-    const [sp, cf] = await Promise.all([reportsApi.spending(params), reportsApi.cashFlow(params)])
-    spending.value = sp
-    cashFlow.value = cf
-  } catch (e) {
-    error.value = errMessage(e)
-  }
-}
-
-async function loadNetWorth() {
-  try {
-    netWorth.value = await reportsApi.netWorth()
-  } catch (e) {
-    error.value = errMessage(e)
-  }
-}
-
-let timer: number | undefined
-watch(
-  range,
-  () => {
-    clearTimeout(timer)
-    timer = window.setTimeout(loadReports, 150)
-  },
-  { deep: true },
-)
-
-// Refresh when a transaction is added from the global quick-add (FAB).
-function refresh() {
-  loadNetWorth()
-  loadReports()
-}
-onMounted(() => window.addEventListener('data:refresh', refresh))
-onUnmounted(() => window.removeEventListener('data:refresh', refresh))
-
-onMounted(async () => {
-  await loadNetWorth()
-  await loadReports()
-  loading.value = false
-})
 </script>
 
 <template>

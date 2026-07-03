@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { categoriesApi } from '../api/categories'
-import { reportsApi } from '../api/reports'
+import type { DateRange } from '../api/reports'
 import { errMessage } from '../api/client'
+import { useCategoriesQuery, useSpendingQuery, useCashFlowQuery, useNetWorthQuery } from '../api/queries'
 import { confirm } from '../lib/confirm'
-import type { Category, CategoryType, SpendingReport } from '../api/types'
+import type { Category, CategoryType } from '../api/types'
 import type { Money } from '../api/money'
 import { formatMinor } from '../lib/format'
 import CategoryForm from '../components/CategoryForm.vue'
@@ -13,23 +14,31 @@ import CategoryDetailSheet from '../components/CategoryDetailSheet.vue'
 import CategoryRulesManager from '../components/CategoryRulesManager.vue'
 import DonutChart from '../components/DonutChart.vue'
 
-const categories = ref<Category[]>([])
-const spending = ref<SpendingReport | null>(null)
-const income = ref<Money | null>(null)
-const base = ref('UZS')
-const loading = ref(true)
-const error = ref('')
-
 // A date anchored in the selected month; spending/cash-flow are scoped to it.
 const monthDate = ref(new Date())
 const monthLabel = computed(() =>
   monthDate.value.toLocaleString(undefined, { month: 'long', year: 'numeric' }),
 )
-function monthRange(d: Date) {
+function monthRange(d: Date): DateRange {
   const from = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0)
   const to = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999)
   return { date_from: from.toISOString(), date_to: to.toISOString() }
 }
+const rangeParams = computed<DateRange>(() => monthRange(monthDate.value))
+
+const catQuery = useCategoriesQuery()
+const spQuery = useSpendingQuery(rangeParams)
+const cfQuery = useCashFlowQuery(rangeParams)
+const nwQuery = useNetWorthQuery()
+const categories = computed(() => catQuery.data.value ?? [])
+const spending = computed(() => spQuery.data.value ?? null)
+const income = computed<Money | null>(() => cfQuery.data.value?.months[0]?.income ?? null)
+const base = computed(() => nwQuery.data.value?.base ?? 'UZS')
+const loading = computed(() => catQuery.isLoading.value || spQuery.isLoading.value)
+const error = computed(() => {
+  const e = catQuery.error.value || spQuery.error.value
+  return e ? errMessage(e) : ''
+})
 
 // Solid colors for donut arcs (same set as the dashboard).
 const palette = ['#6366f1', '#0ea5e9', '#ec4899', '#f59e0b', '#10b981', '#8b5cf6', '#14b8a6', '#f43f5e']
@@ -76,33 +85,14 @@ const detailSpent = computed(() => {
   return spendOf(c)?.format() ?? formatMinor(0, base.value)
 })
 
-async function loadSpend() {
-  const range = monthRange(monthDate.value)
-  const [sp, cf] = await Promise.all([reportsApi.spending(range), reportsApi.cashFlow(range)])
-  spending.value = sp
-  income.value = cf.months[0]?.income ?? null
-}
-
-async function load() {
-  loading.value = true
-  error.value = ''
-  try {
-    const [cats, nw] = await Promise.all([categoriesApi.list(), reportsApi.netWorth().catch(() => null)])
-    categories.value = cats
-    if (nw) base.value = nw.base
-    await loadSpend()
-  } catch (e) {
-    error.value = errMessage(e)
-  } finally {
-    loading.value = false
-  }
+function load() {
+  catQuery.refetch()
 }
 
 function shiftMonth(n: number) {
   const d = new Date(monthDate.value)
   d.setMonth(d.getMonth() + n)
   monthDate.value = d
-  loadSpend()
 }
 
 function openNew(type: CategoryType | null = null, parentId: string | null = null) {
@@ -141,8 +131,6 @@ function onDetailAddSub(parent: Category) {
   detail.value = null
   openNew(parent.type, parent.id)
 }
-
-onMounted(load)
 </script>
 
 <template>

@@ -1,7 +1,7 @@
 import { api, call } from './client'
 import type { CashFlowReport, ForecastReport, NetWorthReport, SpendingReport } from './types'
 
-interface DateRange {
+export interface DateRange {
   date_from?: string
   date_to?: string
 }

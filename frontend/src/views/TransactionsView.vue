@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { transactionsApi, type TransactionFilter } from '../api/transactions'
-import { accountsApi } from '../api/accounts'
-import { categoriesApi } from '../api/categories'
 import { configApi } from '../api/config'
 import { errMessage } from '../api/client'
+import { useTransactionsQuery, useAccountsQuery, useCategoriesQuery } from '../api/queries'
 import { confirm } from '../lib/confirm'
-import type { Account, Category, Transaction, TransactionType } from '../api/types'
+import type { Category, Transaction, TransactionType } from '../api/types'
 import { formatDateTime } from '../lib/format'
 import TransactionForm from '../components/TransactionForm.vue'
 import TransactionDetail from '../components/TransactionDetail.vue'
@@ -14,14 +13,25 @@ import ReceiptDetail from '../components/ReceiptDetail.vue'
 import CategoryIcon from '../components/CategoryIcon.vue'
 import SwipeRow from '../components/SwipeRow.vue'
 
-const transactions = ref<Transaction[]>([])
-const accounts = ref<Account[]>([])
-const categories = ref<Category[]>([])
+const accQuery = useAccountsQuery(true)
+const catQuery = useCategoriesQuery({ include_archived: true })
+// Debounced filter that drives the transactions query key; changing it refetches.
+const queryFilter = ref<TransactionFilter>({ limit: 200 })
+const txQuery = useTransactionsQuery(queryFilter)
+
+const transactions = computed(() => txQuery.data.value ?? [])
+const accounts = computed(() => accQuery.data.value ?? [])
+const categories = computed(() => catQuery.data.value ?? [])
 const base = ref('UZS')
 const noteThreshold = ref(Number.POSITIVE_INFINITY)
-const names = ref<Record<string, string>>({})
-const loading = ref(true)
-const error = ref('')
+const names = computed<Record<string, string>>(() => {
+  const m: Record<string, string> = {}
+  for (const a of accounts.value) m[a.id] = a.name
+  for (const c of categories.value) m[c.id] = c.name
+  return m
+})
+const loading = computed(() => txQuery.isLoading.value)
+const error = computed(() => (txQuery.error.value ? errMessage(txQuery.error.value) : ''))
 const formOpen = ref(false)
 const editing = ref<Transaction | null>(null)
 const viewing = ref<Transaction | null>(null)
@@ -129,26 +139,8 @@ function clearFilters() {
   filters.tag = ''
 }
 
-async function loadMeta() {
-  const [accs, cats] = await Promise.all([accountsApi.list(true), categoriesApi.list({ include_archived: true })])
-  const map: Record<string, string> = {}
-  for (const a of accs) map[a.id] = a.name
-  for (const c of cats) map[c.id] = c.name
-  names.value = map
-  accounts.value = accs
-  categories.value = cats
-}
-
-async function loadTransactions() {
-  loading.value = true
-  error.value = ''
-  try {
-    transactions.value = await transactionsApi.list(buildFilter())
-  } catch (e) {
-    error.value = errMessage(e)
-  } finally {
-    loading.value = false
-  }
+function loadTransactions() {
+  txQuery.refetch()
 }
 
 function openNew() {
@@ -190,13 +182,12 @@ watch(
   filters,
   () => {
     clearTimeout(timer)
-    timer = window.setTimeout(loadTransactions, 250)
+    timer = window.setTimeout(() => {
+      queryFilter.value = buildFilter()
+    }, 250)
   },
   { deep: true },
 )
-
-onMounted(() => window.addEventListener('data:refresh', loadTransactions))
-onUnmounted(() => window.removeEventListener('data:refresh', loadTransactions))
 
 onMounted(async () => {
   try {
@@ -206,8 +197,6 @@ onMounted(async () => {
   } catch {
     /* keep defaults */
   }
-  await loadMeta()
-  await loadTransactions()
 })
 </script>
 

@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { receiptsApi } from '../api/receipts'
+import { ref, computed } from 'vue'
 import { errMessage } from '../api/client'
+import { useReceiptsQuery } from '../api/queries'
 import { formatDateTime } from '../lib/format'
 import ReceiptDetail from '../components/ReceiptDetail.vue'
 import type { Receipt, ReceiptStatus } from '../api/types'
 
-const receipts = ref<Receipt[]>([])
 const page = ref(1)
 const limit = 20
-const hasMore = ref(false)
-const loading = ref(true)
-const error = ref('')
+const rQuery = useReceiptsQuery(page)
+const receipts = computed(() => rQuery.data.value ?? [])
+const hasMore = computed(() => receipts.value.length === limit)
+const loading = computed(() => rQuery.isLoading.value)
+const error = computed(() => (rQuery.error.value ? errMessage(rQuery.error.value) : ''))
 const viewingId = ref<string | null>(null)
 
 const statusStyle: Record<ReceiptStatus, { label: string; cls: string }> = {
@@ -21,28 +22,15 @@ const statusStyle: Record<ReceiptStatus, { label: string; cls: string }> = {
   failed: { label: 'Failed', cls: 'bg-rose-50 text-rose-700 ring-rose-200' },
 }
 
-async function load(p = 1) {
-  loading.value = true
-  error.value = ''
-  try {
-    const rows = await receiptsApi.list(p, limit)
-    receipts.value = rows
-    page.value = p
-    hasMore.value = rows.length === limit
-  } catch (e) {
-    error.value = errMessage(e)
-  } finally {
-    loading.value = false
-  }
+// Changing page re-keys the query and refetches; same-page reload forces it.
+function load(p = page.value) {
+  if (p === page.value) rQuery.refetch()
+  else page.value = p
 }
 
 function when(r: Receipt): string {
   return formatDateTime(r.received_at ?? r.created_at)
 }
-
-onMounted(() => load())
-onMounted(() => window.addEventListener('data:refresh', () => load(page.value)))
-onUnmounted(() => window.removeEventListener('data:refresh', () => load(page.value)))
 </script>
 
 <template>

@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { accountsApi } from '../api/accounts'
-import { categoriesApi } from '../api/categories'
 import { configApi } from '../api/config'
 import { errMessage } from '../api/client'
+import { useAccountsQuery, useCategoriesQuery } from '../api/queries'
 import { confirm } from '../lib/confirm'
-import type { Account, Category } from '../api/types'
+import type { Account } from '../api/types'
 import { Money } from '../api/money'
 import { toMajor } from '../lib/format'
 import SwipeRow from '../components/SwipeRow.vue'
@@ -14,12 +14,14 @@ import TransactionForm from '../components/TransactionForm.vue'
 import LoanScheduleModal from '../components/LoanScheduleModal.vue'
 import ReconciliationPanel from '../components/ReconciliationPanel.vue'
 
-const accounts = ref<Account[]>([])
-const categories = ref<Category[]>([])
+const accQuery = useAccountsQuery()
+const catQuery = useCategoriesQuery()
+const accounts = computed(() => accQuery.data.value ?? [])
+const categories = computed(() => catQuery.data.value ?? [])
 const base = ref('UZS')
 const noteThreshold = ref(Number.POSITIVE_INFINITY)
-const loading = ref(true)
-const error = ref('')
+const loading = computed(() => accQuery.isLoading.value)
+const error = computed(() => (accQuery.error.value ? errMessage(accQuery.error.value) : ''))
 const formOpen = ref(false)
 const editing = ref<Account | null>(null)
 const scheduleFor = ref<Account | null>(null)
@@ -53,15 +55,8 @@ const typeLabel = {
 }
 const typeIcon = { cash: 'cash', debit_card: 'credit-card', deposit: 'building-bank', credit_card: 'credit-card', loan: 'home', receivable: 'users' }
 
-async function load() {
-  loading.value = true
-  try {
-    accounts.value = await accountsApi.list()
-  } catch (e) {
-    error.value = errMessage(e)
-  } finally {
-    loading.value = false
-  }
+function load() {
+  accQuery.refetch()
 }
 
 function onCharged() {
@@ -91,9 +86,6 @@ async function remove(a: Account) {
   }
 }
 
-onMounted(() => window.addEventListener('data:refresh', load))
-onUnmounted(() => window.removeEventListener('data:refresh', load))
-
 onMounted(async () => {
   try {
     const cfg = await configApi.get()
@@ -102,12 +94,6 @@ onMounted(async () => {
   } catch {
     /* keep defaults */
   }
-  try {
-    categories.value = await categoriesApi.list()
-  } catch {
-    /* full-charge is a transfer; categories are optional */
-  }
-  load()
 })
 </script>
 

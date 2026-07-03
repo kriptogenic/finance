@@ -1,22 +1,28 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { scheduledTransactionsApi } from '../api/scheduledTransactions'
-import { accountsApi } from '../api/accounts'
-import { categoriesApi } from '../api/categories'
 import { reportsApi } from '../api/reports'
 import { errMessage } from '../api/client'
+import { useSchedulesQuery, useAccountsQuery, useCategoriesQuery, useForecastQuery } from '../api/queries'
 import { confirm } from '../lib/confirm'
-import type { Account, Category, ForecastReport, ScheduledTransaction } from '../api/types'
+import type { ScheduledTransaction } from '../api/types'
 import ScheduledTransactionForm from '../components/ScheduledTransactionForm.vue'
 
-const schedules = ref<ScheduledTransaction[]>([])
-const accounts = ref<Account[]>([])
-const categories = ref<Category[]>([])
-const forecast = ref<ForecastReport | null>(null)
-const base = ref('UZS')
 const month = ref(new Date().toISOString().slice(0, 7)) // YYYY-MM
-const loading = ref(true)
-const error = ref('')
+const schedQuery = useSchedulesQuery()
+const accQuery = useAccountsQuery()
+const catQuery = useCategoriesQuery({})
+const fcQuery = useForecastQuery(month)
+const schedules = computed(() => schedQuery.data.value ?? [])
+const accounts = computed(() => accQuery.data.value ?? [])
+const categories = computed(() => catQuery.data.value ?? [])
+const forecast = computed(() => fcQuery.data.value ?? null)
+const base = ref('UZS')
+const loading = computed(() => schedQuery.isLoading.value || fcQuery.isLoading.value)
+const error = computed(() => {
+  const e = schedQuery.error.value || fcQuery.error.value
+  return e ? errMessage(e) : ''
+})
 const formOpen = ref(false)
 const editing = ref<ScheduledTransaction | null>(null)
 
@@ -61,31 +67,11 @@ const monthLabel = computed(() =>
   new Date(month.value + '-01').toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
 )
 
-async function loadForecast() {
-  try {
-    forecast.value = await reportsApi.forecast(month.value)
-  } catch (e) {
-    error.value = errMessage(e)
-  }
-}
-
-async function load() {
-  loading.value = true
-  try {
-    const [scs, accs, cats] = await Promise.all([
-      scheduledTransactionsApi.list(),
-      accountsApi.list(),
-      categoriesApi.list({}),
-    ])
-    schedules.value = scs
-    accounts.value = accs
-    categories.value = cats
-    await loadForecast()
-  } catch (e) {
-    error.value = errMessage(e)
-  } finally {
-    loading.value = false
-  }
+function load() {
+  schedQuery.refetch()
+  accQuery.refetch()
+  catQuery.refetch()
+  fcQuery.refetch()
 }
 
 function openNew() {
@@ -110,16 +96,12 @@ async function remove(s: ScheduledTransaction) {
   }
 }
 
-onMounted(() => window.addEventListener('data:refresh', load))
-onUnmounted(() => window.removeEventListener('data:refresh', load))
-
 onMounted(async () => {
   try {
     base.value = (await reportsApi.netWorth()).base
   } catch {
     /* keep default */
   }
-  load()
 })
 </script>
 
@@ -130,7 +112,7 @@ onMounted(async () => {
         <h1 class="text-2xl font-bold tracking-tight text-slate-900">Forecast</h1>
       </div>
       <div class="flex items-center gap-2">
-        <input v-model="month" type="month" class="field !w-auto !py-1.5" @change="loadForecast" />
+        <input v-model="month" type="month" class="field !w-auto !py-1.5" />
         <button class="btn btn-primary shrink-0" @click="openNew">+ New<span class="hidden sm:inline"> plan</span></button>
       </div>
     </div>

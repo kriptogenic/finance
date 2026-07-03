@@ -16,7 +16,12 @@ import DonutChart from '../components/DonutChart.vue'
 const qc = useQueryClient()
 onMounted(() => prefetchAccountsAndTransactions(qc))
 
-const range = reactive({ from: '', to: '' })
+// Default to the current calendar month.
+const today = new Date()
+const range = reactive({
+  from: fmt(new Date(today.getFullYear(), today.getMonth(), 1)),
+  to: fmt(today),
+})
 
 // Spending + cash flow both key on the selected range; changing it refetches.
 const reportParams = computed<DateRange>(() => {
@@ -40,9 +45,10 @@ const error = computed(() => {
   const e = nwQuery.error.value || spQuery.error.value || cfQuery.error.value
   return e ? errMessage(e) : ''
 })
-const activePreset = ref('all')
+const activePreset = ref('month')
 
 const presets = [
+  { key: 'month', label: 'Month' },
   { key: '30d', label: '30D' },
   { key: '3m', label: '3M' },
   { key: '6m', label: '6M' },
@@ -65,7 +71,8 @@ function setPreset(key: string) {
   }
   const now = new Date()
   const from = new Date(now)
-  if (key === '30d') from.setDate(from.getDate() - 30)
+  if (key === 'month') from.setDate(1)
+  else if (key === '30d') from.setDate(from.getDate() - 30)
   else if (key === '3m') from.setMonth(from.getMonth() - 3)
   else if (key === '6m') from.setMonth(from.getMonth() - 6)
   else if (key === '12m') from.setMonth(from.getMonth() - 12)

@@ -1,10 +1,20 @@
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useQueryClient } from '@tanstack/vue-query'
 import type { DateRange } from '../api/reports'
 import { errMessage } from '../api/client'
-import { useNetWorthQuery, useSpendingQuery, useCashFlowQuery } from '../api/queries'
+import {
+  useNetWorthQuery,
+  useSpendingQuery,
+  useCashFlowQuery,
+  prefetchAccountsAndTransactions,
+} from '../api/queries'
 import CategorizeCard from '../components/CategorizeCard.vue'
 import DonutChart from '../components/DonutChart.vue'
+
+// Warm the two most-visited pages in the background once the dashboard mounts.
+const qc = useQueryClient()
+onMounted(() => prefetchAccountsAndTransactions(qc))
 
 const range = reactive({ from: '', to: '' })
 

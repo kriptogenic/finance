@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import type { Category } from '../api/types'
 import Modal from './Modal.vue'
 import CategoryIcon from './CategoryIcon.vue'
@@ -11,6 +12,12 @@ const props = withDefaults(
 const emit = defineEmits<{ edit: [Category]; remove: [Category]; addSub: [Category]; close: [] }>()
 
 const tint = computed(() => (props.category.color ? { backgroundColor: props.category.color + '22' } : undefined))
+
+const router = useRouter()
+function viewTransactions() {
+  router.push({ name: 'transactions', query: { category: props.category.id } })
+  emit('close')
+}
 </script>
 
 <template>
@@ -40,6 +47,10 @@ const tint = computed(() => (props.category.color ? { backgroundColor: props.cat
 
       <button class="btn btn-soft w-full" @click="emit('addSub', category)">
         <i class="ti ti-plus" /> Add subcategory
+      </button>
+
+      <button class="btn btn-soft w-full" @click="viewTransactions">
+        <i class="ti ti-list-details" /> View transactions
       </button>
 
       <div class="flex gap-2 border-t border-slate-100 pt-4">

@@ -10,6 +10,7 @@ import { Money } from '../api/money'
 import { toMajor } from '../lib/format'
 import SwipeRow from '../components/SwipeRow.vue'
 import AccountForm from '../components/AccountForm.vue'
+import AccountDetailSheet from '../components/AccountDetailSheet.vue'
 import TransactionForm from '../components/TransactionForm.vue'
 import LoanScheduleModal from '../components/LoanScheduleModal.vue'
 import ReconciliationPanel from '../components/ReconciliationPanel.vue'
@@ -26,6 +27,7 @@ const formOpen = ref(false)
 const editing = ref<Account | null>(null)
 const scheduleFor = ref<Account | null>(null)
 const charging = ref<Account | null>(null)
+const detail = ref<Account | null>(null)
 
 // receivables (people who owe you) live in their own group, separate from
 // your real assets.
@@ -128,7 +130,7 @@ onMounted(async () => {
             <li v-for="a in group.items" :key="a.id">
               <!-- mobile: tap = edit, swipe right = edit, swipe left = delete -->
               <SwipeRow @swipe-right="openEdit(a)" @swipe-left="remove(a)">
-                <div class="group flex cursor-pointer items-center gap-4 px-4 py-4 transition hover:bg-slate-50 sm:px-5" @click="openEdit(a)">
+                <div class="group flex cursor-pointer items-center gap-4 px-4 py-4 transition hover:bg-slate-50 sm:px-5" @click="detail = a">
                   <span class="grid h-11 w-11 place-items-center rounded-2xl text-xal text-slate-600" :class="group.tile"><i :class="`ti ti-${typeIcon[a.type]}`" /></span>
                   <div class="min-w-0">
                     <p class="truncate font-semibold text-slate-800">{{ a.name }}</p>
@@ -182,6 +184,13 @@ onMounted(async () => {
       <ReconciliationPanel />
     </template>
 
+    <AccountDetailSheet
+      v-if="detail"
+      :account="detail"
+      @close="detail = null"
+      @edit="detail = null; openEdit($event)"
+      @remove="detail = null; remove($event)"
+    />
     <AccountForm v-if="formOpen" :account="editing" :base="base" @close="formOpen = false" @saved="onSaved" />
     <TransactionForm
       v-if="charging"

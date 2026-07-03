@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { transactionsApi, type TransactionFilter } from '../api/transactions'
 import { configApi } from '../api/config'
 import { errMessage } from '../api/client'
@@ -188,6 +189,16 @@ watch(
   },
   { deep: true },
 )
+
+// Pre-apply filters passed via the URL (e.g. from an account/category detail).
+const route = useRoute()
+onMounted(() => {
+  const q = route.query
+  if (typeof q.account === 'string') filters.accountId = q.account
+  if (typeof q.category === 'string') filters.categoryId = q.category
+  if (typeof q.type === 'string') filters.type = q.type as TransactionType
+  queryFilter.value = buildFilter()
+})
 
 onMounted(async () => {
   try {

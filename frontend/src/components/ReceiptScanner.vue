@@ -88,6 +88,15 @@ async function detectFrame(): Promise<string | null> {
   return jsQR(image.data, w, h, { inversionAttempts: 'dontInvert' })?.data?.trim() || null
 }
 
+function isValidUrl(value: string): boolean {
+  try {
+    const u = new URL(value)
+    return u.protocol === 'http:' || u.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 function scanLoop() {
   if (!scanning) return
   detectFrame()
@@ -96,6 +105,8 @@ function scanLoop() {
         qrUrl.value = value
         detected.value = true
         scanning = false
+        // Valid URL → submit to the backend immediately, no extra tap.
+        if (isValidUrl(value)) capture()
       }
     })
     .finally(() => {

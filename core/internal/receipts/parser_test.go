@@ -89,6 +89,10 @@ func TestParseJSON(t *testing.T) {
 	require.NotNil(t, r.ReceivedAt)
 	assert.Equal(t, 2026, r.ReceivedAt.Year())
 	assert.Equal(t, 16, r.ReceivedAt.Hour())
+	// soliq timestamps are UTC+5; the stored instant must reflect that.
+	_, offset := r.ReceivedAt.Zone()
+	assert.Equal(t, 5*60*60, offset)
+	assert.Equal(t, 11, r.ReceivedAt.UTC().Hour())
 
 	assert.Equal(t, int64(0), r.PaidCash.Minor())
 	assert.Equal(t, int64(599000), r.PaidCard.Minor())

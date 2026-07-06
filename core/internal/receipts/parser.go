@@ -14,6 +14,10 @@ import (
 
 func uzs(v int64) money.Money { return money.New(v, entities.ReceiptCurrency) }
 
+// soliqZone is Uzbekistan time (UTC+5, no DST). soliq timestamps carry no zone,
+// so parse them in this fixed offset rather than defaulting to UTC.
+var soliqZone = time.FixedZone("UZT", 5*60*60)
+
 // cardTypeLabels maps soliq's numeric card type to its Uzbek label (from the
 // ofd.soliq.uz web client).
 var cardTypeLabels = map[int]string{1: "Korporativ", 2: "Shaxsiy", 3: "Ijtimoiy"}
@@ -63,7 +67,7 @@ func ParseQRParams(qrURL string) (terminalID *string, seq *int, fiscalSign *stri
 	}
 	if c := q.Get("c"); c != "" {
 		// c is a compact timestamp, e.g. 20240102150405.
-		if ts, err := time.Parse("20060102150405", c); err == nil {
+		if ts, err := time.ParseInLocation("20060102150405", c, soliqZone); err == nil {
 			receivedAt = &ts
 		}
 	}
@@ -186,7 +190,7 @@ func ParseJSON(raw []byte) (entities.Receipt, error) {
 	r.TotalAmount = uzs(r.PaidCash.Minor() + r.PaidCard.Minor())
 
 	// paymentDate is "dd.MM.yyyy HH:mm:ss".
-	if ts, err := time.Parse("02.01.2006 15:04:05", d.PaymentDate); err == nil {
+	if ts, err := time.ParseInLocation("02.01.2006 15:04:05", d.PaymentDate, soliqZone); err == nil {
 		r.ReceivedAt = &ts
 	}
 

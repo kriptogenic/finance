@@ -81,7 +81,10 @@ func (r repository) Apply(ctx context.Context, p ApplyParams) (group *uuid.UUID,
 		return nil, commit(ctx, tx)
 	}
 
-	newGroup := uuid.New()
+	newGroup, err := uuid.NewV7()
+	if err != nil {
+		return nil, fmt.Errorf("split group id: %w", err)
+	}
 	if _, err = tx.Exec(ctx,
 		`UPDATE transactions SET amount = $2, base_amount = $3, split_group_id = $4 WHERE id = $1`,
 		p.MainTxID, p.MyShare, p.MyShareBase, newGroup); err != nil {

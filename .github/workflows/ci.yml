@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: core (build · test · lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      # oapi-codegen output is gitignored — regenerate from specs first.
+      - name: Generate
+        working-directory: core
+        run: make generate
+
+      - name: Build
+        working-directory: core
+        run: go build ./...
+
+      # Integration tests spin up Postgres via testcontainers (Docker is
+      # preinstalled on the runner).
+      - name: Test
+        working-directory: core
+        run: go test -race -timeout 300s -count=1 ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: core
+
+  lookout:
+    name: lookout (build · vet · test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: lookout/go.mod
+          cache-dependency-path: lookout/go.sum
+
+      - name: Generate
+        working-directory: lookout
+        run: make generate
+
+      - name: Vet
+        working-directory: lookout
+        run: go vet ./...
+
+      - name: Build
+        working-directory: lookout
+        run: go build ./...
+
+      - name: Test
+        working-directory: lookout
+        run: go test ./...
+
+  frontend:
+    name: frontend (typecheck · build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # gen:api reads ../specs/api.yaml; typecheck + build depend on it.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build

@@ -3,6 +3,7 @@ package receipts
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -55,6 +56,20 @@ func (s *Service) Create(ctx context.Context, qrURL string, photo []byte, conten
 	}
 
 	terminal, seq, sign, receivedAt := ParseQRParams(qrURL)
+
+	// Idempotency: a receipt is uniquely identified by its fiscal triple. If this
+	// QR was already ingested, return the existing receipt instead of re-scraping.
+	hasFiscalID := terminal != nil && seq != nil && sign != nil
+	if hasFiscalID {
+		existing, err := s.repo.FindByFiscal(ctx, terminal, seq, sign)
+		if err == nil {
+			return existing.ID, nil
+		}
+		if !errors.Is(err, receiptrepository.ErrNotFound) {
+			return uuid.Nil, err
+		}
+	}
+
 	rec := entities.Receipt{
 		QRURL:      qrURL,
 		Status:     entities.ReceiptPending,
@@ -64,6 +79,16 @@ func (s *Service) Create(ctx context.Context, qrURL string, photo []byte, conten
 		ReceivedAt: receivedAt,
 	}
 	if err := s.repo.Create(ctx, &rec); err != nil {
+		// Lost a race with a concurrent scan of the same QR — return the winner.
+		if hasFiscalID && errors.Is(err, receiptrepository.ErrDuplicate) {
+			existing, ferr := s.repo.FindByFiscal(ctx, terminal, seq, sign)
+			if ferr != nil {
+				return uuid.Nil, ferr
+			}
+
+			return existing.ID, nil
+		}
+
 		return uuid.Nil, err
 	}
 

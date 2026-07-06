@@ -105,6 +105,44 @@ func TestReceiptSetTransactionConflict(t *testing.T) {
 	assert.Equal(t, exp.ID, *got.TransactionID)
 }
 
+func TestReceiptFiscalDedup(t *testing.T) {
+	reset(t)
+	ctx := context.Background()
+	repo := receiptRepo()
+
+	term, sign := "TERM1", "SIGN1"
+	seq := 42
+	fiscal := func() entities.Receipt {
+		return entities.Receipt{
+			QRURL:      "https://ofd.soliq.uz/check?t=TERM1&r=42&s=SIGN1",
+			Status:     entities.ReceiptPending,
+			TerminalID: &term,
+			ReceiptSeq: &seq,
+			FiscalSign: &sign,
+		}
+	}
+
+	// none stored yet
+	_, err := repo.FindByFiscal(ctx, &term, &seq, &sign)
+	assert.ErrorIs(t, err, receiptrepository.ErrNotFound)
+
+	first := fiscal()
+	require.NoError(t, repo.Create(ctx, &first))
+
+	// same fiscal triple -> unique index rejects with ErrDuplicate
+	dup := fiscal()
+	assert.ErrorIs(t, repo.Create(ctx, &dup), receiptrepository.ErrDuplicate)
+
+	// lookup returns the original receipt
+	got, err := repo.FindByFiscal(ctx, &term, &seq, &sign)
+	require.NoError(t, err)
+	assert.Equal(t, first.ID, got.ID)
+
+	// rows missing part of the triple are unconstrained (manual/partial scans)
+	require.NoError(t, repo.Create(ctx, &entities.Receipt{QRURL: "https://x/1", Status: entities.ReceiptPending}))
+	require.NoError(t, repo.Create(ctx, &entities.Receipt{QRURL: "https://x/2", Status: entities.ReceiptPending}))
+}
+
 func TestReceiptRawPayload(t *testing.T) {
 	reset(t)
 	ctx := context.Background()

@@ -18,11 +18,16 @@ var (
 	ErrNotFound = errors.New("receipt not found")
 	// ErrAlreadyLinked means the target transaction is linked to another receipt.
 	ErrAlreadyLinked = errors.New("transaction already linked to a receipt")
+	// ErrDuplicate means a receipt with the same fiscal identity already exists.
+	ErrDuplicate = errors.New("receipt already exists")
 )
 
 type Repository interface {
 	// Create inserts a new receipt header (typically in the pending state).
+	// Returns ErrDuplicate when the fiscal identity already exists.
 	Create(ctx context.Context, r *entities.Receipt) error
+	// FindByFiscal returns the receipt matching the fiscal triple, or ErrNotFound.
+	FindByFiscal(ctx context.Context, terminalID *string, seq *int, fiscalSign *string) (*entities.Receipt, error)
 	// SetStatus updates only the status (and optional error reason).
 	SetStatus(ctx context.Context, id uuid.UUID, status entities.ReceiptStatus, errMsg *string) error
 	// SetPhotoKey records the stored photo's object key.
@@ -62,10 +67,38 @@ func (r repository) Create(ctx context.Context, rec *entities.Receipt) error {
 		rec.QRURL, rec.Status, rec.TerminalID, rec.ReceiptSeq, rec.FiscalSign, rec.ReceivedAt,
 	).Scan(&rec.ID, &rec.CreatedAt)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrDuplicate
+		}
+
 		return fmt.Errorf("create receipt: %w", err)
 	}
 
 	return nil
+}
+
+func (r repository) FindByFiscal(ctx context.Context, terminalID *string, seq *int, fiscalSign *string) (*entities.Receipt, error) {
+	const query = `SELECT ` + headerCols + `
+		FROM receipts
+		WHERE terminal_id = $1 AND receipt_seq = $2 AND fiscal_sign = $3
+		ORDER BY (transaction_id IS NOT NULL) DESC, created_at ASC
+		LIMIT 1`
+
+	rows, err := r.db.Pool.Query(ctx, query, terminalID, seq, fiscalSign)
+	if err != nil {
+		return nil, fmt.Errorf("find receipt by fiscal: %w", err)
+	}
+
+	rec, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[entities.Receipt])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find receipt by fiscal: %w", err)
+	}
+
+	return &rec, nil
 }
 
 func (r repository) SetStatus(ctx context.Context, id uuid.UUID, status entities.ReceiptStatus, errMsg *string) error {

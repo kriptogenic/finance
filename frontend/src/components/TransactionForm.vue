@@ -60,9 +60,16 @@ async function del() {
 }
 
 const t = props.transaction
+
+// Archived accounts are hidden unless this entry already points at one.
+const pinnedAccountIds = new Set(
+  [t?.from_account_id, t?.to_account_id, props.prefill?.fromId, props.prefill?.toId].filter(Boolean) as string[],
+)
+const accountOptions = computed(() => props.accounts.filter((a) => !a.archived || pinnedAccountIds.has(a.id)))
+
 // Sensible default account: prefer one in the base currency to avoid an
 // immediate rate prompt on a brand-new entry.
-const defaultAccount = props.accounts.find((a) => a.currency === props.base) ?? props.accounts[0]
+const defaultAccount = accountOptions.value.find((a) => a.currency === props.base) ?? accountOptions.value[0]
 
 // New entries default to Transfer; an existing split expense opens on Split.
 const initialType: FormType = t ? (t.split_group_id ? 'split' : t.type) : (props.prefill?.type ?? 'transfer')
@@ -358,7 +365,7 @@ async function submit() {
         <label class="lbl">{{ form.type === 'split' ? 'Paid from' : 'From account' }}</label>
         <div class="flex flex-wrap gap-2">
           <button
-            v-for="a in accounts"
+            v-for="a in accountOptions"
             :key="a.id"
             type="button"
             class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition"
@@ -431,7 +438,7 @@ async function submit() {
         <label class="lbl">To account</label>
         <div class="flex flex-wrap gap-2">
           <button
-            v-for="a in accounts"
+            v-for="a in accountOptions"
             :key="a.id"
             type="button"
             class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition"

@@ -12,6 +12,7 @@ type Closer = () => void
 
 const stack: Closer[] = []
 let hasSentinel = false
+let sentinelHref = ''
 
 function ensureSentinel() {
   if (stack.length > 0 && !hasSentinel) {
@@ -19,6 +20,7 @@ function ensureSentinel() {
     // entry changes nothing about the location, so it triggers no navigation.
     history.pushState(history.state, '')
     hasSentinel = true
+    sentinelHref = location.href
   }
 }
 
@@ -34,7 +36,9 @@ function scheduleCleanup() {
   queueMicrotask(() => {
     if (stack.length === 0 && hasSentinel) {
       hasSentinel = false
-      history.back()
+      // A modal that navigated on close (e.g. "View transactions") pushed its own
+      // entry above the sentinel; popping now would undo that navigation.
+      if (location.href === sentinelHref) history.back()
     }
   })
 }

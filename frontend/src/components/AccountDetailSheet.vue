@@ -9,8 +9,10 @@ const props = defineProps<{ account: Account }>()
 const emit = defineEmits<{ edit: [Account]; remove: [Account]; close: [] }>()
 
 const router = useRouter()
-function viewTransactions() {
-  router.push({ name: 'transactions', query: { account: props.account.id } })
+// Navigate first, then close: the modal's history sentinel is only safe to drop
+// once the new entry is on the stack.
+async function viewTransactions() {
+  await router.push({ name: 'transactions', query: { account: props.account.id } })
   emit('close')
 }
 

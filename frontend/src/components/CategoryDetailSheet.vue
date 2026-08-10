@@ -14,8 +14,10 @@ const emit = defineEmits<{ edit: [Category]; remove: [Category]; addSub: [Catego
 const tint = computed(() => (props.category.color ? { backgroundColor: props.category.color + '22' } : undefined))
 
 const router = useRouter()
-function viewTransactions() {
-  router.push({ name: 'transactions', query: { category: props.category.id } })
+// Navigate first, then close: the modal's history sentinel is only safe to drop
+// once the new entry is on the stack.
+async function viewTransactions() {
+  await router.push({ name: 'transactions', query: { category: props.category.id } })
   emit('close')
 }
 </script>
